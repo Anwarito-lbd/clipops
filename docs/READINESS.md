@@ -1,31 +1,43 @@
-# ClipOps readiness (2026-07-27)
+# ClipOps readiness — how to reach **99%**
 
-## Score: **~90% ready for month-1 Operator Mode**
+## Two different scores
 
-You can run the full human-gated loop on this machine today.
+| Score | What it measures | Your machine now |
+|-------|------------------|------------------|
+| **Stack** (`/health` media) | GPU, FFmpeg, Remotion, Redis, ASR | Already **~100%** |
+| **Go-live** (`/api/operator/readiness`) | Software + one full human dry run | Climbs as you complete the loop |
 
-| Area | Ready? | Notes |
-|------|--------|-------|
-| Campaign discover → approve → Join (you) | Yes | Extension + Operator UI |
-| Upload → ASR → scenes → rank → draft render | Yes | CUDA WhisperX/faster-whisper; eager pipeline default |
-| Preview → approve → export download | Yes | Review + Exports |
-| Post / Submit / Cash-out | Assist only | You click; ClipOps never auto-clicks |
-| Tracking / £1K forecast / learning | Yes | Needs real post metrics over time |
-| Secrets | Yes locally | Rotated hash+JWT; set `CLIPOPS_ENV=production` for shared host |
-| Remotion overlays | Yes if `:3100` up | Else FFmpeg hook burn-in |
-| Redis async workers | Optional | Installed + pingable; keep `CELERY_EAGER=true` unless you want async |
-| Speaker diarization | Optional | Needs `HF_TOKEN` + pyannote model access |
+**99% = go-live score**, not stack. The last points only come from *you* doing CR/TikTok clicks once.
 
-## What “ready” means here
+## Path to 99% (in order)
 
-- **Software:** Operator Mode path is implemented and smoke-tested.
-- **Earnings:** £1K is a **planning target**, not guaranteed — depends on CR campaigns, CPM, approval rate, and your posting volume.
-- **Still human:** Join, TikTok Post, CR Submit, Cash-out stay manual by design.
+1. **Start stack** — `.\scripts\go_live_99.ps1` (or `start_stack.ps1`)
+2. **API + dashboard** — see README; sign in with rotated password
+3. **Chrome extension** — Load unpacked `browser-extension/`
+4. **Scan CR** — logged-in Content Rewards tab → Scan → Approve campaign → **you Join**
+5. **Upload footage** — Assets → wait until GENERATED / drafts ready
+6. **Review** — preview draft → Approve → Exports → **Download**
+7. **You Post on TikTok** → paste URL → Mark posted  
+8. **You Submit on CR** (extension can highlight) → Mark submitted  
+9. **Enter views** in Tracking after a day — learning loop closes  
 
-## Day-1 checklist
+Home shows **Go-live score** and the next 3 incomplete steps automatically.
 
-1. `.\scripts\start_stack.ps1` (Redis + Remotion)
-2. API + dashboard (see README)
-3. Sign in with rotated password
-4. Load extension → scan CR → approve campaign → Join yourself
-5. Upload footage → Review drafts → Approve → Download → Post yourself
+## What will never be 100% in this product
+
+- Auto Join / Post / Submit / Cash-out (forbidden by design)
+- Guaranteed £1K (planning target only)
+- Perfect CR DOM scraping if their site redesigns (extension may need selector tweaks)
+
+## Optional polish (not required for 99%)
+
+- `HF_TOKEN` — speaker diarization  
+- `CELERY_EAGER=false` + worker — async long videos  
+- `CLIPOPS_ENV=production` — if the machine is shared/remote  
+
+## Day-1 commands
+
+```powershell
+.\scripts\go_live_99.ps1
+# then API + dashboard from README
+```

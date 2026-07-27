@@ -143,6 +143,35 @@ def operator_status(_user: str = Depends(require_operator)):
     }
 
 
+@router.get("/operator/readiness")
+def operator_readiness(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Scored checklist toward 99% go-live (software + first real dry run)."""
+    from app.readiness import compute_go_live
+    from app.db import (
+        Campaign,
+        ClipPerformance,
+        ClipVersion,
+        DiscoveredCampaign,
+        Post,
+        Render,
+        SocialAccount,
+        Submission,
+    )
+
+    return compute_go_live(
+        settings=get_settings(),
+        db=db,
+        Campaign=Campaign,
+        ClipVersion=ClipVersion,
+        Render=Render,
+        Post=Post,
+        Submission=Submission,
+        ClipPerformance=ClipPerformance,
+        DiscoveredCampaign=DiscoveredCampaign,
+        SocialAccount=SocialAccount,
+    )
+
+
 @router.post("/operator/discover")
 def ingest_discovered(
     body: DiscoverBatch,

@@ -45,11 +45,20 @@ type Home = {
   production_queue: Array<{ title: string; status: string; at: string | null }>;
 };
 
+type GoLive = {
+  score: number;
+  target: number;
+  next: Array<{ id: string; label: string; how: string }>;
+  items: Array<{ id: string; label: string; done: boolean; how: string }>;
+  note: string;
+};
+
 export default function HomePage() {
   const [home, setHome] = useState<Home | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("operator@clipops.local");
   const [password, setPassword] = useState("");
+  const [goLive, setGoLive] = useState<GoLive | null>(null);
   const [stack, setStack] = useState<{
     readiness_pct?: number;
     remotion?: boolean;
@@ -76,6 +85,7 @@ export default function HomePage() {
   async function load() {
     try {
       setHome(await api<Home>("/api/operator/home"));
+      setGoLive(await api<GoLive>("/api/operator/readiness"));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
@@ -149,6 +159,36 @@ export default function HomePage() {
             <span>Mode {stack.mode || "—"}</span>
             <span>Diarize {stack.diarization_ready ? "✓" : "—"}</span>
           </div>
+        </div>
+      )}
+
+      {goLive && (
+        <div className="rounded-lg border border-border bg-card p-4 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold uppercase tracking-wide text-muted-foreground">
+              Go-live score (→ {goLive.target}%)
+            </span>
+            <span className="text-sm font-bold">{goLive.score}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+            <div
+              className="h-full bg-primary"
+              style={{ width: `${goLive.score}%` }}
+            />
+          </div>
+          <p className="text-muted-foreground">{goLive.note}</p>
+          {goLive.next.length > 0 ? (
+            <ol className="list-decimal space-y-1 pl-4">
+              {goLive.next.map((n) => (
+                <li key={n.id}>
+                  <span className="font-medium text-foreground">{n.label}</span>
+                  <div className="text-muted-foreground">{n.how}</div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-success">All go-live steps complete.</p>
+          )}
         </div>
       )}
 
