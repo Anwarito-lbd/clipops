@@ -66,6 +66,25 @@ document.getElementById("submit").onclick = async () => {
   log(await sendTab("HIGHLIGHT_SUBMIT"));
 };
 
+document.getElementById("package").onclick = async () => {
+  try {
+    const tab = await activeTab();
+    if (!tab?.id) throw new Error("No active tab");
+    const text = await navigator.clipboard.readText().catch(() => "");
+    const pkg = {
+      caption: text || "",
+      notes: "Paste caption/TikTok URL from ClipOps Exports if clipboard empty.",
+    };
+    const res = await chrome.tabs.sendMessage(tab.id, {
+      type: "ASSIST_SUBMISSION_PACKAGE",
+      package: pkg,
+    });
+    log(res);
+  } catch (e) {
+    log(String(e));
+  }
+};
+
 document.getElementById("payout").onclick = async () => {
   try {
     const res = await sendTab("WATCH_PAYOUT");

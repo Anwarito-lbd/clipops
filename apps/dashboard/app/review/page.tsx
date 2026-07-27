@@ -69,7 +69,7 @@ function PreviewPlayer({ previewUrl }: { previewUrl: string | null }) {
   if (!previewUrl) {
     return (
       <div className="flex aspect-[9/16] max-h-64 items-center justify-center rounded-md bg-background text-xs text-muted-foreground">
-        Preview after approve/render
+        Preview after processing
       </div>
     );
   }
@@ -168,7 +168,7 @@ export default function ReviewPage() {
       <div>
         <h1 className="text-xl font-bold">Approval queue</h1>
         <p className="text-sm text-muted-foreground">
-          Score, compliance, predicted performance. You approve before any post.
+          Preview the draft cut, then approve. Posting stays manual.
         </p>
       </div>
 

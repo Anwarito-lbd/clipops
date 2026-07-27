@@ -43,6 +43,7 @@ from app.schemas import (
     MetricsUpdate,
 )
 from app.storage_security import assert_allowed_upload, resolve_under_root, sanitize_filename
+from app.jobs import enqueue_or_run, media_preview_url
 from packages.shared_types.constants import ALLOWED_TRANSITIONS
 
 router = APIRouter(tags=["pipeline"])
@@ -114,16 +115,10 @@ async def upload_asset(
     db.commit()
     db.refresh(asset)
 
-    # Enqueue or run inline if Celery/Redis unavailable
-    try:
-        from app.tasks import process_asset
+    from app.tasks import process_asset
 
-        process_asset.delay(asset.id)
-    except Exception:
-        from app.tasks import process_asset
-
-        process_asset(asset.id)
-        db.refresh(asset)
+    enqueue_or_run(process_asset, asset.id)
+    db.refresh(asset)
     return asset
 
 
@@ -181,10 +176,7 @@ def reprocess_asset(asset_id: str, db: Session = Depends(get_db), _user: str = D
         raise HTTPException(404, "Asset not found")
     from app.tasks import process_asset
 
-    try:
-        process_asset.delay(asset.id)
-    except Exception:
-        process_asset(asset.id)
+    enqueue_or_run(process_asset, asset.id)
     db.refresh(asset)
     return asset
 
@@ -259,12 +251,28 @@ def approve_version(
     version.status = "APPROVED"
     db.commit()
 
-    from app.tasks import render_version
+    # Prefer promoting an existing draft render; otherwise render now
+    render = (
+        db.query(Render)
+        .filter(Render.clip_version_id == version_id)
+        .order_by(Render.created_at.desc())
+        .first()
+    )
+    has_video = bool(
+        render
+        and render.video_path
+        and Path(render.video_path).exists()
+        and Path(render.video_path).stat().st_size > 0
+    )
+    if has_video:
+        render.status = "EXPORTED"
+        _transition("APPROVED", "EXPORTED")
+        version.status = "EXPORTED"
+        db.commit()
+    else:
+        from app.tasks import render_version
 
-    try:
-        render_version.delay(version.id)
-    except Exception:
-        render_version(version.id)
+        enqueue_or_run(render_version, version.id, draft=False)
     db.refresh(version)
     return version
 
@@ -283,20 +291,25 @@ def reject_version(version_id: str, db: Session = Depends(get_db), _user: str = 
 
 @router.get("/versions/{version_id}/renders")
 def list_renders(version_id: str, db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    settings = get_settings()
     rows = db.query(Render).filter(Render.clip_version_id == version_id).all()
-    return [
-        {
-            "id": r.id,
-            "account_slot": r.account_slot,
-            "video_path": r.video_path,
-            "caption_path": r.caption_path,
-            "cover_path": r.cover_path,
-            "checklist_path": r.checklist_path,
-            "package_dir": r.package_dir,
-            "status": r.status,
-        }
-        for r in rows
-    ]
+    out = []
+    for r in rows:
+        out.append(
+            {
+                "id": r.id,
+                "account_slot": r.account_slot,
+                "video_path": r.video_path,
+                "caption_path": r.caption_path,
+                "cover_path": r.cover_path,
+                "checklist_path": r.checklist_path,
+                "package_dir": r.package_dir,
+                "status": r.status,
+                "preview_url": media_preview_url(settings.storage_root, r.video_path, ROOT),
+                "download_url": media_preview_url(settings.storage_root, r.video_path, ROOT),
+            }
+        )
+    return out
 
 
 @router.post("/versions/{version_id}/mark-posted")
@@ -309,10 +322,7 @@ def mark_posted(
     version = db.get(ClipVersion, version_id)
     if not version:
         raise HTTPException(404, "Version not found")
-    if version.status not in {"EXPORTED", "APPROVED", "MANUALLY_POSTED"}:
-        # allow from EXPORTED primarily
-        if version.status != "EXPORTED":
-            raise HTTPException(400, f"Mark posted only after EXPORTED (got {version.status})")
+    _transition(version.status, "MANUALLY_POSTED")
     post = Post(
         clip_version_id=version.id,
         social_account_id=version.social_account_id,
@@ -356,6 +366,12 @@ def mark_submitted(
     if not post:
         raise HTTPException(404, "Post not found")
     version = db.get(ClipVersion, post.clip_version_id)
+    if version:
+        _transition(version.status, "SUBMITTED")
+        version.status = "SUBMITTED"
+        db.flush()
+        _transition(version.status, "UNDER_REVIEW")
+        version.status = "UNDER_REVIEW"
     sub = Submission(
         post_id=post.id,
         campaign_id=version.campaign_id if version else None,
@@ -365,8 +381,6 @@ def mark_submitted(
         status="UNDER_REVIEW",
     )
     post.status = "SUBMITTED"
-    if version:
-        version.status = "UNDER_REVIEW"
     db.add(sub)
     db.commit()
     db.refresh(sub)
@@ -542,9 +556,13 @@ def regenerate_version(
     version.caption = copy["caption"]
     version.hook_text = copy["hook"]
     version.context_intro = copy.get("context_intro")
+    _transition(version.status if version.status != "FAILED" else "REVIEW_REQUIRED", "REVIEW_REQUIRED")
     version.status = "REVIEW_REQUIRED"
     version.subtitle_style = "minimal" if version.subtitle_style == "bold" else "bold"
     db.commit()
+    from app.tasks import render_version
+
+    enqueue_or_run(render_version, version.id, draft=True)
     db.refresh(version)
     return {
         "id": version.id,

@@ -29,7 +29,7 @@ Payout notification → YOU confirm cash-out
 cd clipops
 .\apps\api\.venv\Scripts\python.exe scripts\rotate_secrets.py --print-password
 
-# 2) API
+# 2) API (CELERY_EAGER=true runs pipeline inline — no Redis worker required locally)
 cd apps\api
 .\.venv\Scripts\activate
 $env:PYTHONPATH="..\..\..;$PWD"

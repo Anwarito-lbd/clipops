@@ -100,11 +100,30 @@ export default function AssetsPage() {
             <div>
               <div className="text-sm font-medium">{a.filename}</div>
               {a.error_message && (
-                <div className="text-xs text-destructive">{a.error_message}</div>
+                <div
+                  className={
+                    a.error_message.includes("heuristic")
+                      ? "text-xs text-amber-600"
+                      : "text-xs text-muted-foreground"
+                  }
+                >
+                  {a.error_message}
+                </div>
               )}
             </div>
-            <StatusBadge status={a.status} />
-          </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded-md border border-border px-2 py-1 text-[10px]"
+                onClick={async () => {
+                  await api(`/api/assets/${a.id}/process`, { method: "POST", body: "{}" });
+                  setAssets(await api(`/api/campaigns/${campaignId}/assets`));
+                  setMsg("Reprocess started");
+                }}
+              >
+                Reprocess
+              </button>
+              <StatusBadge status={a.status} />
+            </div>
         ))}
       </div>
     </div>

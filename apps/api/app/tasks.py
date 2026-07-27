@@ -72,6 +72,14 @@ def process_asset(asset_id: str) -> dict:
             compute_type=settings.whisperx_compute_type,
         )
         asset.transcript_path = str(work_dir / "transcript.json")
+        engine = (transcript or {}).get("engine") or "unknown"
+        if engine == "heuristic" or transcript.get("fallback_reason"):
+            asset.error_message = (
+                f"transcript_engine={engine}"
+                + (f"; {transcript.get('fallback_reason')}" if transcript.get("fallback_reason") else "")
+            )
+        else:
+            asset.error_message = f"transcript_engine={engine}"
         asset.status = "ANALYSED"
         db.commit()
 
@@ -276,7 +284,28 @@ def process_asset(asset_id: str) -> dict:
                 )
             )
         db.commit()
-        return {"asset_id": asset_id, "candidates": len(candidates), "versions": len(versions)}
+
+        # Draft-render each version so Review can preview before approve
+        version_ids = [v.id for v in versions]
+        for vid in version_ids:
+            try:
+                render_version(vid, draft=True)
+            except Exception as render_exc:  # noqa: BLE001
+                db.add(
+                    ProductionEvent(
+                        campaign_id=campaign.id,
+                        source_asset_id=asset.id,
+                        title=f"Draft render failed for {vid[:8]}: {render_exc}",
+                        status="action_required",
+                    )
+                )
+        db.commit()
+        return {
+            "asset_id": asset_id,
+            "candidates": len(candidates),
+            "versions": len(versions),
+            "transcript_engine": engine,
+        }
     except Exception as exc:  # noqa: BLE001
         asset = db.get(SourceAsset, asset_id)
         if asset:
@@ -289,15 +318,18 @@ def process_asset(asset_id: str) -> dict:
 
 
 @celery.task(name="clipops.render_version")
-def render_version(clip_version_id: str) -> dict:
+def render_version(clip_version_id: str, draft: bool = False) -> dict:
     settings = get_settings()
     db = SessionLocal()
     try:
         version = db.get(ClipVersion, clip_version_id)
         if not version:
             return {"error": "version_not_found"}
-        if version.status not in {"APPROVED", "EXPORTED"}:
+        allowed = {"REVIEW_REQUIRED", "APPROVED", "EXPORTED"}
+        if version.status not in allowed:
             return {"error": f"cannot_render_status_{version.status}"}
+        # Draft renders stay on REVIEW_REQUIRED; final export after approve
+        is_draft = draft or version.status == "REVIEW_REQUIRED"
 
         campaign = db.get(Campaign, version.campaign_id)
         candidate = db.get(ClipCandidate, version.candidate_id)
@@ -340,7 +372,7 @@ def render_version(clip_version_id: str) -> dict:
 
         content_hash = None
         video_path = Path(result["video_path"])
-        if video_path.exists():
+        if video_path.exists() and video_path.stat().st_size > 0:
             content_hash = hashlib.sha256(video_path.read_bytes()).hexdigest()
 
         # Duplicate check across renders
@@ -378,6 +410,7 @@ def render_version(clip_version_id: str) -> dict:
         checklist_path = package_dir / "compliance-checklist.json"
         checklist_path.write_text(json.dumps(compliance.to_dict(), indent=2), encoding="utf-8")
 
+        render_status = "DRAFT" if is_draft else ("EXPORTED" if compliance.passed else "REVIEW_REQUIRED")
         render = Render(
             clip_version_id=version.id,
             account_slot=slot,
@@ -387,7 +420,7 @@ def render_version(clip_version_id: str) -> dict:
             checklist_path=str(checklist_path),
             package_dir=str(package_dir),
             content_hash=content_hash,
-            status="EXPORTED" if compliance.passed else "REVIEW_REQUIRED",
+            status=render_status,
         )
         db.add(render)
         db.add(
@@ -397,13 +430,19 @@ def render_version(clip_version_id: str) -> dict:
                 checks=compliance.to_dict()["checks"],
             )
         )
-        if compliance.passed:
+        if not is_draft and compliance.passed and version.status == "APPROVED":
             version.status = "EXPORTED"
         db.commit()
-        return {"render_id": render.id, "package_dir": str(package_dir), "passed": compliance.passed}
+        return {
+            "render_id": render.id,
+            "package_dir": str(package_dir),
+            "passed": compliance.passed,
+            "draft": is_draft,
+            "ok": bool(content_hash),
+        }
     except Exception as exc:  # noqa: BLE001
         version = db.get(ClipVersion, clip_version_id)
-        if version:
+        if version and version.status == "APPROVED":
             version.status = "FAILED"
             db.commit()
         return {"error": str(exc)}

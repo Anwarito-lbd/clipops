@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     remotion_url: str = "http://127.0.0.1:3100"
     burn_captions: bool = True
     max_upload_mb: int = 512
+    # Local default: run pipeline inline so uploads don't hang without a worker
+    celery_eager: bool = True
 
     tiktok_url: str = "https://www.tiktok.com"
     content_rewards_url: str = "https://www.contentrewards.com"

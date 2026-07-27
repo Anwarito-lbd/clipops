@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/utils";
+import { API_URL, api, getToken } from "@/lib/utils";
 
 type Campaign = { id: string; name: string };
 type Version = { id: string; style: string; status: string; caption: string | null };
@@ -12,7 +12,24 @@ type Render = {
   video_path: string | null;
   caption_path: string | null;
   status: string;
+  download_url?: string | null;
+  preview_url?: string | null;
 };
+
+async function downloadMedia(url: string, filename: string) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${url}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const blob = await res.blob();
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(href);
+}
 
 export default function ExportsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -33,7 +50,7 @@ export default function ExportsPage() {
     if (!campaignId) return;
     (async () => {
       const vs = await api<Version[]>(`/api/campaigns/${campaignId}/versions`);
-      setVersions(vs);
+      setVersions(vs.filter((v) => ["EXPORTED", "APPROVED", "MANUALLY_POSTED", "REVIEW_REQUIRED"].includes(v.status)));
       const map: Record<string, Render[]> = {};
       for (const v of vs) {
         map[v.id] = await api(`/api/versions/${v.id}/renders`);
@@ -112,16 +129,32 @@ export default function ExportsPage() {
               >
                 Copy caption
               </button>
-              <button
-                className="rounded-md border border-border px-2 py-1 text-xs"
-                onClick={() => markPosted(v.id)}
-              >
-                Mark as posted
-              </button>
+              {v.status === "EXPORTED" && (
+                <button
+                  className="rounded-md border border-border px-2 py-1 text-xs"
+                  onClick={() => markPosted(v.id)}
+                >
+                  Mark as posted
+                </button>
+              )}
             </div>
             {(renders[v.id] || []).map((r) => (
-              <div key={r.id} className="font-mono text-xs text-muted-foreground">
-                account-{r.account_slot}: {r.package_dir || r.video_path || "pending"}
+              <div key={r.id} className="flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground">
+                <span>
+                  account-{r.account_slot}: {r.status}
+                </span>
+                {r.download_url && (
+                  <button
+                    className="rounded-md border border-border px-2 py-0.5 text-[10px] text-foreground"
+                    onClick={() =>
+                      downloadMedia(r.download_url!, `account-${r.account_slot}-${v.style}.mp4`).catch((e) =>
+                        setMsg(e instanceof Error ? e.message : "Download failed")
+                      )
+                    }
+                  >
+                    Download video
+                  </button>
+                )}
               </div>
             ))}
           </div>

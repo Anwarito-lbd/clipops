@@ -7,9 +7,9 @@ Ideal loop (manual gates only at the end of each stage):
 2. Review recommended campaigns on Home / Operator
 3. Approve campaigns (then click Join yourself on Content Rewards)
 4. Extension extracts brief/assets OR you upload footage
-5. ClipOps transcribes, ranks 10–20 candidates, renders top 3–5
-6. Review Approval queue → Approve / Reject / Regenerate
-7. Posting queue → Copy caption → Open TikTok → you press Post
+5. ClipOps transcribes, ranks 10–20 candidates, **draft-renders** top 3–5
+6. Review Approval queue (preview cut) → Approve / Reject / Regenerate
+7. Exports → Download video → Copy caption → Open TikTok → you press Post
 8. Paste TikTok URL → Mark posted
 9. Open CR submission (extension can highlight Submit) → you confirm
 10. Track views/earnings in Tracking
