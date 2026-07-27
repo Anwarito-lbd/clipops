@@ -1,0 +1,17 @@
+.env
+.venv/
+**/__pycache__/
+**/*.pyc
+node_modules/
+.next/
+storage/**
+!storage/.gitkeep
+*.mp4
+.DS_Store
+apps/api/.venv/
+apps/api/clipops.db
+clipops.db
+*.db
+dist/
+.remotion/
+.supabase/

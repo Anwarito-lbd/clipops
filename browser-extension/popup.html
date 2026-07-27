@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ClipOps Operator</title>
+    <style>
+      body {
+        width: 320px;
+        margin: 0;
+        font: 13px/1.4 system-ui, sans-serif;
+        background: #14181f;
+        color: #e8ecf1;
+      }
+      header {
+        padding: 12px;
+        border-bottom: 1px solid #2a3140;
+      }
+      h1 {
+        margin: 0;
+        font-size: 15px;
+      }
+      p {
+        margin: 4px 0 0;
+        color: #8b93a3;
+        font-size: 11px;
+      }
+      .actions {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+      }
+      button {
+        background: #1e2530;
+        color: #e8ecf1;
+        border: 1px solid #2a3140;
+        border-radius: 6px;
+        padding: 8px 10px;
+        cursor: pointer;
+        text-align: left;
+      }
+      button.primary {
+        background: #2a9d8f;
+        border-color: #2a9d8f;
+        color: #041210;
+        font-weight: 600;
+      }
+      #log {
+        padding: 0 12px 12px;
+        font-size: 11px;
+        color: #a8b0bd;
+        white-space: pre-wrap;
+        max-height: 140px;
+        overflow: auto;
+      }
+      a {
+        color: #3dd6c6;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>ClipOps Operator</h1>
+      <p>Reads your logged-in CR tab. You click Join / Post / Submit / Cash-out.</p>
+    </header>
+    <div class="actions">
+      <button class="primary" id="scan">Scan campaigns → ClipOps</button>
+      <button id="brief">Extract brief + assets</button>
+      <button id="submit">Highlight Submit</button>
+      <button id="payout">Check payout + alert</button>
+      <button id="cashout">Highlight Cash-out</button>
+      <a href="options.html" target="_blank">Options / API token</a>
+      <a href="http://localhost:3000/operator" target="_blank">Open Operator Mode</a>
+    </div>
+    <div id="log"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "ClipOps Operator",
+  "version": "0.2.0",
+  "description": "Read your logged-in Content Rewards session, extract briefs/assets, assist submission and payout alerts. Never auto-posts or auto-submits.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*",
+    "https://*.contentrewards.com/*",
+    "https://contentrewards.com/*",
+    "https://*.whop.com/*"
+  ],
+  "action": {
+    "default_title": "ClipOps Operator",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.contentrewards.com/*",
+        "https://contentrewards.com/*",
+        "https://*.whop.com/*"
+      ],
+      "js": [
+        "shared.js",
+        "campaign-scanner/scanner.js",
+        "brief-extractor/extractor.js",
+        "asset-collector/collector.js",
+        "submission-assistant/assistant.js",
+        "payout-watcher/watcher.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html"
+}

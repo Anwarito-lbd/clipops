@@ -1,0 +1,436 @@
+from __future__ import annotations
+
+import hashlib
+import shutil
+import sys
+from datetime import date, datetime, timezone
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+ROOT = Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(ROOT))
+
+from app.auth import require_operator
+from app.config import get_settings
+from app.db import (
+    ClipCandidate,
+    ClipVersion,
+    ComplianceCheck,
+    ClipPerformance,
+    Earning,
+    Payout,
+    Post,
+    Render,
+    SourceAsset,
+    Submission,
+    DailyMetric,
+    get_db,
+)
+from app.schemas import (
+    ApproveRequest,
+    AssetOut,
+    ClipVersionOut,
+    EarningsUpdate,
+    MarkPostedRequest,
+    MarkPayoutReceived,
+    MarkSubmittedRequest,
+    MetricsUpdate,
+)
+from packages.shared_types.constants import ALLOWED_TRANSITIONS
+
+router = APIRouter(tags=["pipeline"])
+
+
+def _transition(current: str, new: str) -> None:
+    allowed = ALLOWED_TRANSITIONS.get(current, set())
+    if new not in allowed and new not in {"FAILED", "REJECTED"}:
+        # allow REJECTED/FAILED from most states
+        if new == "REJECTED" and current in ALLOWED_TRANSITIONS and "REJECTED" in ALLOWED_TRANSITIONS[current]:
+            return
+        if new not in ALLOWED_TRANSITIONS.get(current, set()):
+            raise HTTPException(400, f"Illegal transition {current} → {new}")
+
+
+@router.post("/campaigns/{campaign_id}/assets", response_model=AssetOut)
+async def upload_asset(
+    campaign_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    settings = get_settings()
+    storage_root = Path(settings.storage_root)
+    if not storage_root.is_absolute():
+        storage_root = ROOT / storage_root
+    rel = Path("sources") / campaign_id / f"{uuid4()}_{file.filename}"
+    dest = storage_root / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    data = await file.read()
+    dest.write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest()
+    asset = SourceAsset(
+        campaign_id=campaign_id,
+        filename=file.filename or "upload.mp4",
+        storage_path=str(rel).replace("\\", "/"),
+        content_hash=digest,
+        status="IMPORTED",
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+
+    # Enqueue or run inline if Celery/Redis unavailable
+    try:
+        from app.tasks import process_asset
+
+        process_asset.delay(asset.id)
+    except Exception:
+        from app.tasks import process_asset
+
+        process_asset(asset.id)
+        db.refresh(asset)
+    return asset
+
+
+@router.get("/campaigns/{campaign_id}/assets", response_model=list[AssetOut])
+def list_assets(campaign_id: str, db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    return db.query(SourceAsset).filter(SourceAsset.campaign_id == campaign_id).all()
+
+
+@router.post("/assets/{asset_id}/process", response_model=AssetOut)
+def reprocess_asset(asset_id: str, db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    asset = db.get(SourceAsset, asset_id)
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+    from app.tasks import process_asset
+
+    try:
+        process_asset.delay(asset.id)
+    except Exception:
+        process_asset(asset.id)
+    db.refresh(asset)
+    return asset
+
+
+@router.get("/campaigns/{campaign_id}/candidates")
+def list_candidates(campaign_id: str, db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    rows = (
+        db.query(ClipCandidate)
+        .filter(ClipCandidate.campaign_id == campaign_id)
+        .order_by(ClipCandidate.rank)
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "start_sec": r.start_sec,
+            "end_sec": r.end_sec,
+            "transcript_excerpt": r.transcript_excerpt,
+            "scores": r.scores,
+            "total_score": r.total_score,
+            "rank": r.rank,
+            "selected": r.selected,
+        }
+        for r in rows
+    ]
+
+
+@router.get("/campaigns/{campaign_id}/versions", response_model=list[ClipVersionOut])
+def list_versions(campaign_id: str, db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    return (
+        db.query(ClipVersion)
+        .filter(ClipVersion.campaign_id == campaign_id)
+        .order_by(ClipVersion.style, ClipVersion.created_at)
+        .all()
+    )
+
+
+@router.get("/versions/{version_id}/compliance")
+def get_compliance(version_id: str, db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    row = (
+        db.query(ComplianceCheck)
+        .filter(ComplianceCheck.clip_version_id == version_id)
+        .order_by(ComplianceCheck.created_at.desc())
+        .first()
+    )
+    if not row:
+        raise HTTPException(404, "No compliance check")
+    return {"id": row.id, "passed": row.passed, "checks": row.checks, "override_reason": row.override_reason}
+
+
+@router.post("/versions/{version_id}/approve", response_model=ClipVersionOut)
+def approve_version(
+    version_id: str,
+    body: ApproveRequest,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    version = db.get(ClipVersion, version_id)
+    if not version:
+        raise HTTPException(404, "Version not found")
+    check = (
+        db.query(ComplianceCheck)
+        .filter(ComplianceCheck.clip_version_id == version_id)
+        .order_by(ComplianceCheck.created_at.desc())
+        .first()
+    )
+    if check and not check.passed and not body.override_reason:
+        raise HTTPException(400, "Compliance failed — provide override_reason to approve anyway")
+    if check and not check.passed and body.override_reason:
+        check.override_reason = body.override_reason
+    _transition(version.status, "APPROVED")
+    version.status = "APPROVED"
+    db.commit()
+
+    from app.tasks import render_version
+
+    try:
+        render_version.delay(version.id)
+    except Exception:
+        render_version(version.id)
+    db.refresh(version)
+    return version
+
+
+@router.post("/versions/{version_id}/reject", response_model=ClipVersionOut)
+def reject_version(version_id: str, db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    version = db.get(ClipVersion, version_id)
+    if not version:
+        raise HTTPException(404, "Version not found")
+    version.status = "REJECTED"
+    db.commit()
+    db.refresh(version)
+    return version
+
+
+@router.get("/versions/{version_id}/renders")
+def list_renders(version_id: str, db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    rows = db.query(Render).filter(Render.clip_version_id == version_id).all()
+    return [
+        {
+            "id": r.id,
+            "account_slot": r.account_slot,
+            "video_path": r.video_path,
+            "caption_path": r.caption_path,
+            "cover_path": r.cover_path,
+            "checklist_path": r.checklist_path,
+            "package_dir": r.package_dir,
+            "status": r.status,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/versions/{version_id}/mark-posted")
+def mark_posted(
+    version_id: str,
+    body: MarkPostedRequest,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    version = db.get(ClipVersion, version_id)
+    if not version:
+        raise HTTPException(404, "Version not found")
+    if version.status not in {"EXPORTED", "APPROVED", "MANUALLY_POSTED"}:
+        # allow from EXPORTED primarily
+        if version.status != "EXPORTED":
+            raise HTTPException(400, f"Mark posted only after EXPORTED (got {version.status})")
+    post = Post(
+        clip_version_id=version.id,
+        social_account_id=version.social_account_id,
+        tiktok_url=body.tiktok_url,
+        posted_at=datetime.now(timezone.utc),
+        status="MANUALLY_POSTED",
+        notes=body.notes,
+    )
+    version.status = "MANUALLY_POSTED"
+    db.add(post)
+    db.flush()
+    # Learning record — fill metrics later
+    db.add(
+        ClipPerformance(
+            campaign_id=version.campaign_id,
+            account_id=version.social_account_id,
+            clip_version_id=version.id,
+            post_id=post.id,
+            hook_type=(version.context_intro or "generic")[:64],
+            clip_length_band=version.duration_band,
+            topic=None,
+            editing_style=version.style,
+            caption_style=version.subtitle_style,
+            posting_time=post.posted_at,
+            approval_status="posted",
+        )
+    )
+    db.commit()
+    db.refresh(post)
+    return {"post_id": post.id, "status": post.status, "tiktok_url": post.tiktok_url}
+
+
+@router.post("/posts/{post_id}/mark-submitted")
+def mark_submitted(
+    post_id: str,
+    body: MarkSubmittedRequest,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    post = db.get(Post, post_id)
+    if not post:
+        raise HTTPException(404, "Post not found")
+    version = db.get(ClipVersion, post.clip_version_id)
+    sub = Submission(
+        post_id=post.id,
+        campaign_id=version.campaign_id if version else None,
+        content_rewards_url=body.content_rewards_url,
+        submitted_at=datetime.now(timezone.utc),
+        review_started_at=datetime.now(timezone.utc),
+        status="UNDER_REVIEW",
+    )
+    post.status = "SUBMITTED"
+    if version:
+        version.status = "UNDER_REVIEW"
+    db.add(sub)
+    db.commit()
+    db.refresh(sub)
+    return {"submission_id": sub.id, "status": sub.status}
+
+
+@router.post("/posts/{post_id}/metrics")
+def update_metrics(
+    post_id: str,
+    body: MetricsUpdate,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    post = db.get(Post, post_id)
+    if not post:
+        raise HTTPException(404, "Post not found")
+    d = date.fromisoformat(body.metric_date) if body.metric_date else date.today()
+    row = (
+        db.query(DailyMetric)
+        .filter(DailyMetric.post_id == post_id, DailyMetric.metric_date == d)
+        .first()
+    )
+    if not row:
+        row = DailyMetric(post_id=post_id, metric_date=d)
+        db.add(row)
+    row.views = body.views
+    row.likes = body.likes
+    row.comments = body.comments
+    row.shares = body.shares
+    perf = db.query(ClipPerformance).filter(ClipPerformance.post_id == post_id).first()
+    if perf:
+        perf.views = body.views
+        perf.likes = body.likes
+        perf.comments = body.comments
+        perf.shares = body.shares
+    db.commit()
+    return {"ok": True, "views": row.views}
+
+
+@router.post("/submissions/{submission_id}/earnings")
+def update_earnings(
+    submission_id: str,
+    body: EarningsUpdate,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    settings = get_settings()
+    sub = db.get(Submission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Submission not found")
+    fee = body.provisional_amount * (1 - settings.platform_fee_multiplier)
+    net = body.provisional_amount * settings.platform_fee_multiplier
+    earning = (
+        db.query(Earning).filter(Earning.submission_id == submission_id).first()
+    )
+    if not earning:
+        earning = Earning(submission_id=submission_id)
+        db.add(earning)
+    earning.provisional_amount = body.provisional_amount
+    earning.fee_amount = fee
+    earning.net_amount = net
+    earning.status = "EARNING"
+    sub.status = "EARNING"
+    # Sync learning earnings if linked via post
+    post = db.get(Post, sub.post_id)
+    if post:
+        perf = db.query(ClipPerformance).filter(ClipPerformance.post_id == post.id).first()
+        if perf:
+            perf.earnings = float(net)
+            perf.verified_views = perf.verified_views or perf.views
+            perf.approval_status = "earning"
+    db.flush()
+    payout = None
+    if body.mark_payout_ready:
+        earning.status = "PAYOUT_READY"
+        sub.status = "PAYOUT_READY"
+        payout = Payout(
+            earnings_id=earning.id,
+            amount=net,
+            ready_at=datetime.now(timezone.utc),
+            status="PAYOUT_READY",
+        )
+        db.add(payout)
+    db.commit()
+    return {
+        "earnings_id": earning.id,
+        "net_amount": float(net),
+        "fee_amount": float(fee),
+        "payout_id": payout.id if payout else None,
+        "status": earning.status,
+        "alert": "PAYOUT_READY" if body.mark_payout_ready else None,
+    }
+
+
+@router.post("/payouts/{payout_id}/mark-received")
+def mark_payout_received(
+    payout_id: str,
+    body: MarkPayoutReceived,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    payout = db.get(Payout, payout_id)
+    if not payout:
+        raise HTTPException(404, "Payout not found")
+    payout.status = "PAID"
+    payout.paid_at = datetime.now(timezone.utc)
+    payout.notes = body.notes
+    earning = db.get(Earning, payout.earnings_id)
+    if earning:
+        earning.status = "PAID"
+    db.commit()
+    return {"status": "PAID"}
+
+
+@router.get("/tracking")
+def tracking_board(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    posts = db.query(Post).order_by(Post.created_at.desc()).limit(100).all()
+    out = []
+    for p in posts:
+        sub = db.query(Submission).filter(Submission.post_id == p.id).order_by(Submission.created_at.desc()).first()
+        earning = None
+        payout = None
+        if sub:
+            earning = db.query(Earning).filter(Earning.submission_id == sub.id).first()
+            if earning:
+                payout = db.query(Payout).filter(Payout.earnings_id == earning.id).first()
+        out.append(
+            {
+                "post_id": p.id,
+                "tiktok_url": p.tiktok_url,
+                "post_status": p.status,
+                "submission_id": sub.id if sub else None,
+                "submission_status": sub.status if sub else None,
+                "earnings_id": earning.id if earning else None,
+                "provisional_amount": float(earning.provisional_amount) if earning else None,
+                "net_amount": float(earning.net_amount) if earning and earning.net_amount is not None else None,
+                "payout_id": payout.id if payout else None,
+                "payout_status": payout.status if payout else None,
+                "payout_ready": bool(payout and payout.status == "PAYOUT_READY"),
+            }
+        )
+    return out

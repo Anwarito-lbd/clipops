@@ -1,0 +1,17 @@
+{
+  "name": "clipops-remotion-templates",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "render": "node render.js"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.240",
+    "@remotion/renderer": "^4.0.240",
+    "express": "^4.21.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.240"
+  }
+}

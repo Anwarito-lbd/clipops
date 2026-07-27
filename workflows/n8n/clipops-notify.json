@@ -1,0 +1,40 @@
+{
+  "name": "ClipOps pipeline notify",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "clipops-review-required",
+        "httpMethod": "POST"
+      },
+      "name": "Webhook Review Required",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "path": "clipops-payout-ready",
+        "httpMethod": "POST"
+      },
+      "name": "Webhook Payout Ready",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 200]
+    },
+    {
+      "parameters": {
+        "content": "=ClipOps: {{$json.status || 'REVIEW_REQUIRED'}} — approve packages in dashboard. Never auto-post.",
+        "options": {}
+      },
+      "name": "Notify Operator",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [300, 100]
+    }
+  ],
+  "connections": {},
+  "meta": {
+    "instanceId": "clipops-local"
+  },
+  "notes": "Import into n8n. Wire webhooks from FastAPI status transitions. No Content Rewards or TikTok automation."
+}
