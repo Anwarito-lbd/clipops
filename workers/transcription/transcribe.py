@@ -54,7 +54,13 @@ def _via_whisperx(video_path: str, model: str, device: str, compute_type: str) -
     import whisperx  # type: ignore
 
     audio = whisperx.load_audio(video_path)
-    asr = whisperx.load_model(model, device, compute_type=compute_type)
+    # silero VAD avoids pyannote→speechbrain→k2 breakage on Windows CUDA stacks
+    try:
+        asr = whisperx.load_model(
+            model, device, compute_type=compute_type, vad_method="silero"
+        )
+    except TypeError:
+        asr = whisperx.load_model(model, device, compute_type=compute_type)
     result = asr.transcribe(audio, batch_size=8)
     align_model, metadata = whisperx.load_align_model(
         language_code=result.get("language", "en"), device=device

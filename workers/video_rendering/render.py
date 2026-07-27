@@ -65,10 +65,11 @@ def _try_remotion_overlay(
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=300) as resp:
             body = json.loads(resp.read().decode() or "{}")
-        # Stub returns queued:true without a file — treat as non-blocking assist
-        return bool(body.get("rendered_path")) and Path(body["rendered_path"]).exists()
+        # Prefer explicit rendered_path when Remotion wrote a file
+        rendered = body.get("rendered_path") or body.get("outputPath")
+        return bool(rendered) and Path(str(rendered)).exists() and Path(str(rendered)).stat().st_size > 0
     except Exception:
         return False
 

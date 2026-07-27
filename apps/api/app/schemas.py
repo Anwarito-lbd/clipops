@@ -127,3 +127,7 @@ class HealthOut(BaseModel):
     product: str = "ClipOps"
     phase: str = "1"
     automation_boundary: str = "human_approval_manual_posting"
+    env: str = "development"
+    security_ok: bool = True
+    security_messages: list[str] = Field(default_factory=list)
+    media: dict[str, Any] = Field(default_factory=dict)

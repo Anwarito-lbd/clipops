@@ -229,3 +229,27 @@ def test_ranker_accepts_historical_priors():
     )
     assert ranked
     assert ranked[0].opportunity_score >= 0
+
+
+def test_production_refuses_weak_jwt():
+    sys.path.insert(0, str(ROOT / "apps" / "api"))
+    from app.security_audit import audit_settings
+    from types import SimpleNamespace
+
+    weak = SimpleNamespace(
+        clipops_env="production",
+        jwt_secret="dev-secret-change-me",
+        operator_password_hash="",
+        operator_password="changeme",
+    )
+    report = audit_settings(weak)
+    assert report.ok is False
+    assert any("JWT" in m or "PASSWORD" in m.upper() or "password" in m for m in report.messages)
+
+    strong = SimpleNamespace(
+        clipops_env="production",
+        jwt_secret="a" * 48,
+        operator_password_hash="$2b$12$abcdefghijklmnopqrstuv",
+        operator_password="",
+    )
+    assert audit_settings(strong).ok is True

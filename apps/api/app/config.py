@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 10080
+    # development | production — production refuses weak secrets at startup
+    clipops_env: str = "development"
 
     database_url: str = "sqlite:///./clipops.db"
     supabase_url: str = "http://127.0.0.1:54321"

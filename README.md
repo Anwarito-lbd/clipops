@@ -22,47 +22,45 @@ YOU confirm CR Submit
 Payout notification → YOU confirm cash-out
 ```
 
-## Clip selection (updated)
-
-1. Generate **10–20** candidate clips  
-2. AI ranks them  
-3. Take best **3–5**  
-4. Assign round-robin to TikTok accounts (dramatic / educational / commentary)  
-
-## Learning
-
-Every posted clip stores: campaign, account, hook type, length, style, caption style, posting time, views, engagement, approval, verified views, earnings.
-
-After ~50–100 clips, `/api/operator/learning` recommends what to produce more of.
-
 ## Quick start
 
 ```powershell
-cd clipops\apps\api
+# 1) Secrets (required after first clone / for prod)
+cd clipops
+.\apps\api\.venv\Scripts\python.exe scripts\rotate_secrets.py --print-password
+
+# 2) API
+cd apps\api
 .\.venv\Scripts\activate
 $env:PYTHONPATH="..\..\..;$PWD"
 uvicorn app.main:app --reload --port 8000
 
-cd ..\dashboard
+# 3) Remotion caption burn-in (separate terminal)
+cd ..\..\templates
+npm install
+npm start
+
+# 4) Dashboard
+cd ..\apps\dashboard
 npm install
 npm run dev
 ```
 
-Login: `operator@clipops.local` / `changeme`  
-For production, set `OPERATOR_PASSWORD_HASH` (bcrypt) and a strong `JWT_SECRET`.
+Login: `operator@clipops.local` + the password printed by `rotate_secrets.py`  
+(Demo plaintext `changeme` only works if you have not rotated yet.)  
+See [docs/SECRETS.md](docs/SECRETS.md). Production: `--production` refuses weak JWT/password at startup.
 
-Media stack on this machine: **FFmpeg is required**. Install optional Python deps in the API venv:
+## GPU / WhisperX (RTX 50-series)
 
 ```powershell
-pip install scenedetect opencv-python-headless faster-whisper
-# Optional GPU ASR: pip install whisperx torch  (CUDA build matching your driver)
+.\apps\api\.venv\Scripts\python.exe scripts\install_whisperx_cuda.py
 ```
 
-Transcription order: WhisperX → faster-whisper → heuristic. Scene cuts: PySceneDetect → fixed windows. Captions: FFmpeg drawtext burn-in (Remotion used only if it writes a real file).
+Installs **PyTorch cu128** (Blackwell / RTX 5060) + WhisperX. Transcription order: WhisperX (Silero VAD) → faster-whisper → heuristic. Scene cuts: PySceneDetect → fixed windows.
 
-- Home: http://localhost:3000  
-- API docs: http://127.0.0.1:8000/docs  
-- Extension: load `browser-extension/` unpacked (see its README)
+## Remotion
+
+`templates/` runs a real render service on `:3100`. FFmpeg still cuts 9:16; Remotion overlays animated hooks and returns `rendered_path` for the export package.
 
 ## Manual gates (never automated)
 
@@ -71,15 +69,11 @@ Transcription order: WhisperX → faster-whisper → heuristic. Scene cuts: PySc
 3. Confirm Content Rewards Submit  
 4. Confirm cash-out  
 
-Unattended Playwright against Content Rewards is **not** included — only enable with written CR permission.
-
 ## Repo layout
 
-- `apps/dashboard` — Next.js Operator UI ($1K home, queue, learning)  
+- `apps/dashboard` — Next.js Operator UI  
 - `apps/api` — FastAPI  
-- `browser-extension` — CR session scanner / brief / assets / submit highlight / payout watch  
-- `packages/campaign_engine` — ranking + EV  
-- `packages/posting_queue` — account router  
-- `packages/analytics` — performance + learning  
-- `workers/` — WhisperX, scenes, ranking, captions, FFmpeg render  
-- `templates/` — Remotion styles  
+- `browser-extension` — CR session assist (no auto-click)  
+- `templates/` — Remotion render service  
+- `workers/` — WhisperX, scenes, ranking, captions, FFmpeg  
+- `scripts/` — `rotate_secrets.py`, `install_whisperx_cuda.py`  

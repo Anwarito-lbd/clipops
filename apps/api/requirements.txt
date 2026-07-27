@@ -13,7 +13,10 @@ redis==5.2.1
 httpx==0.28.1
 pytest==8.3.4
 # Optional media stack (install into same venv)
-# scenedetect + opencv for real scene cuts; faster-whisper when WhisperX unavailable
 scenedetect>=0.6.4
 opencv-python-headless>=4.8.0
 faster-whisper>=1.0.0
+# WhisperX+CUDA (RTX 50-series): use scripts/install_whisperx_cuda.py
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+#   pip install whisperx --no-deps  + Silero VAD path (see workers/transcription)
+

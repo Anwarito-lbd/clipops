@@ -1,17 +1,25 @@
 {
   "name": "clipops-remotion-templates",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "node server.js",
-    "render": "node render.js"
+    "start": "node server.js",
+    "studio": "npx remotion studio src/index.ts",
+    "render:cli": "npx remotion render src/index.ts Dramatic out/dramatic.mp4"
   },
   "dependencies": {
+    "@remotion/bundler": "^4.0.240",
     "@remotion/cli": "^4.0.240",
+    "@remotion/media-utils": "^4.0.240",
     "@remotion/renderer": "^4.0.240",
     "express": "^4.21.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "^4.0.240"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "typescript": "^5.7.2"
   }
 }
