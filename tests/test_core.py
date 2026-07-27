@@ -153,3 +153,79 @@ def test_state_transitions_approve():
     assert "APPROVED" in ALLOWED_TRANSITIONS["REVIEW_REQUIRED"]
     assert "MANUALLY_POSTED" in ALLOWED_TRANSITIONS["EXPORTED"]
     assert "PAID" in ALLOWED_TRANSITIONS["PAYOUT_READY"]
+
+
+def test_sanitize_upload_filename():
+    sys.path.insert(0, str(ROOT / "apps" / "api"))
+    from app.storage_security import assert_allowed_upload, sanitize_filename
+
+    assert sanitize_filename("../../evil.mp4") == "evil.mp4"
+    assert sanitize_filename("my clip!!.MOV") == "my_clip_.MOV"
+    safe = assert_allowed_upload("ok.mp4", 1024, 10_000_000)
+    assert safe.endswith(".mp4")
+    try:
+        assert_allowed_upload("note.txt", 10, 10_000_000)
+        assert False, "should reject"
+    except ValueError:
+        pass
+
+
+def test_compliance_unverified_logo_fails_when_required():
+    result = run_compliance_check(
+        campaign_name="VoltPop",
+        expected_campaign_name="VoltPop",
+        caption="Paid partnership #VoltPop",
+        required_hashtags=["#VoltPop"],
+        required_tags=[],
+        required_disclosure="Paid partnership",
+        disclosure_in_video_start=None,
+        duration_sec=30,
+        min_duration_sec=15,
+        max_duration_sec=60,
+        aspect_ratio="9:16",
+        forbidden_words=[],
+        forbidden_claims=[],
+        has_external_music=False,
+        export_hash="abc",
+        existing_hashes=[],
+        requires_logo=True,
+        has_logo=None,
+        requires_cta=False,
+        has_cta=None,
+        posting_deadline=None,
+    )
+    assert result.passed is False
+    assert any(c.key == "logo" and not c.passed for c in result.checks)
+
+
+def test_learning_priors_blend():
+    priors = PerformanceLearningService().historical_priors(
+        [
+            {"views": 12000, "approval_status": "accepted", "editing_style": "dramatic"},
+            {"views": 8000, "approval_status": "rejected", "editing_style": "dramatic"},
+        ]
+    )
+    assert "historical_approval_rate" in priors
+    assert priors["historical_approval_rate"] == 0.5
+    assert priors["historical_avg_views"] == 10000.0
+
+
+def test_ranker_accepts_historical_priors():
+    from packages.campaign_engine.ranker import rank_discovered_campaigns
+
+    items = [
+        {
+            "external_id": "1",
+            "name": "A",
+            "cpm": 5.0,
+            "budget_remaining_pct": 80,
+            "has_rights": True,
+        }
+    ]
+    ranked = rank_discovered_campaigns(
+        items,
+        historical_approval_rate=0.9,
+        historical_avg_views=20000,
+    )
+    assert ranked
+    assert ranked[0].opportunity_score >= 0

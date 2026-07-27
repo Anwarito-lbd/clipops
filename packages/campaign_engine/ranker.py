@@ -86,6 +86,8 @@ def rank_discovered_campaigns(
     *,
     account_geos: list[str] | None = None,
     top_n: int = 3,
+    historical_approval_rate: float | None = None,
+    historical_avg_views: float | None = None,
 ) -> list[RankedCampaign]:
     """Rank scraped/discovered campaigns; return best top_n eligible ones first, then rest."""
     account_geos = account_geos or ["US", "CA"]
@@ -112,6 +114,13 @@ def rank_discovered_campaigns(
             budget_utilisation=utilisation,
         )
 
+        base_approval = float(item.get("approval_probability", historical_approval_rate or 0.7))
+        base_views = float(item.get("expected_views", historical_avg_views or 10000))
+        if historical_approval_rate is not None and "approval_probability" not in item:
+            base_approval = 0.6 * 0.7 + 0.4 * historical_approval_rate
+        if historical_avg_views is not None and "expected_views" not in item:
+            base_views = 0.6 * 10000 + 0.4 * historical_avg_views
+
         result = score_campaign(
             cpm=item.get("cpm"),
             total_budget=total_budget,
@@ -121,8 +130,8 @@ def rank_discovered_campaigns(
             requirement_simplicity=float(item.get("requirement_simplicity_score", 70)),
             viral_potential=float(item.get("viral_potential_score", 70)),
             competition=float(item.get("competition_score", 50)),
-            approval_probability=float(item.get("approval_probability", 0.7)),
-            expected_views=float(item.get("expected_views", 10000)),
+            approval_probability=base_approval,
+            expected_views=base_views,
             estimated_production_cost=float(item.get("estimated_production_cost", 15)),
             account_geos=account_geos,
             required_geo=item.get("required_geo") or [],

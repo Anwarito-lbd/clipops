@@ -14,6 +14,11 @@
           });
         } else if (msg.type === "HIGHLIGHT_SUBMIT") {
           sendResponse({ ok: true, ...clipopsHighlightSubmit() });
+        } else if (msg.type === "ASSIST_SUBMISSION_PACKAGE") {
+          sendResponse({
+            ok: true,
+            ...clipopsAssistSubmissionPackage(msg.package || {}),
+          });
         } else if (msg.type === "WATCH_PAYOUT") {
           sendResponse({ ok: true, ...clipopsWatchPayout() });
         } else if (msg.type === "HIGHLIGHT_CASHOUT") {

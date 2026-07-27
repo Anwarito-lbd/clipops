@@ -8,6 +8,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -41,19 +42,22 @@ from app.schemas import (
     MarkSubmittedRequest,
     MetricsUpdate,
 )
+from app.storage_security import assert_allowed_upload, resolve_under_root, sanitize_filename
 from packages.shared_types.constants import ALLOWED_TRANSITIONS
 
 router = APIRouter(tags=["pipeline"])
 
 
 def _transition(current: str, new: str) -> None:
-    allowed = ALLOWED_TRANSITIONS.get(current, set())
-    if new not in allowed and new not in {"FAILED", "REJECTED"}:
-        # allow REJECTED/FAILED from most states
-        if new == "REJECTED" and current in ALLOWED_TRANSITIONS and "REJECTED" in ALLOWED_TRANSITIONS[current]:
+    if new in {"FAILED", "REJECTED"}:
+        # REJECTED allowed from any non-terminal productive state
+        if new == "REJECTED" and current not in {"FAILED"}:
             return
-        if new not in ALLOWED_TRANSITIONS.get(current, set()):
-            raise HTTPException(400, f"Illegal transition {current} → {new}")
+        if new == "FAILED":
+            return
+    allowed = ALLOWED_TRANSITIONS.get(current, set())
+    if new not in allowed:
+        raise HTTPException(400, f"Illegal transition {current} → {new}")
 
 
 @router.post("/campaigns/{campaign_id}/assets", response_model=AssetOut)
@@ -67,15 +71,41 @@ async def upload_asset(
     storage_root = Path(settings.storage_root)
     if not storage_root.is_absolute():
         storage_root = ROOT / storage_root
-    rel = Path("sources") / campaign_id / f"{uuid4()}_{file.filename}"
+
+    # Stream with size cap — do not load unbounded into memory
+    max_bytes = int(settings.max_upload_mb) * 1024 * 1024
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        piece = await file.read(1024 * 1024)
+        if not piece:
+            break
+        total += len(piece)
+        if total > max_bytes:
+            raise HTTPException(413, f"File exceeds max upload size ({settings.max_upload_mb} MB)")
+        chunks.append(piece)
+    data = b"".join(chunks)
+
+    try:
+        safe_name = assert_allowed_upload(file.filename or "upload.mp4", total, max_bytes)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    content_type = (file.content_type or "").lower()
+    if content_type and not (
+        content_type.startswith("video/")
+        or content_type in {"application/octet-stream", "application/mp4"}
+    ):
+        raise HTTPException(400, f"Unsupported content type: {content_type}")
+
+    rel = Path("sources") / campaign_id / f"{uuid4()}_{safe_name}"
     dest = storage_root / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
-    data = await file.read()
     dest.write_bytes(data)
     digest = hashlib.sha256(data).hexdigest()
     asset = SourceAsset(
         campaign_id=campaign_id,
-        filename=file.filename or "upload.mp4",
+        filename=safe_name,
         storage_path=str(rel).replace("\\", "/"),
         content_hash=digest,
         status="IMPORTED",
@@ -95,6 +125,48 @@ async def upload_asset(
         process_asset(asset.id)
         db.refresh(asset)
     return asset
+
+
+@router.get("/media/{file_path:path}")
+def serve_media(
+    file_path: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Stream exported/source media for in-dashboard preview (auth required)."""
+    settings = get_settings()
+    storage_root = Path(settings.storage_root)
+    if not storage_root.is_absolute():
+        storage_root = ROOT / storage_root
+    try:
+        # Accept either storage-relative paths or absolute paths under storage_root
+        raw = file_path.replace("\\", "/")
+        if Path(raw).is_absolute():
+            candidate = Path(raw).resolve()
+            if not str(candidate).startswith(str(storage_root.resolve())):
+                raise ValueError("Path escapes storage root")
+            target = candidate
+        else:
+            target = resolve_under_root(storage_root, raw)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not target.exists() or not target.is_file():
+        raise HTTPException(404, "File not found")
+    if target.suffix.lower() not in {
+        ".mp4",
+        ".mov",
+        ".webm",
+        ".mkv",
+        ".m4v",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".txt",
+        ".json",
+    }:
+        raise HTTPException(400, "File type not previewable")
+    return FileResponse(target, filename=sanitize_filename(target.name))
 
 
 @router.get("/campaigns/{campaign_id}/assets", response_model=list[AssetOut])
@@ -202,6 +274,7 @@ def reject_version(version_id: str, db: Session = Depends(get_db), _user: str = 
     version = db.get(ClipVersion, version_id)
     if not version:
         raise HTTPException(404, "Version not found")
+    _transition(version.status, "REJECTED")
     version.status = "REJECTED"
     db.commit()
     db.refresh(version)
@@ -509,6 +582,18 @@ def approval_card(
     settings = get_settings()
     score = float(cand.total_score) if cand else None
     pred = "HIGH" if score and score >= 80 else ("MEDIUM" if score and score >= 60 else "LOW")
+    preview_url = None
+    if render and render.video_path:
+        vp = Path(render.video_path)
+        storage_root = Path(settings.storage_root)
+        if not storage_root.is_absolute():
+            storage_root = ROOT / storage_root
+        try:
+            rel = vp.resolve().relative_to(storage_root.resolve())
+            preview_url = f"/api/media/{rel.as_posix()}"
+        except Exception:
+            # Fall back to basename path under exports if already relative
+            preview_url = f"/api/media/{str(render.video_path).replace(chr(92), '/')}"
     return {
         "id": version.id,
         "campaign": campaign.name if campaign else None,
@@ -518,6 +603,7 @@ def approval_card(
         "hook_text": version.hook_text,
         "duration_band": version.duration_band,
         "video_path": render.video_path if render else None,
+        "preview_url": preview_url,
         "compliance_passed": check.passed if check else None,
         "compliance_checks": check.checks if check else [],
         "ai_score": score,

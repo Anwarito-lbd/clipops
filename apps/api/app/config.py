@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     )
 
     operator_email: str = "operator@clipops.local"
+    # Dev default only — set OPERATOR_PASSWORD_HASH (bcrypt) for real use
     operator_password: str = "changeme"
+    operator_password_hash: str = ""
     jwt_secret: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 10080
@@ -52,6 +54,9 @@ class Settings(BaseSettings):
     storage_root: str = str(_ROOT / "storage")
     ffmpeg_path: str = "ffmpeg"
     auto_editor_enabled: bool = False
+    remotion_url: str = "http://127.0.0.1:3100"
+    burn_captions: bool = True
+    max_upload_mb: int = 512
 
     tiktok_url: str = "https://www.tiktok.com"
     content_rewards_url: str = "https://www.contentrewards.com"

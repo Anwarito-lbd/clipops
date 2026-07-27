@@ -12,3 +12,8 @@ celery==5.4.0
 redis==5.2.1
 httpx==0.28.1
 pytest==8.3.4
+# Optional media stack (install into same venv)
+# scenedetect + opencv for real scene cuts; faster-whisper when WhisperX unavailable
+scenedetect>=0.6.4
+opencv-python-headless>=4.8.0
+faster-whisper>=1.0.0

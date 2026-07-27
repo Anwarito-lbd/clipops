@@ -252,7 +252,7 @@ def process_asset(asset_id: str) -> dict:
                 required_hashtags=list(req.required_hashtags) if req else [],
                 required_tags=list(req.required_tags) if req else [],
                 required_disclosure=req.required_disclosure if req else None,
-                disclosure_in_video_start=True,
+                disclosure_in_video_start=None,
                 duration_sec={"15-25": 20, "25-40": 32, "40-60": 50}[v.duration_band],
                 min_duration_sec=req.min_duration_sec if req else 15,
                 max_duration_sec=req.max_duration_sec if req else 60,
@@ -263,9 +263,9 @@ def process_asset(asset_id: str) -> dict:
                 export_hash=None,
                 existing_hashes=[],
                 requires_logo=bool(req.requires_logo) if req else False,
-                has_logo=True,
+                has_logo=None,
                 requires_cta=bool(req.requires_cta) if req else False,
-                has_cta=True,
+                has_cta=None,
                 posting_deadline=req.posting_deadline if req else None,
             )
             db.add(
@@ -334,6 +334,8 @@ def render_version(clip_version_id: str) -> dict:
             package_dir=str(package_dir),
             ffmpeg_path=settings.ffmpeg_path,
             auto_editor=settings.auto_editor_enabled,
+            remotion_url=settings.remotion_url,
+            burn_captions=settings.burn_captions,
         )
 
         content_hash = None
@@ -356,7 +358,7 @@ def render_version(clip_version_id: str) -> dict:
             required_hashtags=list(req.required_hashtags) if req else [],
             required_tags=list(req.required_tags) if req else [],
             required_disclosure=req.required_disclosure if req else None,
-            disclosure_in_video_start=True,
+            disclosure_in_video_start=None,
             duration_sec=result.get("duration_sec", 20),
             min_duration_sec=req.min_duration_sec if req else 15,
             max_duration_sec=req.max_duration_sec if req else 60,
@@ -367,9 +369,9 @@ def render_version(clip_version_id: str) -> dict:
             export_hash=content_hash,
             existing_hashes=[h for h in existing if h != content_hash],
             requires_logo=bool(req.requires_logo) if req else False,
-            has_logo=True,
+            has_logo=None,
             requires_cta=bool(req.requires_cta) if req else False,
-            has_cta=True,
+            has_cta=None,
             posting_deadline=req.posting_deadline if req else None,
         )
 

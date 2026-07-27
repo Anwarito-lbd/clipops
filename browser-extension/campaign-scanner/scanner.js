@@ -2,54 +2,120 @@
 
 function clipopsScanCampaigns() {
   const campaigns = [];
-  const cards = document.querySelectorAll(
-    "[data-campaign], .campaign-card, article, [class*='Campaign'], [class*='campaign']"
-  );
-
   const seen = new Set();
-  cards.forEach((card, idx) => {
-    const text = textOf(card);
-    if (!text || text.length < 20) return;
-    const nameEl =
-      card.querySelector("h1,h2,h3,h4,[class*='title'],[class*='name']") || card;
-    const name = textOf(nameEl).split("\n")[0].slice(0, 120);
-    if (!name || seen.has(name)) return;
-    seen.add(name);
 
-    const link = card.querySelector("a[href]")?.href || location.href;
-    const cpmMatch = text.match(/CPM[^0-9$£]*[\$£]?\s*([\d.]+)/i);
-    const remainingMatch = text.match(/remaining[^0-9%]*(\d{1,3})\s*%/i);
-    const utilisedMatch = text.match(/utili[sz]ed[^0-9%]*(\d{1,3})\s*%/i);
-    let budgetPct = remainingMatch ? parseFloat(remainingMatch[1]) : null;
-    if (budgetPct == null && utilisedMatch) {
-      budgetPct = 100 - parseFloat(utilisedMatch[1]);
+  const SELECTORS = [
+    "[data-campaign]",
+    "[data-campaign-id]",
+    "[data-testid*='campaign' i]",
+    ".campaign-card",
+    "article[class*='campaign' i]",
+    "[class*='CampaignCard']",
+    "[class*='campaign-card']",
+    "[class*='CampaignRow']",
+    "main article",
+    "main [role='listitem']",
+    "[role='article']",
+  ];
+
+  let cards = [];
+  for (const sel of SELECTORS) {
+    try {
+      cards = Array.from(document.querySelectorAll(sel));
+      if (cards.length) break;
+    } catch {
+      /* invalid selector in older engines */
     }
+  }
 
-    campaigns.push({
-      external_id: card.getAttribute("data-campaign-id") || `dom-${idx}-${name.slice(0, 24)}`,
-      external_url: link,
-      name,
-      brand: null,
-      cpm: cpmMatch ? parseFloat(cpmMatch[1]) : parseMoney(text),
-      budget_remaining_pct: budgetPct,
-      brief_text: text.slice(0, 4000),
-      required_hashtags: Array.from(text.matchAll(/#[A-Za-z0-9_]+/g)).map((m) => m[0]),
-      required_tags: Array.from(text.matchAll(/@[A-Za-z0-9._]+/g)).map((m) => m[0]),
-      has_rights: !/no rights|unlicensed/i.test(text),
-      requires_fake_engagement: /buy followers|fake (views|likes)|bot views/i.test(text),
-      misleading_content: /misleading/i.test(text),
-      raw: { snippet: text.slice(0, 500) },
+  // Broad fallback: large text blocks that look like campaign cards
+  if (!cards.length) {
+    cards = Array.from(document.querySelectorAll("article, section, li, div")).filter((el) => {
+      const t = textOf(el);
+      if (!t || t.length < 40 || t.length > 6000) return false;
+      return /CPM|budget|reward|hashtag|#\w+/i.test(t);
     });
+  }
+
+  cards.forEach((card, idx) => {
+    try {
+      const text = textOf(card);
+      if (!text || text.length < 20) return;
+      const nameEl =
+        card.querySelector(
+          "h1,h2,h3,h4,[class*='title' i],[class*='name' i],[data-testid*='title' i]"
+        ) || card;
+      const name = textOf(nameEl).split("\n")[0].slice(0, 120);
+      if (!name || seen.has(name)) return;
+      seen.add(name);
+
+      const linkEl =
+        card.querySelector("a[href*='campaign' i], a[href*='reward' i], a[href]") || null;
+      const link = linkEl?.href || location.href;
+
+      const cpmMatch =
+        text.match(/CPM[^0-9$£€]*[\$£€]?\s*([\d]+(?:\.\d+)?)/i) ||
+        text.match(/[\$£€]\s*([\d]+(?:\.\d+)?)\s*(?:\/\s*)?CPM/i);
+      const remainingMatch =
+        text.match(/(?:budget\s+)?remaining[^0-9%]*(\d{1,3})\s*%/i) ||
+        text.match(/(\d{1,3})\s*%\s*(?:left|remaining)/i);
+      const utilisedMatch =
+        text.match(/utili[sz]ed[^0-9%]*(\d{1,3})\s*%/i) ||
+        text.match(/(\d{1,3})\s*%\s*(?:used|spent|utili[sz]ed)/i);
+
+      let budgetPct = remainingMatch ? parseFloat(remainingMatch[1]) : null;
+      if (budgetPct == null && utilisedMatch) {
+        budgetPct = 100 - parseFloat(utilisedMatch[1]);
+      }
+
+      const budgetTotal = text.match(/(?:total\s+)?budget[^0-9$£€]*[\$£€]?\s*([\d,]+(?:\.\d+)?)/i);
+      const geoMatches = Array.from(
+        text.matchAll(/\b(?:US|CA|UK|GB|AU|EU|WW|Worldwide)\b/g)
+      ).map((m) => m[0]);
+
+      campaigns.push({
+        external_id:
+          card.getAttribute("data-campaign-id") ||
+          card.getAttribute("data-campaign") ||
+          `dom-${idx}-${name.slice(0, 24)}`,
+        external_url: link,
+        name,
+        brand: null,
+        cpm: cpmMatch ? parseFloat(cpmMatch[1]) : parseMoney(text),
+        total_budget: budgetTotal
+          ? parseFloat(budgetTotal[1].replace(/,/g, ""))
+          : null,
+        budget_remaining_pct: budgetPct,
+        required_geo: [...new Set(geoMatches)],
+        brief_text: text.slice(0, 4000),
+        required_hashtags: Array.from(text.matchAll(/#[A-Za-z0-9_]+/g)).map((m) => m[0]),
+        required_tags: Array.from(text.matchAll(/@[A-Za-z0-9._]+/g)).map((m) => m[0]),
+        has_rights: !/no rights|unlicensed|do not use/i.test(text),
+        requires_fake_engagement: /buy followers|fake (views|likes)|bot views|engagement farm/i.test(
+          text
+        ),
+        misleading_content: /misleading|false claim|deceptive/i.test(text),
+        requires_logo: /logo\s+(required|must)|must\s+include\s+logo/i.test(text),
+        requires_cta: /\bCTA\b|call to action|must\s+include\s+(cta|link)/i.test(text),
+        unclear_instructions: /TBD|see discord|unclear|contact manager/i.test(text),
+        raw: { snippet: text.slice(0, 500), selector_hit: true },
+      });
+    } catch (err) {
+      console.warn("ClipOps scan card error", err);
+    }
   });
 
-  // Fallback: if DOM selectors miss, offer page title as a single candidate
-  if (!campaigns.length && /campaign|reward|brief/i.test(document.title + document.body.innerText.slice(0, 200))) {
+  if (
+    !campaigns.length &&
+    /campaign|reward|brief/i.test(document.title + document.body.innerText.slice(0, 200))
+  ) {
+    const bodyText = document.body.innerText.slice(0, 4000);
     campaigns.push({
       external_id: `page-${location.pathname}`,
       external_url: location.href,
       name: document.title || "Current page campaign",
-      brief_text: document.body.innerText.slice(0, 4000),
-      required_hashtags: Array.from(document.body.innerText.matchAll(/#[A-Za-z0-9_]+/g))
+      brief_text: bodyText,
+      required_hashtags: Array.from(bodyText.matchAll(/#[A-Za-z0-9_]+/g))
         .slice(0, 20)
         .map((m) => m[0]),
       raw: { source: "page_fallback" },

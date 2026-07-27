@@ -38,7 +38,7 @@ def run_compliance_check(
     required_hashtags: list[str],
     required_tags: list[str],
     required_disclosure: str | None,
-    disclosure_in_video_start: bool,
+    disclosure_in_video_start: bool | None,
     duration_sec: float,
     min_duration_sec: int,
     max_duration_sec: int,
@@ -50,9 +50,9 @@ def run_compliance_check(
     export_hash: str | None,
     existing_hashes: list[str],
     requires_logo: bool,
-    has_logo: bool,
+    has_logo: bool | None,
     requires_cta: bool,
-    has_cta: bool,
+    has_cta: bool | None,
     posting_deadline: datetime | None,
     misleading_caption: bool = False,
 ) -> ComplianceResult:
@@ -85,15 +85,26 @@ def run_compliance_check(
     )
 
     disclosure_ok = True
+    disclosure_detail = "ok"
     if required_disclosure:
-        disclosure_ok = (
-            required_disclosure.lower() in caption.lower() or disclosure_in_video_start
-        )
+        in_caption = required_disclosure.lower() in caption.lower()
+        if in_caption:
+            disclosure_ok = True
+            disclosure_detail = "found in caption"
+        elif disclosure_in_video_start is True:
+            disclosure_ok = True
+            disclosure_detail = "confirmed in video start"
+        elif disclosure_in_video_start is False:
+            disclosure_ok = False
+            disclosure_detail = "missing from caption and video start"
+        else:
+            disclosure_ok = False
+            disclosure_detail = "unverified — confirm disclosure is spoken/shown at video start"
     add(
         "disclosure",
         "Required disclosure at beginning",
-        disclosure_ok and (disclosure_in_video_start if required_disclosure else True),
-        "Paid-content disclosure must be clear, conspicuous, and at video start",
+        disclosure_ok,
+        disclosure_detail,
     )
 
     add(
@@ -141,16 +152,25 @@ def run_compliance_check(
         not misleading_caption,
     )
 
-    add(
-        "logo",
-        "Campaign logo present when required",
-        (has_logo if requires_logo else True),
-    )
-    add(
-        "cta",
-        "Campaign CTA present when required",
-        (has_cta if requires_cta else True),
-    )
+    if not requires_logo:
+        logo_ok, logo_detail = True, "not required"
+    elif has_logo is True:
+        logo_ok, logo_detail = True, "confirmed"
+    elif has_logo is False:
+        logo_ok, logo_detail = False, "missing"
+    else:
+        logo_ok, logo_detail = False, "unverified — confirm logo burn-in manually"
+    add("logo", "Campaign logo present when required", logo_ok, logo_detail)
+
+    if not requires_cta:
+        cta_ok, cta_detail = True, "not required"
+    elif has_cta is True:
+        cta_ok, cta_detail = True, "confirmed"
+    elif has_cta is False:
+        cta_ok, cta_detail = False, "missing"
+    else:
+        cta_ok, cta_detail = False, "unverified — confirm CTA present manually"
+    add("cta", "Campaign CTA present when required", cta_ok, cta_detail)
 
     deadline_ok = True
     if posting_deadline is not None:

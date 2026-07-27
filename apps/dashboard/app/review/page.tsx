@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api } from "@/lib/utils";
+import { API_URL, api, getToken } from "@/lib/utils";
 import { StatusBadge } from "@/components/status-badge";
 
 type Version = {
@@ -23,11 +23,77 @@ type Card = {
   expected_earnings: number | null;
   compliance_passed: boolean | null;
   video_path: string | null;
+  preview_url: string | null;
   open_campaign: string | null;
   open_tiktok: string;
 };
 
 type Campaign = { id: string; name: string };
+
+function PreviewPlayer({ previewUrl }: { previewUrl: string | null }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    async function load() {
+      setSrc(null);
+      setErr(null);
+      if (!previewUrl) return;
+      try {
+        const token = getToken();
+        const res = await fetch(`${API_URL}${previewUrl}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const blob = await res.blob();
+        if (cancelled) return;
+        if (!blob.size) {
+          setErr("Empty render");
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : "Preview failed");
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [previewUrl]);
+
+  if (!previewUrl) {
+    return (
+      <div className="flex aspect-[9/16] max-h-64 items-center justify-center rounded-md bg-background text-xs text-muted-foreground">
+        Preview after approve/render
+      </div>
+    );
+  }
+  if (err) {
+    return (
+      <div className="rounded-md bg-background p-2 text-[10px] text-muted-foreground">{err}</div>
+    );
+  }
+  if (!src) {
+    return (
+      <div className="flex aspect-[9/16] max-h-64 items-center justify-center rounded-md bg-background text-xs text-muted-foreground">
+        Loading preview…
+      </div>
+    );
+  }
+  return (
+    <video
+      src={src}
+      controls
+      playsInline
+      className="max-h-72 w-full rounded-md bg-black object-contain"
+    />
+  );
+}
 
 export default function ReviewPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -85,6 +151,18 @@ export default function ReviewPage() {
     setMsg("Caption regenerated — review again");
   }
 
+  async function copyPackage(v: Version, card?: Card) {
+    const text = [
+      v.caption || "",
+      card?.account ? `Account: ${card.account}` : "",
+      card?.campaign ? `Campaign: ${card.campaign}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    await navigator.clipboard.writeText(text);
+    setMsg("Caption package copied");
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -116,16 +194,12 @@ export default function ReviewPage() {
                 <div className="text-sm font-semibold capitalize">{v.style}</div>
                 <StatusBadge status={v.status} />
               </div>
+              <PreviewPlayer previewUrl={card?.preview_url || null} />
               <div className="text-xs text-muted-foreground">
                 {card?.account || "—"} · {v.duration_band}s · AI{" "}
                 {card?.ai_score?.toFixed?.(0) ?? "—"} ·{" "}
                 {card?.predicted_performance || "—"}
               </div>
-              {card?.video_path && (
-                <div className="truncate font-mono text-[10px] text-muted-foreground">
-                  {card.video_path}
-                </div>
-              )}
               <div className="text-sm font-medium">{v.hook_text}</div>
               <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md bg-background p-2 font-mono text-xs text-muted-foreground">
                 {v.caption}
@@ -158,6 +232,12 @@ export default function ReviewPage() {
                   className="rounded-md border border-border px-2 py-1 text-xs"
                 >
                   Regenerate
+                </button>
+                <button
+                  onClick={() => copyPackage(v, card)}
+                  className="rounded-md border border-border px-2 py-1 text-xs"
+                >
+                  Copy package
                 </button>
                 {card?.open_campaign && (
                   <a

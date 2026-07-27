@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(ROOT))
 
-from app.auth import create_access_token, require_operator
+from app.auth import authenticate_operator, create_access_token, require_operator
 from app.config import get_settings
 from app.db import Campaign, CampaignRequirement, SocialAccount, get_db
 from app.schemas import CampaignCreate, CampaignOut, LoginRequest, ManualActionLinks, TokenResponse
@@ -21,8 +21,7 @@ router = APIRouter(tags=["campaigns"])
 
 @router.post("/auth/login", response_model=TokenResponse)
 def login(body: LoginRequest) -> TokenResponse:
-    settings = get_settings()
-    if body.email != settings.operator_email or body.password != settings.operator_password:
+    if not authenticate_operator(body.email, body.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return TokenResponse(access_token=create_access_token(body.email))
 

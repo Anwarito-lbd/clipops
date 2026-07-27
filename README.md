@@ -48,7 +48,17 @@ npm install
 npm run dev
 ```
 
-Login: `operator@clipops.local` / `changeme`
+Login: `operator@clipops.local` / `changeme`  
+For production, set `OPERATOR_PASSWORD_HASH` (bcrypt) and a strong `JWT_SECRET`.
+
+Media stack on this machine: **FFmpeg is required**. Install optional Python deps in the API venv:
+
+```powershell
+pip install scenedetect opencv-python-headless faster-whisper
+# Optional GPU ASR: pip install whisperx torch  (CUDA build matching your driver)
+```
+
+Transcription order: WhisperX → faster-whisper → heuristic. Scene cuts: PySceneDetect → fixed windows. Captions: FFmpeg drawtext burn-in (Remotion used only if it writes a real file).
 
 - Home: http://localhost:3000  
 - API docs: http://127.0.0.1:8000/docs  

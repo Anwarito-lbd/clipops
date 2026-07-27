@@ -156,8 +156,28 @@ def ingest_discovered(
         geos.extend(a.audience_geo or [])
     geos = list(dict.fromkeys(geos)) or ["US", "CA"]
 
+    from packages.services.forecast import PerformanceLearningService
+
+    perf_rows = []
+    for p in db.query(ClipPerformance).all():
+        perf_rows.append(
+            {
+                "views": p.views,
+                "verified_views": p.verified_views,
+                "approval_status": p.approval_status,
+                "editing_style": p.editing_style,
+            }
+        )
+    priors = PerformanceLearningService().historical_priors(perf_rows)
+
     payload = [c.model_dump() for c in body.campaigns]
-    all_ranked = rank_discovered_campaigns(payload, account_geos=geos, top_n=len(payload))
+    all_ranked = rank_discovered_campaigns(
+        payload,
+        account_geos=geos,
+        top_n=len(payload),
+        historical_approval_rate=priors.get("historical_approval_rate"),
+        historical_avg_views=priors.get("historical_avg_views"),
+    )
     by_key = {(r.external_id or "", r.name): r for r in all_ranked}
 
     saved: list[dict[str, Any]] = []

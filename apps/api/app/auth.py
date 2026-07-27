@@ -21,6 +21,20 @@ def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
+def authenticate_operator(email: str, password: str) -> bool:
+    """Verify operator credentials. Prefer bcrypt hash when configured."""
+    settings = get_settings()
+    if email.strip().lower() != settings.operator_email.strip().lower():
+        return False
+    if settings.operator_password_hash:
+        try:
+            return verify_password(password, settings.operator_password_hash)
+        except Exception:
+            return False
+    # Plaintext fallback for local demo only
+    return password == settings.operator_password
+
+
 def create_access_token(subject: str) -> str:
     settings = get_settings()
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)

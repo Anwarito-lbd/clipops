@@ -1,9 +1,11 @@
-"""FFmpeg (+ optional Auto-Editor) account package renderer."""
+"""FFmpeg (+ optional Auto-Editor / Remotion) account package renderer."""
 
 from __future__ import annotations
 
 import json
+import re
 import subprocess
+import urllib.request
 from pathlib import Path
 
 
@@ -19,9 +21,56 @@ STYLE_ZOOM = {
     "commentary": "1.06",
 }
 
+STYLE_HOOK_COLOR = {
+    "dramatic": "white",
+    "educational": "white",
+    "commentary": "yellow",
+}
+
 
 def _run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+
+def _escape_drawtext(text: str) -> str:
+    # FFmpeg drawtext escaping for Windows-safe single-line hooks
+    t = (text or "").replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+    t = re.sub(r"[\r\n]+", " ", t)
+    return t[:90]
+
+
+def _try_remotion_overlay(
+    *,
+    style: str,
+    hook_text: str,
+    caption: str,
+    input_video: str,
+    output_path: str,
+    remotion_url: str | None,
+) -> bool:
+    if not remotion_url:
+        return False
+    try:
+        req = urllib.request.Request(
+            remotion_url.rstrip("/") + "/render",
+            data=json.dumps(
+                {
+                    "style": style,
+                    "hookText": hook_text,
+                    "caption": caption,
+                    "inputVideo": input_video,
+                    "outputPath": output_path,
+                }
+            ).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            body = json.loads(resp.read().decode() or "{}")
+        # Stub returns queued:true without a file — treat as non-blocking assist
+        return bool(body.get("rendered_path")) and Path(body["rendered_path"]).exists()
+    except Exception:
+        return False
 
 
 def render_account_package(
@@ -36,19 +85,45 @@ def render_account_package(
     package_dir: str,
     ffmpeg_path: str = "ffmpeg",
     auto_editor: bool = False,
+    remotion_url: str | None = "http://127.0.0.1:3100",
+    burn_captions: bool = True,
 ) -> dict:
     out = Path(package_dir)
     out.mkdir(parents=True, exist_ok=True)
     video_out = out / "video.mp4"
     caption_out = out / "caption.txt"
     cover_out = out / "cover.jpg"
+    base_cut = out / "base_cut.mp4"
 
     target = BAND_SECONDS.get(duration_band, 20.0)
     span = max(0.5, end_sec - start_sec)
     duration = min(target, span)
     zoom = STYLE_ZOOM.get(style, "1.0")
+    color = STYLE_HOOK_COLOR.get(style, "white")
+    hook = _escape_drawtext(hook_text or "")
 
-    # Crop/scale to 9:16, light zoom per style, loudnorm
+    # Crop/scale to 9:16, style zoom, optional burned-in hook for first ~3s
+    draw = ""
+    if burn_captions and hook:
+        # Style-specific placement
+        if style == "educational":
+            draw = (
+                f",drawbox=x=40:y=ih-320:w=iw-80:h=160:color=black@0.55:t=fill,"
+                f"drawtext=text='{hook}':fontcolor={color}:fontsize=42:"
+                f"x=60:y=h-280:box=0"
+            )
+        elif style == "commentary":
+            draw = (
+                f",drawbox=x=(w-w*0.86)/2:y=(h-180)/2:w=w*0.86:h=160:color=black@0.65:t=fill,"
+                f"drawtext=text='{hook}':fontcolor={color}:fontsize=40:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2"
+            )
+        else:  # dramatic — top hook
+            draw = (
+                f",drawtext=text='{hook}':fontcolor={color}:fontsize=48:"
+                f"x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16"
+            )
+
     vf = (
         f"trim=start={start_sec}:duration={duration},"
         f"setpts=PTS-STARTPTS,"
@@ -56,9 +131,11 @@ def render_account_package(
         f"crop=1080:1920,"
         f"scale=iw*{zoom}:ih*{zoom},"
         f"crop=1080:1920"
+        f"{draw}"
     )
     af = f"atrim=start={start_sec}:duration={duration},asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11"
 
+    render_error = None
     try:
         _run(
             [
@@ -82,15 +159,31 @@ def render_account_package(
                 "128k",
                 "-movflags",
                 "+faststart",
-                str(video_out),
+                str(base_cut),
             ]
         )
-    except Exception:
-        # If ffmpeg filters fail (e.g. missing file), write a placeholder note package
+        if base_cut.exists() and base_cut.stat().st_size > 0:
+            # Prefer Remotion if it actually writes a file; else use FFmpeg burn-in
+            remotion_out = out / "video_remotion.mp4"
+            if _try_remotion_overlay(
+                style=style,
+                hook_text=hook_text,
+                caption=caption,
+                input_video=str(base_cut),
+                output_path=str(remotion_out),
+                remotion_url=remotion_url,
+            ):
+                remotion_out.replace(video_out)
+            else:
+                base_cut.replace(video_out)
+        else:
+            raise RuntimeError("base cut empty")
+    except Exception as exc:
+        render_error = str(exc)
         video_out.write_bytes(b"")
         (out / "RENDER_ERROR.txt").write_text(
-            "FFmpeg render failed — ensure ffmpeg is installed and source video exists.\n"
-            "Remotion overlays can be applied via templates/{style} once base cut exists.\n",
+            f"FFmpeg render failed: {render_error}\n"
+            "Ensure ffmpeg is installed and source video exists.\n",
             encoding="utf-8",
         )
 
@@ -129,8 +222,10 @@ def render_account_package(
         "duration_band": duration_band,
         "hook_text": hook_text,
         "duration_sec": duration,
+        "burn_captions": burn_captions,
+        "caption_engine": "ffmpeg_drawtext",
         "remotion_template": f"templates/{style}",
-        "note": "Base cut via FFmpeg; animated captions via Remotion template service",
+        "render_error": render_error,
     }
     (out / "render-meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
@@ -140,4 +235,5 @@ def render_account_package(
         "cover_path": str(cover_out),
         "duration_sec": duration,
         "package_dir": str(out),
+        "ok": video_out.exists() and video_out.stat().st_size > 0,
     }
