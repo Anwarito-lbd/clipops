@@ -42,6 +42,8 @@ class SocialAccount(Base):
     style: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     audience_geo: Mapped[list[Any]] = mapped_column(JSON, default=list)
     audience_notes: Mapped[Optional[str]] = mapped_column(Text)
+    preferred_clip_length: Mapped[Optional[str]] = mapped_column(String(16), default=None)
+    preferred_hooks: Mapped[list[Any]] = mapped_column(JSON, default=list)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -394,6 +396,8 @@ def seed_accounts(db: Session) -> None:
             style="dramatic",
             audience_geo=["US", "CA"],
             audience_notes="Fast, dramatic clips",
+            preferred_clip_length="15-25",
+            preferred_hooks=["drama", "question"],
         ),
         SocialAccount(
             platform="tiktok",
@@ -402,6 +406,8 @@ def seed_accounts(db: Session) -> None:
             style="educational",
             audience_geo=["US", "CA"],
             audience_notes="Educational / storytelling",
+            preferred_clip_length="25-40",
+            preferred_hooks=["surprising_fact", "question"],
         ),
         SocialAccount(
             platform="tiktok",
@@ -410,6 +416,8 @@ def seed_accounts(db: Session) -> None:
             style="commentary",
             audience_geo=["US", "CA"],
             audience_notes="Commentary, captions, reactions",
+            preferred_clip_length="15-25",
+            preferred_hooks=["controversy", "question"],
         ),
     ]
     db.add_all(rows)
@@ -419,7 +427,7 @@ def seed_accounts(db: Session) -> None:
 def seed_settings(db: Session) -> None:
     if db.query(OperatorSettings).count():
         return
-    db.add(OperatorSettings(monthly_target=1000, currency="USD"))
+    db.add(OperatorSettings(monthly_target=1000, currency="GBP"))
     db.commit()
 
 

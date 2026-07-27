@@ -1,40 +1,74 @@
 {
-  "name": "ClipOps pipeline notify",
+  "name": "ClipOps Operator Notifications",
   "nodes": [
     {
       "parameters": {
-        "path": "clipops-review-required",
-        "httpMethod": "POST"
-      },
-      "name": "Webhook Review Required",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [0, 0]
-    },
-    {
-      "parameters": {
-        "path": "clipops-payout-ready",
-        "httpMethod": "POST"
-      },
-      "name": "Webhook Payout Ready",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [0, 200]
-    },
-    {
-      "parameters": {
-        "content": "=ClipOps: {{$json.status || 'REVIEW_REQUIRED'}} — approve packages in dashboard. Never auto-post.",
+        "httpMethod": "POST",
+        "path": "clipops-campaign-found",
+        "responseMode": "onReceived",
         "options": {}
       },
-      "name": "Notify Operator",
-      "type": "n8n-nodes-base.n8n",
+      "id": "wh1",
+      "name": "High-value campaign",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "clipops-campaign-found"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clipops-clips-ready",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "wh2",
+      "name": "Clips ready for approval",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 160],
+      "webhookId": "clipops-clips-ready"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clipops-payout-ready",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "wh3",
+      "name": "Payout ready",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 320],
+      "webhookId": "clipops-payout-ready"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, received: $json } }}",
+        "options": {}
+      },
+      "id": "resp1",
+      "name": "Ack",
+      "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [300, 100]
+      "position": [280, 160]
     }
   ],
-  "connections": {},
-  "meta": {
-    "instanceId": "clipops-local"
+  "connections": {
+    "High-value campaign": {
+      "main": [[{ "node": "Ack", "type": "main", "index": 0 }]]
+    },
+    "Clips ready for approval": {
+      "main": [[{ "node": "Ack", "type": "main", "index": 0 }]]
+    },
+    "Payout ready": {
+      "main": [[{ "node": "Ack", "type": "main", "index": 0 }]]
+    }
   },
-  "notes": "Import into n8n. Wire webhooks from FastAPI status transitions. No Content Rewards or TikTok automation."
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "notes": "Import into n8n. Wire FastAPI OperatorNotification creates to these webhooks optionally. Never auto-post or auto-submit."
 }

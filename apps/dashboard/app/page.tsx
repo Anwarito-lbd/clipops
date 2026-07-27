@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 
 type Home = {
   month_label: string;
+  currency?: string;
   monthly_target: number;
   current_earnings: number;
   progress_pct: number;
@@ -14,6 +15,17 @@ type Home = {
   approval_rate: number;
   avg_views_per_clip: number;
   effective_cpm: number;
+  clips_produced?: number;
+  clips_posted?: number;
+  payout_ready?: number;
+  forecast?: {
+    projected_monthly_earnings: number;
+    monthly_run_rate: number;
+    required_clips_per_day: number;
+    on_track: boolean;
+    notes: string[];
+    planning_cpm: number;
+  };
   campaigns: Array<{
     id: string;
     name: string;
@@ -118,8 +130,14 @@ export default function HomePage() {
       {home && (
         <>
           <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-            <Row label="MONTHLY TARGET" value={`$${home.monthly_target.toLocaleString()}`} />
-            <Row label="CURRENT EARNINGS" value={`$${home.current_earnings.toLocaleString()}`} />
+            <Row
+              label="MONTHLY TARGET"
+              value={`${home.currency === "GBP" ? "£" : "$"}${home.monthly_target.toLocaleString()}`}
+            />
+            <Row
+              label="CURRENT EARNINGS"
+              value={`${home.currency === "GBP" ? "£" : "$"}${home.current_earnings.toLocaleString()}`}
+            />
             <Row label="PROGRESS" value={`${home.progress_pct}%`} />
             <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
               <div
@@ -131,8 +149,38 @@ export default function HomePage() {
               <Mini label="VERIFIED VIEWS" value={home.verified_views.toLocaleString()} />
               <Mini label="APPROVAL RATE" value={`${home.approval_rate}%`} />
               <Mini label="AVG VIEWS/CLIP" value={String(home.avg_views_per_clip)} />
-              <Mini label="EFFECTIVE CPM" value={`$${home.effective_cpm}`} />
+              <Mini
+                label="CURRENT CPM"
+                value={`${home.currency === "GBP" ? "£" : "$"}${home.effective_cpm}`}
+              />
             </div>
+            <div className="grid grid-cols-3 gap-2 text-sm">
+              <Mini label="PRODUCED" value={String(home.clips_produced ?? 0)} />
+              <Mini label="POSTED" value={String(home.clips_posted ?? 0)} />
+              <Mini
+                label="PAYOUT READY"
+                value={`${home.currency === "GBP" ? "£" : "$"}${home.payout_ready ?? 0}`}
+              />
+            </div>
+            {home.forecast && (
+              <div className="border-t border-border pt-3 text-xs space-y-1">
+                <div className="font-semibold uppercase tracking-wide text-muted-foreground">
+                  Forecast (planning)
+                </div>
+                <div>
+                  Run-rate{" "}
+                  {home.currency === "GBP" ? "£" : "$"}
+                  {home.forecast.monthly_run_rate} → projected{" "}
+                  {home.currency === "GBP" ? "£" : "$"}
+                  {home.forecast.projected_monthly_earnings}
+                </div>
+                <div>
+                  Need ~{home.forecast.required_clips_per_day} posts/day @ £
+                  {home.forecast.planning_cpm} CPM ·{" "}
+                  {home.forecast.on_track ? "on track" : "behind pace"}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-border bg-card p-4 space-y-3">

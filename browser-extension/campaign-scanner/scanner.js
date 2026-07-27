@@ -17,6 +17,7 @@ function clipopsScanCampaigns() {
     seen.add(name);
 
     const link = card.querySelector("a[href]")?.href || location.href;
+    const cpmMatch = text.match(/CPM[^0-9$£]*[\$£]?\s*([\d.]+)/i);
     const remainingMatch = text.match(/remaining[^0-9%]*(\d{1,3})\s*%/i);
     const utilisedMatch = text.match(/utili[sz]ed[^0-9%]*(\d{1,3})\s*%/i);
     let budgetPct = remainingMatch ? parseFloat(remainingMatch[1]) : null;

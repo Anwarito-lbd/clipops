@@ -85,25 +85,46 @@ def process_asset(asset_id: str) -> dict:
         # --- Ranking ---
         from workers.clip_ranking.rank import rank_segments
 
-        ranked = rank_segments(transcript, scenes, campaign_name=campaign.name)
-        # Operator Mode: keep 10–20 candidates, select best 3–5, assign one account each (round-robin)
-        keep_n = min(20, max(10, len(ranked)))
-        top_pool = ranked[:keep_n]
-        select_n = min(5, max(3, len(top_pool)))
+        # --- Ranking (ClipRankingService: 10–20 candidates, render only top 3–5) ---
+        from packages.services.clip_ranking import ClipRankingService
+
+        accounts = (
+            db.query(SocialAccount)
+            .filter(SocialAccount.platform == "tiktok", SocialAccount.is_active.is_(True))
+            .order_by(SocialAccount.handle)
+            .all()
+        )
+        pref_length = accounts[0].preferred_clip_length if accounts else None
+        pref_hooks = list(accounts[0].preferred_hooks or []) if accounts else []
+
+        ranked_bundle = ClipRankingService().rank_footage(
+            transcript,
+            scenes,
+            campaign_name=campaign.name,
+            keep=20,
+            select=5,
+            preferred_length_band=pref_length,
+            preferred_hooks=pref_hooks,
+        )
+        top_pool = ranked_bundle["candidates"]
+        select_n = ranked_bundle["select_n"]
 
         db.query(ClipCandidate).filter(ClipCandidate.source_asset_id == asset.id).delete()
         candidates: list[ClipCandidate] = []
+        selected_ids: list[str] = []
+        selected_set = {id(s) for s in ranked_bundle["selected"]}
         for i, seg in enumerate(top_pool, start=1):
+            is_sel = i <= select_n
             c = ClipCandidate(
                 source_asset_id=asset.id,
                 campaign_id=campaign.id,
                 start_sec=seg["start_sec"],
                 end_sec=seg["end_sec"],
                 transcript_excerpt=seg.get("text"),
-                scores=seg.get("scores", {}),
+                scores=(seg.get("rank_report") or seg.get("scores") or {}),
                 total_score=seg.get("total_score", 0),
                 rank=i,
-                selected=i <= select_n,
+                selected=is_sel,
             )
             db.add(c)
             candidates.append(c)
@@ -147,12 +168,6 @@ def process_asset(asset_id: str) -> dict:
             db.commit()
             db.refresh(snapshot)
 
-        accounts = (
-            db.query(SocialAccount)
-            .filter(SocialAccount.platform == "tiktok", SocialAccount.is_active.is_(True))
-            .order_by(SocialAccount.handle)
-            .all()
-        )
         if not accounts:
             asset.status = "FAILED"
             asset.error_message = "No TikTok accounts seeded"
@@ -179,7 +194,9 @@ def process_asset(asset_id: str) -> dict:
                 hook_variant=(idx % 3) + 1,
             )
             duration = float(cand.end_sec) - float(cand.start_sec)
-            if duration <= 25:
+            if account.preferred_clip_length:
+                band = account.preferred_clip_length
+            elif duration <= 25:
                 band = "15-25"
             elif duration <= 40:
                 band = "25-40"
@@ -207,17 +224,17 @@ def process_asset(asset_id: str) -> dict:
         # Production timeline events
         from app.db import ProductionEvent
 
-        for title in (
-            f"{len(candidates)} candidate clips generated",
-            f"AI selected top {len(selected)}",
-            f"{len(versions)} account versions ready for approval",
+        for title, st in (
+            (f"{len(candidates)} candidate clips generated", "done"),
+            (f"AI selected top {len(selected)} for render", "done"),
+            (f"{len(versions)} account versions ready for approval", "action_required"),
         ):
             db.add(
                 ProductionEvent(
                     campaign_id=campaign.id,
                     source_asset_id=asset.id,
                     title=title,
-                    status="done" if "ready" not in title else "action_required",
+                    status=st,
                 )
             )
         db.commit()

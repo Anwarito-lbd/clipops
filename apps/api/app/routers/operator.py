@@ -42,7 +42,8 @@ from packages.campaign_engine.ranker import rank_discovered_campaigns
 from packages.campaign_parser.parser import parse_campaign_brief
 from packages.posting_queue.router import assert_versions_not_identical, build_posting_packages
 from packages.analytics.tracker import summarise_earnings, summarise_performance, learning_hints
-from packages.analytics.learning import cohort_averages, production_recommendations
+from packages.services.campaign_discovery import CampaignDiscoveryService
+from packages.services.campaign_scoring import CampaignScoringService
 
 router = APIRouter(tags=["operator"])
 
@@ -628,13 +629,15 @@ def operator_analytics(db: Session = Depends(get_db), _user: str = Depends(requi
     posts = db.query(Post).all()
     versions = {v.id: v for v in db.query(ClipVersion).all()}
     accounts = {a.id: a for a in db.query(SocialAccount).all()}
+    perfs = {p.post_id: p for p in db.query(ClipPerformance).all() if p.post_id}
     perf_rows = []
     for p in posts:
         v = versions.get(p.clip_version_id)
         a = accounts.get(p.social_account_id)
+        cp = perfs.get(p.id)
         perf_rows.append(
             {
-                "views": 0,
+                "views": int(cp.views) if cp else 0,
                 "style": v.style if v else None,
                 "account": a.handle if a else None,
             }
@@ -660,19 +663,44 @@ def operator_analytics(db: Session = Depends(get_db), _user: str = Depends(requi
 
 @router.get("/operator/home")
 def operator_home(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
-    """$1K-style control home: target, earnings, campaigns, today queue."""
+    """£1K-style control home: target, earnings, forecast, campaigns, today queue."""
+    from calendar import monthrange
+    from packages.services.forecast import ForecastService
+
     settings_row = db.query(OperatorSettings).first()
     monthly_target = float(settings_row.monthly_target) if settings_row else 1000.0
+    currency = (settings_row.currency if settings_row else None) or "GBP"
     earnings = db.query(Earning).all()
     current = sum(float(e.net_amount or e.provisional_amount or 0) for e in earnings)
     progress = round((current / monthly_target) * 100, 1) if monthly_target else 0
 
     perfs = db.query(ClipPerformance).all()
     verified = sum(int(p.verified_views or p.views or 0) for p in perfs)
-    approved = sum(1 for p in perfs if (p.approval_status or "").lower() in {"accepted", "earning", "paid", "approved"})
-    approval_rate = round((approved / len(perfs)) * 100, 1) if perfs else 0.0
-    avg_views = round(sum(int(p.views or 0) for p in perfs) / len(perfs), 0) if perfs else 0
+    approved = sum(
+        1
+        for p in perfs
+        if (p.approval_status or "").lower() in {"accepted", "earning", "paid", "approved"}
+    )
+    approval_rate = (approved / len(perfs)) if perfs else 0.70
+    avg_views = (
+        round(sum(int(p.views or 0) for p in perfs) / len(perfs), 0) if perfs else 8210
+    )
     effective_cpm = round((current / verified) * 1000, 2) if verified else 0.0
+
+    now = datetime.now(timezone.utc)
+    days_in_month = monthrange(now.year, now.month)[1]
+    forecast = ForecastService().forecast(
+        monthly_target=monthly_target,
+        currency=currency,
+        current_earnings=current,
+        days_elapsed=now.day,
+        days_in_month=days_in_month,
+        clips_produced=db.query(ClipVersion).count(),
+        clips_posted=db.query(Post).count(),
+        approval_rate=approval_rate if perfs else 0.70,
+        avg_views_per_clip=float(avg_views),
+        planning_cpm=2.0,
+    )
 
     top3 = (
         db.query(DiscoveredCampaign)
@@ -696,47 +724,55 @@ def operator_home(db: Session = Depends(get_db), _user: str = Depends(require_op
         .order_by(SocialAccount.handle)
         .all()
     )
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     today_accounts = []
     for a in accounts:
-        posted = (
+        posted_today = (
             db.query(Post)
-            .filter(Post.social_account_id == a.id)
+            .filter(Post.social_account_id == a.id, Post.posted_at >= day_start)
             .count()
         )
-        # target 3 clips / day / account (soft)
         today_accounts.append(
             {
                 "id": a.id,
                 "label": a.display_name,
                 "style": a.style,
-                "done": min(posted, 3),
+                "preferred_clip_length": a.preferred_clip_length,
+                "preferred_hooks": a.preferred_hooks or [],
+                "done": posted_today,
                 "target": 3,
-                "complete": posted >= 3,
+                "complete": posted_today >= 3,
             }
         )
 
     waiting = (
-        db.query(ClipVersion)
-        .filter(ClipVersion.status == "REVIEW_REQUIRED")
-        .count()
+        db.query(ClipVersion).filter(ClipVersion.status == "REVIEW_REQUIRED").count()
     )
-
     events = (
         db.query(ProductionEvent)
         .order_by(ProductionEvent.created_at.desc())
         .limit(20)
         .all()
     )
+    payout_ready_amt = sum(
+        float(p.amount or 0)
+        for p in db.query(Payout).filter(Payout.status == "PAYOUT_READY").all()
+    )
 
     return {
-        "month_label": datetime.now(timezone.utc).strftime("%B %Y").upper(),
+        "month_label": now.strftime("%B %Y").upper(),
+        "currency": currency,
         "monthly_target": monthly_target,
         "current_earnings": round(current, 2),
         "progress_pct": progress,
         "verified_views": verified,
-        "approval_rate": approval_rate,
+        "approval_rate": round(approval_rate * 100, 1),
         "avg_views_per_clip": avg_views,
         "effective_cpm": effective_cpm,
+        "clips_produced": db.query(ClipVersion).count(),
+        "clips_posted": db.query(Post).count(),
+        "payout_ready": round(payout_ready_amt, 2),
+        "forecast": forecast.to_dict(),
         "campaigns": [_serialize_discovered(r) for r in top3],
         "today_accounts": today_accounts,
         "clips_waiting_approval": waiting,
@@ -774,6 +810,8 @@ def production_queue(db: Session = Depends(get_db), _user: str = Depends(require
 
 @router.get("/operator/learning")
 def learning_board(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    from packages.services.forecast import PerformanceLearningService
+
     accounts = {a.id: a for a in db.query(SocialAccount).all()}
     rows = []
     for p in db.query(ClipPerformance).all():
@@ -796,13 +834,7 @@ def learning_board(db: Session = Depends(get_db), _user: str = Depends(require_o
                 "earnings": float(p.earnings or 0),
             }
         )
-    cohorts = cohort_averages(rows)
-    return {
-        "clip_count": len(rows),
-        "cohorts": cohorts[:20],
-        "recommendations": production_recommendations(cohorts),
-        "ready_to_learn": len(rows) >= 50,
-    }
+    return PerformanceLearningService().analyse(rows)
 
 
 @router.post("/operator/demo/seed-top3")

@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 from app.auth import require_operator
 from app.config import get_settings
 from app.db import (
+    Campaign,
     ClipCandidate,
     ClipVersion,
     ComplianceCheck,
@@ -24,6 +25,7 @@ from app.db import (
     Payout,
     Post,
     Render,
+    SocialAccount,
     SourceAsset,
     Submission,
     DailyMetric,
@@ -434,3 +436,96 @@ def tracking_board(db: Session = Depends(get_db), _user: str = Depends(require_o
             }
         )
     return out
+
+
+@router.post("/versions/{version_id}/regenerate")
+def regenerate_version(
+    version_id: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Re-run caption generation for a version (still needs human approve)."""
+    version = db.get(ClipVersion, version_id)
+    if not version:
+        raise HTTPException(404, "Version not found")
+    campaign = db.get(Campaign, version.campaign_id)
+    account = db.get(SocialAccount, version.social_account_id)
+    from workers.caption_generation.generate import generate_account_copy
+    from app.db import CampaignRequirement
+
+    req = None
+    if version.requirements_snapshot_id:
+        req = db.get(CampaignRequirement, version.requirements_snapshot_id)
+    copy = generate_account_copy(
+        style=version.style,
+        campaign_name=campaign.name if campaign else "campaign",
+        excerpt=version.hook_text or "",
+        hashtags=list(req.required_hashtags) if req else [],
+        tags=list(req.required_tags) if req else [],
+        disclosure=req.required_disclosure if req else None,
+        hook_variant=(version.hook_variant % 3) + 1,
+    )
+    version.hook_variant = (version.hook_variant % 3) + 1
+    version.caption = copy["caption"]
+    version.hook_text = copy["hook"]
+    version.context_intro = copy.get("context_intro")
+    version.status = "REVIEW_REQUIRED"
+    version.subtitle_style = "minimal" if version.subtitle_style == "bold" else "bold"
+    db.commit()
+    db.refresh(version)
+    return {
+        "id": version.id,
+        "caption": version.caption,
+        "hook_text": version.hook_text,
+        "status": version.status,
+        "account": account.display_name if account else None,
+    }
+
+
+@router.get("/versions/{version_id}/approval-card")
+def approval_card(
+    version_id: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    version = db.get(ClipVersion, version_id)
+    if not version:
+        raise HTTPException(404, "Not found")
+    campaign = db.get(Campaign, version.campaign_id)
+    account = db.get(SocialAccount, version.social_account_id)
+    render = (
+        db.query(Render)
+        .filter(Render.clip_version_id == version_id)
+        .order_by(Render.created_at.desc())
+        .first()
+    )
+    check = (
+        db.query(ComplianceCheck)
+        .filter(ComplianceCheck.clip_version_id == version_id)
+        .order_by(ComplianceCheck.created_at.desc())
+        .first()
+    )
+    cand = db.get(ClipCandidate, version.candidate_id) if version.candidate_id else None
+    settings = get_settings()
+    score = float(cand.total_score) if cand else None
+    pred = "HIGH" if score and score >= 80 else ("MEDIUM" if score and score >= 60 else "LOW")
+    return {
+        "id": version.id,
+        "campaign": campaign.name if campaign else None,
+        "account": account.display_name if account else None,
+        "style": version.style,
+        "caption": version.caption,
+        "hook_text": version.hook_text,
+        "duration_band": version.duration_band,
+        "video_path": render.video_path if render else None,
+        "compliance_passed": check.passed if check else None,
+        "compliance_checks": check.checks if check else [],
+        "ai_score": score,
+        "predicted_performance": pred,
+        "expected_earnings": float(campaign.expected_profit)
+        if campaign and campaign.expected_profit is not None
+        else None,
+        "open_campaign": campaign.external_url if campaign else None,
+        "open_tiktok": settings.tiktok_url,
+        "buttons": ["Approve", "Reject", "Regenerate", "Open Campaign", "Open TikTok"],
+    }
