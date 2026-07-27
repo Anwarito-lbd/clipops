@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     whisperx_model: str = "medium"
     whisperx_device: str = "cuda"
     whisperx_compute_type: str = "float16"
+    hf_token: str = ""
+    enable_diarization: bool = True
 
     platform_fee_multiplier: float = 0.93
     budget_utilisation_reject_threshold: float = 0.90

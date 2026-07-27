@@ -58,6 +58,8 @@ See [docs/SECRETS.md](docs/SECRETS.md). Production: `--production` refuses weak 
 
 Installs **PyTorch cu128** (Blackwell / RTX 5060) + WhisperX. Transcription order: WhisperX (Silero VAD) → faster-whisper → heuristic. Scene cuts: PySceneDetect → fixed windows.
 
+Optional stack (Redis async, Remotion, diarization): see [docs/OPS_STACK.md](docs/OPS_STACK.md) and `.\scripts\start_stack.ps1`.
+
 ## Remotion
 
 `templates/` runs a real render service on `:3100`. FFmpeg still cuts 9:16; Remotion overlays animated hooks and returns `rendered_path` for the export package.

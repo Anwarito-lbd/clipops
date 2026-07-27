@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 
@@ -50,10 +52,59 @@ def _probe_duration(video_path: str) -> float | None:
         return None
 
 
-def _via_whisperx(video_path: str, model: str, device: str, compute_type: str) -> dict:
+def _ffmpeg_wav(video_path: str) -> str | None:
+    """Extract 16k mono wav — avoids torchcodec DLL issues on Windows."""
+    try:
+        fd, wav = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                video_path,
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                "-vn",
+                wav,
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return wav
+    except Exception:
+        return None
+
+
+def _load_audio_array(video_path: str):
     import whisperx  # type: ignore
 
-    audio = whisperx.load_audio(video_path)
+    wav = _ffmpeg_wav(video_path)
+    try:
+        if wav:
+            return whisperx.load_audio(wav)
+        return whisperx.load_audio(video_path)
+    finally:
+        if wav:
+            try:
+                os.unlink(wav)
+            except OSError:
+                pass
+
+
+def _via_whisperx(
+    video_path: str,
+    model: str,
+    device: str,
+    compute_type: str,
+    hf_token: str | None = None,
+    enable_diarization: bool = True,
+) -> dict:
+    import whisperx  # type: ignore
+
+    audio = _load_audio_array(video_path)
     # silero VAD avoids pyannote→speechbrain→k2 breakage on Windows CUDA stacks
     try:
         asr = whisperx.load_model(
@@ -68,17 +119,32 @@ def _via_whisperx(video_path: str, model: str, device: str, compute_type: str) -
     result = whisperx.align(
         result["segments"], align_model, metadata, audio, device, return_char_alignments=False
     )
-    try:
-        diarize = whisperx.DiarizationPipeline(device=device)
-        diarize_segments = diarize(audio)
-        result = whisperx.assign_word_speakers(diarize_segments, result)
-    except Exception:
-        pass
+
+    diarized = False
+    diarize_error = None
+    token = hf_token or os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    if enable_diarization and token:
+        try:
+            # Newer whisperx accepts token=; older uses use_auth_token=
+            try:
+                diarize = whisperx.DiarizationPipeline(device=device, token=token)
+            except TypeError:
+                diarize = whisperx.DiarizationPipeline(use_auth_token=token, device=device)
+            diarize_segments = diarize(audio)
+            result = whisperx.assign_word_speakers(diarize_segments, result)
+            diarized = True
+        except Exception as exc:
+            diarize_error = str(exc)
+    elif enable_diarization and not token:
+        diarize_error = "HF_TOKEN not set — diarization skipped (ASR still used)"
+
     return {
         "segments": result.get("segments", []),
         "word_segments": result.get("word_segments", []),
         "language": result.get("language", "en"),
         "engine": "whisperx",
+        "diarized": diarized,
+        "diarize_error": diarize_error,
     }
 
 
@@ -93,32 +159,43 @@ def _via_faster_whisper(video_path: str, model: str, device: str, compute_type: 
     except Exception:
         wm = WhisperModel(name, device="cpu", compute_type="int8")
 
-    segments_iter, info = wm.transcribe(video_path, word_timestamps=True, vad_filter=True)
-    segments = []
-    words = []
-    for seg in segments_iter:
-        segments.append(
-            {
-                "start": float(seg.start),
-                "end": float(seg.end),
-                "text": (seg.text or "").strip(),
-                "speaker": "SPEAKER_0",
-            }
-        )
-        for w in seg.words or []:
-            words.append(
+    # Prefer wav extract for consistent decoding on Windows
+    wav = _ffmpeg_wav(video_path)
+    source = wav or video_path
+    try:
+        segments_iter, info = wm.transcribe(source, word_timestamps=True, vad_filter=True)
+        segments = []
+        words = []
+        for seg in segments_iter:
+            segments.append(
                 {
-                    "word": w.word,
-                    "start": float(w.start),
-                    "end": float(w.end),
+                    "start": float(seg.start),
+                    "end": float(seg.end),
+                    "text": (seg.text or "").strip(),
+                    "speaker": "SPEAKER_0",
                 }
             )
-    return {
-        "segments": segments,
-        "word_segments": words,
-        "language": getattr(info, "language", "en"),
-        "engine": "faster-whisper",
-    }
+            for w in seg.words or []:
+                words.append(
+                    {
+                        "word": w.word,
+                        "start": float(w.start),
+                        "end": float(w.end),
+                    }
+                )
+        return {
+            "segments": segments,
+            "word_segments": words,
+            "language": getattr(info, "language", "en"),
+            "engine": "faster-whisper",
+            "diarized": False,
+        }
+    finally:
+        if wav:
+            try:
+                os.unlink(wav)
+            except OSError:
+                pass
 
 
 def transcribe_video(
@@ -127,13 +204,20 @@ def transcribe_video(
     model: str = "medium",
     device: str = "cuda",
     compute_type: str = "float16",
+    hf_token: str | None = None,
+    enable_diarization: bool = True,
 ) -> dict:
     Path(output_json).parent.mkdir(parents=True, exist_ok=True)
     duration = _probe_duration(video_path)
     errors: list[str] = []
 
     for name, fn in (
-        ("whisperx", lambda: _via_whisperx(video_path, model, device, compute_type)),
+        (
+            "whisperx",
+            lambda: _via_whisperx(
+                video_path, model, device, compute_type, hf_token, enable_diarization
+            ),
+        ),
         ("faster-whisper", lambda: _via_faster_whisper(video_path, model, device, compute_type)),
     ):
         try:

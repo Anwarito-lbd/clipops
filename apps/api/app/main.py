@@ -65,5 +65,5 @@ def health() -> HealthOut:
         env=report.env,
         security_ok=report.ok,
         security_messages=report.messages,
-        media=media_stack_status(),
+        media=media_stack_status(settings),
     )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+from urllib.request import urlopen
 
 
 WEAK_JWT = {
@@ -66,7 +67,25 @@ def audit_settings(settings: Any) -> SecurityReport:
     )
 
 
-def media_stack_status() -> dict[str, Any]:
+def _ping_redis(url: str) -> bool:
+    try:
+        import redis  # type: ignore
+
+        client = redis.from_url(url, socket_connect_timeout=0.5, socket_timeout=0.5)
+        return client.ping() is True
+    except Exception:
+        return False
+
+
+def _ping_remotion(url: str) -> bool:
+    try:
+        with urlopen(url.rstrip("/") + "/health", timeout=1.5) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
+def media_stack_status(settings: Any | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {
         "torch": False,
         "cuda": False,
@@ -74,7 +93,19 @@ def media_stack_status() -> dict[str, Any]:
         "whisperx": False,
         "faster_whisper": False,
         "scenedetect": False,
+        "ffmpeg": False,
+        "redis": False,
+        "remotion": False,
+        "celery_eager": True,
+        "hf_token_set": False,
+        "diarization_ready": False,
     }
+    try:
+        import shutil
+
+        out["ffmpeg"] = bool(shutil.which("ffmpeg"))
+    except Exception:
+        pass
     try:
         import torch
 
@@ -102,4 +133,28 @@ def media_stack_status() -> dict[str, Any]:
         out["scenedetect"] = True
     except Exception:
         pass
+
+    if settings is not None:
+        out["celery_eager"] = bool(getattr(settings, "celery_eager", True))
+        out["hf_token_set"] = bool(getattr(settings, "hf_token", "") or "")
+        out["diarization_ready"] = bool(
+            out["whisperx"] and out["hf_token_set"] and getattr(settings, "enable_diarization", True)
+        )
+        out["redis"] = _ping_redis(getattr(settings, "redis_url", "redis://127.0.0.1:6379/0"))
+        out["remotion"] = _ping_remotion(getattr(settings, "remotion_url", "http://127.0.0.1:3100"))
+    else:
+        out["redis"] = _ping_redis("redis://127.0.0.1:6379/0")
+        out["remotion"] = _ping_remotion("http://127.0.0.1:3100")
+
+    # Readiness score 0–100 for operator dashboard
+    checks = [
+        out["ffmpeg"],
+        out["torch"] and out["cuda"],
+        out["whisperx"] or out["faster_whisper"],
+        out["scenedetect"],
+        out["remotion"],
+        out["redis"] or out["celery_eager"],
+    ]
+    out["readiness_pct"] = round(100 * sum(1 for c in checks if c) / len(checks))
+    out["mode"] = "eager_inline" if out["celery_eager"] else "async_celery"
     return out

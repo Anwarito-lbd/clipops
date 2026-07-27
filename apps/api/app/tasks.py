@@ -70,16 +70,17 @@ def process_asset(asset_id: str) -> dict:
             model=settings.whisperx_model,
             device=settings.whisperx_device,
             compute_type=settings.whisperx_compute_type,
+            hf_token=settings.hf_token or None,
+            enable_diarization=settings.enable_diarization,
         )
         asset.transcript_path = str(work_dir / "transcript.json")
         engine = (transcript or {}).get("engine") or "unknown"
-        if engine == "heuristic" or transcript.get("fallback_reason"):
-            asset.error_message = (
-                f"transcript_engine={engine}"
-                + (f"; {transcript.get('fallback_reason')}" if transcript.get("fallback_reason") else "")
-            )
-        else:
-            asset.error_message = f"transcript_engine={engine}"
+        asset.error_message = (
+            f"transcript_engine={engine}"
+            + (f"; diarized={transcript.get('diarized')}" if "diarized" in transcript else "")
+            + (f"; {transcript.get('fallback_reason')}" if transcript.get("fallback_reason") else "")
+            + (f"; diarize={transcript.get('diarize_error')}" if transcript.get("diarize_error") else "")
+        )
         asset.status = "ANALYSED"
         db.commit()
 

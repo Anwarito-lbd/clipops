@@ -49,7 +49,29 @@ export default function HomePage() {
   const [home, setHome] = useState<Home | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("operator@clipops.local");
-  const [password, setPassword] = useState("changeme");
+  const [password, setPassword] = useState("");
+  const [stack, setStack] = useState<{
+    readiness_pct?: number;
+    remotion?: boolean;
+    redis?: boolean;
+    cuda?: boolean;
+    whisperx?: boolean;
+    celery_eager?: boolean;
+    diarization_ready?: boolean;
+    mode?: string;
+    device_name?: string | null;
+  } | null>(null);
+
+  async function loadStack() {
+    try {
+      const h = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"}/health`
+      ).then((r) => r.json());
+      setStack(h.media || null);
+    } catch {
+      setStack(null);
+    }
+  }
 
   async function load() {
     try {
@@ -83,6 +105,7 @@ export default function HomePage() {
   }
 
   useEffect(() => {
+    loadStack();
     load().catch(() => undefined);
   }, []);
 
@@ -102,9 +125,39 @@ export default function HomePage() {
         </p>
       </div>
 
+      {stack && (
+        <div className="rounded-lg border border-border bg-card p-4 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold uppercase tracking-wide text-muted-foreground">
+              Stack readiness
+            </span>
+            <span>{stack.readiness_pct ?? "—"}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+            <div
+              className="h-full bg-primary"
+              style={{ width: `${stack.readiness_pct ?? 0}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
+            <span>
+              CUDA {stack.cuda ? "✓" : "✗"} {stack.device_name || ""}
+            </span>
+            <span>WhisperX {stack.whisperx ? "✓" : "✗"}</span>
+            <span>Remotion {stack.remotion ? "✓" : "✗"}</span>
+            <span>Redis {stack.redis ? "✓" : "✗"}</span>
+            <span>Mode {stack.mode || "—"}</span>
+            <span>Diarize {stack.diarization_ready ? "✓" : "—"}</span>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="rounded-lg border border-border bg-card p-4 space-y-2">
           <p className="text-sm text-destructive">Sign in to load Operator Mode</p>
+          <p className="text-[10px] text-muted-foreground">
+            Password from rotate_secrets.py (not changeme after rotation).
+          </p>
           <div className="flex flex-wrap gap-2">
             <input
               className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
@@ -116,6 +169,7 @@ export default function HomePage() {
               className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="password"
             />
             <button
               onClick={login}
