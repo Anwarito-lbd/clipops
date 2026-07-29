@@ -12,6 +12,7 @@ import {
   Package,
   ShieldAlert,
   Sparkles,
+  Users,
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/", label: "Home $1K", icon: LayoutDashboard },
   { href: "/operator", label: "Operator", icon: Sparkles },
+  { href: "/accounts", label: "Accounts", icon: Users },
   { href: "/campaigns", label: "Campaigns", icon: Clapperboard },
   { href: "/assets", label: "Assets", icon: FolderUp },
   { href: "/review", label: "Review", icon: ShieldAlert },

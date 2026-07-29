@@ -24,6 +24,7 @@ type Camp = {
 export default function OperatorPage() {
   const [rows, setRows] = useState<Camp[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function load() {
     setRows(await api("/api/operator/top3"));
@@ -34,11 +35,14 @@ export default function OperatorPage() {
   }, []);
 
   async function approve(id: string) {
-    const res = await api<{ next_steps: string[]; open_campaign_url: string | null }>(
+    const res = await api<{ next_steps: string[]; open_campaign_url: string | null; bot_can_join?: boolean }>(
       `/api/operator/discovered/${id}/approve`,
       { method: "POST", body: "{}" }
     );
-    setMsg(res.next_steps.join(" · "));
+    setMsg(
+      (res.bot_can_join === false ? "JOIN NOW (you click) · " : "") +
+        res.next_steps.join(" · ")
+    );
     if (res.open_campaign_url) window.open(res.open_campaign_url, "_blank");
     await load();
   }
@@ -51,14 +55,59 @@ export default function OperatorPage() {
     await load();
   }
 
+  async function pullScrapling() {
+    setBusy(true);
+    try {
+      const res = await api<{
+        scraped_count?: number;
+        ingested?: number;
+        next?: string;
+        error?: string;
+      }>("/api/operator/discover/scrapling", { method: "POST", body: "{}" });
+      setMsg(
+        res.error
+          ? `Scrapling: ${res.error}`
+          : `Scrapling scraped ${res.scraped_count ?? 0}, ingested ${res.ingested ?? 0}. ${res.next || ""}`
+      );
+      await load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function seedDemo() {
+    await api("/api/operator/demo/seed-top3", { method: "POST", body: "{}" });
+    setMsg("Demo top 3 seeded");
+    await load();
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">Operator Mode</h1>
-        <p className="text-sm text-muted-foreground">
-          Best three campaigns. You approve; ClipOps opens CR for your Join
-          click. Extension scans your logged-in session.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Operator Mode</h1>
+          <p className="text-sm text-muted-foreground">
+            Best campaigns ranked. You approve; ClipOps notifies JOIN NOW — you
+            click Join on CR. Extension or Scrapling pulls public campaigns.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            disabled={busy}
+            onClick={pullScrapling}
+            className="rounded-md border border-border px-3 py-1.5 text-xs"
+          >
+            {busy ? "Pulling…" : "Pull campaigns (Scrapling)"}
+          </button>
+          <button
+            onClick={seedDemo}
+            className="rounded-md border border-border px-3 py-1.5 text-xs"
+          >
+            Seed demo top 3
+          </button>
+        </div>
       </div>
       {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
       <div className="grid gap-4 lg:grid-cols-3">

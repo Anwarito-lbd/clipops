@@ -16,8 +16,12 @@ Assists your **already logged-in** Content Rewards browser session.
 ## What it never does
 
 - Auto-click Join, Submit, or Cash-out
-- Post to TikTok
+- Post to TikTok / YouTube
 - Bypass CAPTCHA
 - Run unattended Playwright against Content Rewards
 
-Those final clicks stay yours. An unattended bot should only be considered if Content Rewards gives **written permission**.
+Those final clicks stay yours. ClipOps will **notify** you with JOIN NOW / CASHOUT NOW alerts — the extension can highlight buttons; you confirm.
+
+Alternative public discover (no login): API `POST /api/operator/discover/scrapling` using [Scrapling](https://github.com/D4Vinci/Scrapling) — see `docs/CONTENT_REWARDS.md`.
+
+An unattended bot should only be considered if Content Rewards gives **written permission**.

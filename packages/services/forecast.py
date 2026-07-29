@@ -67,7 +67,7 @@ class ForecastService:
         notes = [
             f"Planning CPM {currency} {planning_cpm:.2f} (not a guarantee).",
             f"Est. revenue/approved clip ≈ {currency} {rev_per_approved:.2f} at {avg_views_per_clip:.0f} views.",
-            f"Capacity assumption {clips_per_day_capacity:.1f} clips/day across 3 accounts.",
+            f"Capacity assumption {clips_per_day_capacity:.1f} clips/day across linked TikTok+YouTube accounts.",
         ]
         on_track = projected >= monthly_target * 0.9 or required_per_day <= clips_per_day_capacity
         if not on_track:

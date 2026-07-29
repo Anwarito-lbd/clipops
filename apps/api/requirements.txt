@@ -12,6 +12,12 @@ celery==5.4.0
 redis==5.2.1
 httpx==0.28.1
 pytest==8.3.4
+# Public Content Rewards discover scrape (https://github.com/D4Vinci/Scrapling)
+# Uses HTTP Fetcher only — not StealthyFetcher CAPTCHA bypass / logged-in bots
+scrapling>=0.2.99
+# Optional Edge TTS for commentary-account voiceover (MoneyPrinterTurbo-inspired)
+# Mixed onto campaign footage only — never stock Pexels replacement
+edge-tts>=6.1.0
 # Optional media stack (install into same venv)
 scenedetect>=0.6.4
 opencv-python-headless>=4.8.0

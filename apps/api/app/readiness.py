@@ -24,6 +24,7 @@ def compute_go_live(
     security = audit_settings(settings)
 
     accounts = db.query(SocialAccount).filter(SocialAccount.platform == "tiktok").count()
+    youtube_accounts = db.query(SocialAccount).filter(SocialAccount.platform == "youtube").count()
     discovered = db.query(DiscoveredCampaign).count()
     campaigns = db.query(Campaign).count()
     versions = db.query(ClipVersion).count()
@@ -65,24 +66,24 @@ def compute_go_live(
         },
         {
             "id": "accounts",
-            "label": "3 TikTok accounts configured",
-            "done": accounts >= 3,
+            "label": "3 TikTok + 3 YouTube accounts configured",
+            "done": accounts >= 3 and youtube_accounts >= 3,
             "weight": 8,
-            "how": "Seeded on API start, or add via DB/API",
+            "how": "Seeded on API start (6 posting accounts), or PATCH via /api/accounts",
         },
         {
             "id": "discover",
             "label": "At least one CR campaign discovered/scanned",
             "done": discovered >= 1 or campaigns >= 1,
             "weight": 10,
-            "how": "Load browser-extension → Scan on logged-in Content Rewards",
+            "how": "Extension Scan OR POST /api/operator/discover/scrapling (public board)",
         },
         {
             "id": "joined_campaign",
             "label": "Campaign joined + footage processed",
             "done": versions >= 1,
             "weight": 12,
-            "how": "Approve campaign → Join on CR → Upload Assets",
+            "how": "Approve campaign → YOU Join on CR (bot notifies) → Upload Assets",
         },
         {
             "id": "draft_preview",
@@ -100,10 +101,10 @@ def compute_go_live(
         },
         {
             "id": "posted",
-            "label": "At least one TikTok URL marked posted",
+            "label": "At least one post URL marked posted",
             "done": posted >= 1,
             "weight": 8,
-            "how": "Exports → you Post on TikTok → paste URL → Mark posted",
+            "how": "Exports → you Post on TikTok/YouTube → paste URL → Mark posted",
         },
         {
             "id": "submitted",
@@ -156,7 +157,8 @@ def compute_go_live(
             {"id": i["id"], "label": i["label"], "how": i["how"]} for i in next_steps[:3]
         ],
         "note": (
-            "99% = software + one full human-gated dry run with real CR/TikTok actions. "
+            "99% = software + one full human-gated dry run with real CR/TikTok/YouTube actions. "
+            "Join and cash-out are NEVER automated — ClipOps only notifies you. "
             "£1K/month is a planning target, not included in this score."
         ),
     }

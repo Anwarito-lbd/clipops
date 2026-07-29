@@ -203,6 +203,8 @@ class Post(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     clip_version_id: Mapped[str] = mapped_column(String(36), ForeignKey("clip_versions.id", ondelete="CASCADE"))
     social_account_id: Mapped[str] = mapped_column(String(36), ForeignKey("social_accounts.id"))
+    # Generic post URL (TikTok or YouTube). tiktok_url kept for backward compat.
+    post_url: Mapped[Optional[str]] = mapped_column(String(1024))
     tiktok_url: Mapped[Optional[str]] = mapped_column(String(1024))
     posted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(32), default="EXPORTED")
@@ -377,51 +379,33 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def seed_accounts(db: Session) -> None:
-    if db.query(SocialAccount).count():
+def _ensure_sqlite_columns() -> None:
+    """Add columns introduced after first create_all (SQLite only)."""
+    if not settings.database_url.startswith("sqlite"):
         return
-    rows = [
-        SocialAccount(
-            platform="content_rewards",
-            handle="operator",
-            display_name="ClipOps CR Account",
-            style=None,
-            audience_geo=["US", "CA"],
-            audience_notes="Single Content Rewards identity — never duplicate",
-        ),
-        SocialAccount(
-            platform="tiktok",
-            handle="tiktok_dramatic",
-            display_name="TikTok 1 — Dramatic",
-            style="dramatic",
-            audience_geo=["US", "CA"],
-            audience_notes="Fast, dramatic clips",
-            preferred_clip_length="15-25",
-            preferred_hooks=["drama", "question"],
-        ),
-        SocialAccount(
-            platform="tiktok",
-            handle="tiktok_educational",
-            display_name="TikTok 2 — Educational",
-            style="educational",
-            audience_geo=["US", "CA"],
-            audience_notes="Educational / storytelling",
-            preferred_clip_length="25-40",
-            preferred_hooks=["surprising_fact", "question"],
-        ),
-        SocialAccount(
-            platform="tiktok",
-            handle="tiktok_commentary",
-            display_name="TikTok 3 — Commentary",
-            style="commentary",
-            audience_geo=["US", "CA"],
-            audience_notes="Commentary, captions, reactions",
-            preferred_clip_length="15-25",
-            preferred_hooks=["controversy", "question"],
-        ),
-    ]
-    db.add_all(rows)
-    db.commit()
+    with engine.begin() as conn:
+        cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(posts)").fetchall()}
+        if "post_url" not in cols:
+            conn.exec_driver_sql("ALTER TABLE posts ADD COLUMN post_url VARCHAR(1024)")
+
+
+def seed_accounts(db: Session) -> None:
+    """Seed CR identity + 3 TikTok + 3 YouTube. Idempotent per (platform, handle)."""
+    from packages.shared_types.accounts import default_seed_rows
+
+    existing = {
+        (r.platform, r.handle)
+        for r in db.query(SocialAccount.platform, SocialAccount.handle).all()
+    }
+    added = False
+    for row in default_seed_rows():
+        key = (row["platform"], row["handle"])
+        if key in existing:
+            continue
+        db.add(SocialAccount(**row))
+        added = True
+    if added:
+        db.commit()
 
 
 def seed_settings(db: Session) -> None:
@@ -433,6 +417,7 @@ def seed_settings(db: Session) -> None:
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_columns()
     db = SessionLocal()
     try:
         seed_accounts(db)

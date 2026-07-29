@@ -64,8 +64,23 @@ class Settings(BaseSettings):
     # Local default: run pipeline inline so uploads don't hang without a worker
     celery_eager: bool = True
 
+    # Commentary-account TTS (Edge TTS) mixed onto campaign footage — off by default
+    enable_tts_commentary: bool = False
+    tts_voice: str = "en-US-JennyNeural"
+
     tiktok_url: str = "https://www.tiktok.com"
+    youtube_url: str = "https://studio.youtube.com"
     content_rewards_url: str = "https://www.contentrewards.com"
+    # Public CR discover board (Scrapling Fetcher — no login, no auto-join)
+    scrapling_discover_url: str = "https://whop.com/discover/content-rewards/"
+    scrapling_enabled: bool = True
+    # Official OAuth posting (optional — requires developer apps + audit)
+    tiktok_client_key: str = ""
+    tiktok_client_secret: str = ""
+    tiktok_redirect_uri: str = "http://127.0.0.1:8000/api/oauth/tiktok/callback"
+    youtube_client_id: str = ""
+    youtube_client_secret: str = ""
+    youtube_redirect_uri: str = "http://127.0.0.1:8000/api/oauth/youtube/callback"
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -12,9 +12,17 @@ sys.path.insert(0, str(ROOT))
 from app.auth import authenticate_operator, create_access_token, require_operator
 from app.config import get_settings
 from app.db import Campaign, CampaignRequirement, SocialAccount, get_db
-from app.schemas import CampaignCreate, CampaignOut, LoginRequest, ManualActionLinks, TokenResponse
+from app.schemas import (
+    AccountUpsert,
+    CampaignCreate,
+    CampaignOut,
+    LoginRequest,
+    ManualActionLinks,
+    TokenResponse,
+)
 from packages.campaign_parser.parser import parse_campaign_brief
 from packages.campaign_parser.scoring import score_campaign
+from packages.shared_types.accounts import POSTING_PLATFORMS, merge_audience_geos
 
 router = APIRouter(tags=["campaigns"])
 
@@ -32,24 +40,83 @@ def manual_links(campaign_url: str | None = None, _user: str = Depends(require_o
     return ManualActionLinks(
         open_campaign=campaign_url,
         open_tiktok=settings.tiktok_url,
+        open_youtube=settings.youtube_url,
         open_content_rewards=settings.content_rewards_url,
     )
+
+
+def _serialize_account(r: SocialAccount) -> dict:
+    return {
+        "id": r.id,
+        "platform": r.platform,
+        "handle": r.handle,
+        "display_name": r.display_name,
+        "style": r.style,
+        "audience_geo": r.audience_geo,
+        "audience_notes": r.audience_notes,
+        "preferred_clip_length": r.preferred_clip_length,
+        "preferred_hooks": r.preferred_hooks or [],
+        "is_active": r.is_active,
+    }
 
 
 @router.get("/accounts")
 def list_accounts(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
     rows = db.query(SocialAccount).order_by(SocialAccount.platform, SocialAccount.handle).all()
-    return [
-        {
-            "id": r.id,
-            "platform": r.platform,
-            "handle": r.handle,
-            "display_name": r.display_name,
-            "style": r.style,
-            "audience_geo": r.audience_geo,
-        }
-        for r in rows
-    ]
+    return [_serialize_account(r) for r in rows]
+
+
+@router.post("/accounts")
+def upsert_account(
+    body: AccountUpsert,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    platform = body.platform.strip().lower()
+    if platform not in (*POSTING_PLATFORMS, "content_rewards"):
+        raise HTTPException(400, f"platform must be one of tiktok, youtube, content_rewards")
+    row = (
+        db.query(SocialAccount)
+        .filter(SocialAccount.platform == platform, SocialAccount.handle == body.handle)
+        .first()
+    )
+    if row is None:
+        row = SocialAccount(platform=platform, handle=body.handle)
+        db.add(row)
+    row.display_name = body.display_name
+    row.style = body.style
+    row.audience_geo = body.audience_geo
+    row.audience_notes = body.audience_notes
+    row.preferred_clip_length = body.preferred_clip_length
+    row.preferred_hooks = body.preferred_hooks
+    row.is_active = body.is_active
+    db.commit()
+    db.refresh(row)
+    return _serialize_account(row)
+
+
+@router.patch("/accounts/{account_id}")
+def patch_account(
+    account_id: str,
+    body: AccountUpsert,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    row = db.get(SocialAccount, account_id)
+    if not row:
+        raise HTTPException(404, "Account not found")
+    row.platform = body.platform.strip().lower()
+    row.handle = body.handle
+    row.display_name = body.display_name
+    row.style = body.style
+    row.audience_geo = body.audience_geo
+    row.audience_notes = body.audience_notes
+    row.preferred_clip_length = body.preferred_clip_length
+    row.preferred_hooks = body.preferred_hooks
+    row.is_active = body.is_active
+    db.commit()
+    db.refresh(row)
+    return _serialize_account(row)
 
 
 @router.get("/campaigns", response_model=list[CampaignOut])
@@ -67,11 +134,12 @@ def create_campaign(
     _user: str = Depends(require_operator),
 ):
     parsed = parse_campaign_brief(body.raw_brief)
-    accounts = db.query(SocialAccount).filter(SocialAccount.platform == "tiktok").all()
-    geos: list[str] = []
-    for a in accounts:
-        geos.extend(a.audience_geo or [])
-    geos = list(dict.fromkeys(geos)) or ["US", "CA"]
+    accounts = (
+        db.query(SocialAccount)
+        .filter(SocialAccount.platform.in_(list(POSTING_PLATFORMS)))
+        .all()
+    )
+    geos = merge_audience_geos(accounts)
 
     budget_remaining = None
     if parsed.total_budget is not None:
