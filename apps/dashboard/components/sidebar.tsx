@@ -14,6 +14,7 @@ import {
   Sparkles,
   Users,
   Wallet,
+  Link2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ const NAV = [
   { href: "/", label: "Home $1K", icon: LayoutDashboard },
   { href: "/operator", label: "Operator", icon: Sparkles },
   { href: "/accounts", label: "Accounts", icon: Users },
+  { href: "/affiliates", label: "Affiliates", icon: Link2 },
   { href: "/campaigns", label: "Campaigns", icon: Clapperboard },
   { href: "/assets", label: "Assets", icon: FolderUp },
   { href: "/review", label: "Review", icon: ShieldAlert },

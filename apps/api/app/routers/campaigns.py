@@ -73,8 +73,10 @@ def upsert_account(
     _user: str = Depends(require_operator),
 ):
     platform = body.platform.strip().lower()
-    if platform not in (*POSTING_PLATFORMS, "content_rewards"):
-        raise HTTPException(400, f"platform must be one of tiktok, youtube, content_rewards")
+    if platform not in (*POSTING_PLATFORMS, "content_rewards", "twitter", "x"):
+        raise HTTPException(400, "platform must be one of tiktok, youtube, twitter, content_rewards")
+    if platform == "x":
+        platform = "twitter"
     row = (
         db.query(SocialAccount)
         .filter(SocialAccount.platform == platform, SocialAccount.handle == body.handle)

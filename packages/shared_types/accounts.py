@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Iterable, Sequence
 
 POSTING_PLATFORMS = ("tiktok", "youtube")
+PROMOTE_PLATFORMS = ("tiktok", "youtube", "twitter", "x")
 CR_PLATFORM = "content_rewards"
 ACCOUNT_STYLES = ("dramatic", "educational", "commentary")
 
@@ -13,10 +14,18 @@ def is_posting_platform(platform: str | None) -> bool:
     return (platform or "").lower() in POSTING_PLATFORMS
 
 
-def open_url_for_platform(platform: str | None, *, tiktok_url: str, youtube_url: str) -> str:
+def open_url_for_platform(
+    platform: str | None,
+    *,
+    tiktok_url: str,
+    youtube_url: str,
+    twitter_url: str = "https://x.com",
+) -> str:
     p = (platform or "").lower()
     if p == "youtube":
         return youtube_url
+    if p in {"twitter", "x"}:
+        return twitter_url
     return tiktok_url
 
 
@@ -88,6 +97,19 @@ def default_seed_rows() -> list[dict[str, Any]]:
                 "preferred_hooks": hooks,
             }
         )
+    # X/Twitter for affiliate promo (bio + scheduled pitches — not a posting-bot)
+    rows.append(
+        {
+            "platform": "twitter",
+            "handle": "twitter_affiliate",
+            "display_name": "X — Affiliate promo",
+            "style": "commentary",
+            "audience_geo": ["US", "CA"],
+            "audience_notes": "Affiliate pitches + bio link (you post; ClipOps reminds)",
+            "preferred_clip_length": None,
+            "preferred_hooks": [],
+        }
+    )
     return rows
 
 

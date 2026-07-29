@@ -20,6 +20,47 @@ def test_seed_rows_include_six_posting_accounts():
     assert platforms.count("tiktok") == 3
     assert platforms.count("youtube") == 3
     assert platforms.count("content_rewards") == 1
+    assert platforms.count("twitter") == 1
+
+
+def test_affiliate_tag_and_bio_and_pitch():
+    from packages.affiliate import apply_amazon_tag, build_bio, generate_pitch, should_notify_now
+    from datetime import datetime, timedelta, timezone
+
+    url = apply_amazon_tag("https://www.amazon.com/dp/B00TEST?psc=1", "mytag-20")
+    assert "tag=mytag-20" in url
+    bio = build_bio(
+        display_name="ClipOps",
+        niche="gadgets",
+        affiliate_url=url,
+        platform="twitter",
+    )
+    assert "Shop:" in bio and "mytag-20" in bio
+    pitch = generate_pitch(
+        product_name="Widget",
+        product_url=url,
+        talking_points=["fast", "cheap"],
+        platform="twitter",
+    )
+    assert "Widget" in pitch.body and pitch.platform == "twitter"
+    now = datetime(2026, 7, 29, 18, 0, tzinfo=timezone.utc)
+    assert should_notify_now(times_per_day=2, last_notified_at=None, now=now)
+    assert not should_notify_now(
+        times_per_day=2,
+        last_notified_at=now - timedelta(hours=1),
+        now=now,
+    )
+    assert should_notify_now(
+        times_per_day=2,
+        last_notified_at=now - timedelta(hours=13),
+        now=now,
+    )
+    assert should_notify_now(
+        times_per_day=2,
+        last_notified_at=now - timedelta(hours=1),
+        now=now,
+        force=True,
+    )
 
 
 def test_slot_map_supports_six_accounts():

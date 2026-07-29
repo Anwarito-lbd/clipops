@@ -52,6 +52,7 @@ export default function AccountsPage() {
 
   const tt = rows.filter((r) => r.platform === "tiktok");
   const yt = rows.filter((r) => r.platform === "youtube");
+  const tw = rows.filter((r) => r.platform === "twitter" || r.platform === "x");
   const cr = rows.filter((r) => r.platform === "content_rewards");
 
   return (
@@ -59,15 +60,17 @@ export default function AccountsPage() {
       <div>
         <h1 className="text-xl font-bold">Accounts</h1>
         <p className="text-sm text-muted-foreground">
-          Link 3 TikTok + 3 YouTube posting accounts and your Content Rewards
-          identity. ClipOps assigns packages per account — you still press Post.
+          Link 3 TikTok + 3 YouTube posting accounts, X for affiliate promo, and
+          your Content Rewards identity. You still press Post — ClipOps packages
+          and reminds.
         </p>
       </div>
       {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
         <Section title={`TikTok (${tt.length}/3)`} rows={tt} />
         <Section title={`YouTube (${yt.length}/3)`} rows={yt} />
+        <Section title={`X / Twitter (${tw.length})`} rows={tw} />
         <Section title="Content Rewards" rows={cr} />
       </div>
 
@@ -83,6 +86,7 @@ export default function AccountsPage() {
           >
             <option value="tiktok">tiktok</option>
             <option value="youtube">youtube</option>
+            <option value="twitter">twitter / X</option>
             <option value="content_rewards">content_rewards</option>
           </select>
           <select

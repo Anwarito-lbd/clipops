@@ -70,7 +70,10 @@ class Settings(BaseSettings):
 
     tiktok_url: str = "https://www.tiktok.com"
     youtube_url: str = "https://studio.youtube.com"
+    twitter_url: str = "https://x.com"
     content_rewards_url: str = "https://www.contentrewards.com"
+    # Amazon Associates tag for affiliate URL builder (operator pastes product URLs)
+    amazon_affiliate_tag: str = ""
     # Public CR discover board (Scrapling Fetcher — no login, no auto-join)
     scrapling_discover_url: str = "https://whop.com/discover/content-rewards/"
     scrapling_enabled: bool = True

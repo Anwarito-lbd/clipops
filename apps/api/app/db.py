@@ -361,8 +361,39 @@ class OperatorSettings(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     monthly_target: Mapped[float] = mapped_column(Numeric(14, 2), default=1000)
-    currency: Mapped[str] = mapped_column(String(8), default="USD")
+    currency: Mapped[str] = mapped_column(String(8), default="GBP")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AffiliateProduct(Base):
+    """Operator-managed affiliate offers (MoneyPrinterV2 AFM idea — no Amazon scrape bot)."""
+
+    __tablename__ = "affiliate_products"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    product_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    affiliate_tag: Mapped[Optional[str]] = mapped_column(String(128))
+    niche: Mapped[Optional[str]] = mapped_column(String(128))
+    talking_points: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    disclosure: Mapped[str] = mapped_column(String(256), default="Ad / affiliate link")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AffiliateSchedule(Base):
+    """CRON-like reminder slots — notifies operator; does not auto-tweet."""
+
+    __tablename__ = "affiliate_schedules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    product_id: Mapped[str] = mapped_column(String(36), ForeignKey("affiliate_products.id", ondelete="CASCADE"))
+    platform: Mapped[str] = mapped_column(String(32), default="twitter")  # twitter | tiktok | youtube
+    times_per_day: Mapped[int] = mapped_column(Integer, default=2)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 settings = get_settings()
@@ -390,7 +421,7 @@ def _ensure_sqlite_columns() -> None:
 
 
 def seed_accounts(db: Session) -> None:
-    """Seed CR identity + 3 TikTok + 3 YouTube. Idempotent per (platform, handle)."""
+    """Seed CR identity + 3 TikTok + 3 YouTube + X affiliate. Idempotent per (platform, handle)."""
     from packages.shared_types.accounts import default_seed_rows
 
     existing = {

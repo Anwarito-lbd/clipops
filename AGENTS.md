@@ -10,7 +10,7 @@ Monorepo for ClipOps Operator Mode. See `README.md` and `docs/`.
 ./scripts/start_dev.sh
 ```
 
-Starts **API :8000**, **Dashboard :3000**, **Remotion :3100**. Default SQLite + `CELERY_EAGER=true` (no Redis). Seeds **3 TikTok + 3 YouTube + 1 CR**.
+Starts **API :8000**, **Dashboard :3000**, **Remotion :3100**. Default SQLite + `CELERY_EAGER=true` (no Redis). Seeds **3 TikTok + 3 YouTube + 1 CR + 1 X (affiliate)**.
 
 Operator login: `operator@clipops.local` + password from `scripts/rotate_secrets.py --print-password`.
 
@@ -35,12 +35,13 @@ cd apps/api && PYTHONPATH="/workspace:$PWD" ../../apps/api/.venv/bin/uvicorn app
 cd apps/dashboard && npm run dev
 ```
 
-### Multi-platform + Scrapling + video
+### Multi-platform + Scrapling + video + affiliates
 
-- Accounts: `/accounts` · `GET/POST /api/accounts`
+- Accounts: `/accounts` · `GET/POST /api/accounts` (seed: 3 TT + 3 YT + 1 CR + 1 X)
+- Affiliates: `/affiliates` · `docs/AFFILIATES.md` — Amazon tag, bio, pitch drafts, **PROMOTE NOW** reminders (MoneyPrinterV2 ideas; no browser bots / cold email)
 - Discover: extension **or** `POST /api/operator/discover/scrapling`
 - Captions: Remotion karaoke; optional `ENABLE_TTS_COMMENTARY=true` for commentary accounts
-- Docs: `docs/CONTENT_REWARDS.md`, `docs/VIDEO_QUALITY.md`, `docs/OAUTH_POSTING.md`
+- Docs: `docs/CONTENT_REWARDS.md`, `docs/VIDEO_QUALITY.md`, `docs/OAUTH_POSTING.md`, `docs/AFFILIATES.md`
 
 ### Tests
 
