@@ -146,15 +146,16 @@ def media_stack_status(settings: Any | None = None) -> dict[str, Any]:
         out["redis"] = _ping_redis("redis://127.0.0.1:6379/0")
         out["remotion"] = _ping_remotion("http://127.0.0.1:3100")
 
-    # Readiness score 0–100 for operator dashboard
+    # Operator readiness: CUDA/WhisperX are optional upgrades, not required to run.
+    # GPU details stay in the payload for the dashboard stack panel.
     checks = [
         out["ffmpeg"],
-        out["torch"] and out["cuda"],
         out["whisperx"] or out["faster_whisper"],
         out["scenedetect"],
         out["remotion"],
         out["redis"] or out["celery_eager"],
     ]
     out["readiness_pct"] = round(100 * sum(1 for c in checks if c) / len(checks))
+    out["gpu_optional"] = bool(out["torch"] and out["cuda"] and out["whisperx"])
     out["mode"] = "eager_inline" if out["celery_eager"] else "async_celery"
     return out

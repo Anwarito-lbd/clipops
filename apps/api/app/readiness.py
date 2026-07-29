@@ -33,7 +33,11 @@ def compute_go_live(
         .filter(Render.status.in_(["DRAFT", "EXPORTED", "REVIEW_REQUIRED"]))
         .count()
     )
-    exported = db.query(ClipVersion).filter(ClipVersion.status == "EXPORTED").count()
+    exported = (
+        db.query(ClipVersion)
+        .filter(ClipVersion.status.in_(["EXPORTED", "MANUALLY_POSTED", "SUBMITTED", "UNDER_REVIEW", "ACCEPTED", "EARNING", "PAYOUT_READY", "PAID"]))
+        .count()
+    )
     posted = db.query(Post).count()
     submitted = db.query(Submission).count()
     perfs_with_views = (
@@ -44,18 +48,18 @@ def compute_go_live(
 
     items = [
         {
-            "id": "cuda_asr",
-            "label": "GPU ASR (CUDA + WhisperX/faster-whisper)",
-            "done": bool(media.get("cuda") and (media.get("whisperx") or media.get("faster_whisper"))),
+            "id": "asr",
+            "label": "ASR ready (faster-whisper and/or WhisperX)",
+            "done": bool(media.get("whisperx") or media.get("faster_whisper")),
             "weight": 12,
-            "how": "Already installed via scripts/install_whisperx_cuda.py",
+            "how": "pip install faster-whisper (default). Optional GPU: scripts/install_whisperx_cuda.py",
         },
         {
             "id": "ffmpeg_remotion",
             "label": "FFmpeg + Remotion render service",
             "done": bool(media.get("ffmpeg") and media.get("remotion")),
             "weight": 10,
-            "how": ".\\scripts\\start_remotion.ps1  (or start_stack.ps1)",
+            "how": "./scripts/start_dev.sh  (or start Remotion: cd templates && npm start)",
         },
         {
             "id": "secrets",
@@ -125,6 +129,13 @@ def compute_go_live(
     # Optional polish toward 99 (not required for month-1 start)
     optional = [
         {
+            "id": "cuda_whisperx",
+            "label": "GPU ASR (CUDA + WhisperX) — optional speed upgrade",
+            "done": bool(media.get("cuda") and media.get("whisperx")),
+            "weight": 0,
+            "how": "scripts/install_whisperx_cuda.py on a CUDA machine",
+        },
+        {
             "id": "diarization",
             "label": "Speaker diarization (HF_TOKEN)",
             "done": bool(media.get("diarization_ready")),
@@ -136,7 +147,14 @@ def compute_go_live(
             "label": "Async Celery workers (optional)",
             "done": bool(media.get("redis") and not media.get("celery_eager")),
             "weight": 0,
-            "how": "CELERY_EAGER=false + scripts/start_celery_worker.ps1",
+            "how": "CELERY_EAGER=false + Redis + celery worker",
+        },
+        {
+            "id": "tts_commentary",
+            "label": "Edge TTS commentary for commentary accounts",
+            "done": bool(getattr(settings, "enable_tts_commentary", False)),
+            "weight": 0,
+            "how": "ENABLE_TTS_COMMENTARY=true in .env",
         },
     ]
 
