@@ -1,4 +1,4 @@
-"""FFmpeg (+ optional Auto-Editor / Remotion) account package renderer."""
+"""FFmpeg (+ optional Auto-Editor / Remotion / Edge-TTS) account package renderer."""
 
 from __future__ import annotations
 
@@ -37,6 +37,32 @@ def _escape_drawtext(text: str) -> str:
     t = (text or "").replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
     t = re.sub(r"[\r\n]+", " ", t)
     return t[:90]
+
+
+def _strong_hook_draw(*, style: str, hook: str, color: str) -> str:
+    """MoneyPrinterTurbo-inspired thicker outline / box burn-in (FFmpeg fallback)."""
+    if not hook:
+        return ""
+    if style == "educational":
+        return (
+            f",drawbox=x=32:y=ih-360:w=iw-64:h=200:color=black@0.72:t=fill,"
+            f"drawbox=x=32:y=ih-360:w=8:h=200:color=0x3dd6c6@1:t=fill,"
+            f"drawtext=text='{hook}':fontcolor={color}:fontsize=44:"
+            f"x=56:y=h-300:borderw=3:bordercolor=black@0.85"
+        )
+    if style == "commentary":
+        return (
+            f",drawbox=x=(w-w*0.9)/2:y=(h-200)/2:w=w*0.9:h=190:color=black@0.78:t=fill,"
+            f"drawbox=x=(w-w*0.9)/2:y=(h-200)/2:w=w*0.9:h=190:color=yellow@0.9:t=4,"
+            f"drawtext=text='{hook}':fontcolor=yellow:fontsize=42:"
+            f"x=(w-text_w)/2:y=(h-text_h)/2:borderw=4:bordercolor=black@0.9"
+        )
+    # dramatic — big top hook with outline
+    return (
+        f",drawtext=text='{hook}':fontcolor={color}:fontsize=52:"
+        f"x=40:y=72:box=1:boxcolor=black@0.6:boxborderw=18:"
+        f"borderw=4:bordercolor=black@0.9"
+    )
 
 
 def _try_remotion_overlay(
@@ -88,6 +114,10 @@ def render_account_package(
     auto_editor: bool = False,
     remotion_url: str | None = "http://127.0.0.1:3100",
     burn_captions: bool = True,
+    enable_tts_commentary: bool = False,
+    tts_voice: str = "en-US-JennyNeural",
+    campaign_name: str = "",
+    excerpt: str = "",
 ) -> dict:
     out = Path(package_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -106,24 +136,7 @@ def render_account_package(
     # Crop/scale to 9:16, style zoom, optional burned-in hook for first ~3s
     draw = ""
     if burn_captions and hook:
-        # Style-specific placement
-        if style == "educational":
-            draw = (
-                f",drawbox=x=40:y=ih-320:w=iw-80:h=160:color=black@0.55:t=fill,"
-                f"drawtext=text='{hook}':fontcolor={color}:fontsize=42:"
-                f"x=60:y=h-280:box=0"
-            )
-        elif style == "commentary":
-            draw = (
-                f",drawbox=x=(w-w*0.86)/2:y=(h-180)/2:w=w*0.86:h=160:color=black@0.65:t=fill,"
-                f"drawtext=text='{hook}':fontcolor={color}:fontsize=40:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2"
-            )
-        else:  # dramatic — top hook
-            draw = (
-                f",drawtext=text='{hook}':fontcolor={color}:fontsize=48:"
-                f"x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16"
-            )
+        draw = _strong_hook_draw(style=style, hook=hook, color=color)
 
     vf = (
         f"trim=start={start_sec}:duration={duration},"
@@ -137,6 +150,7 @@ def render_account_package(
     af = f"atrim=start={start_sec}:duration={duration},asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11"
 
     render_error = None
+    tts_meta: dict = {}
     try:
         _run(
             [
@@ -177,6 +191,21 @@ def render_account_package(
                 remotion_out.replace(video_out)
             else:
                 base_cut.replace(video_out)
+
+            # Optional TTS commentary on campaign footage (commentary style only)
+            from workers.video_rendering.tts_commentary import maybe_apply_tts_commentary
+
+            tts_meta = maybe_apply_tts_commentary(
+                style=style,
+                enabled=enable_tts_commentary,
+                video_path=video_out,
+                hook_text=hook_text,
+                excerpt=excerpt,
+                campaign_name=campaign_name,
+                package_dir=out,
+                ffmpeg_path=ffmpeg_path,
+                voice=tts_voice,
+            )
         else:
             raise RuntimeError("base cut empty")
     except Exception as exc:
@@ -224,9 +253,13 @@ def render_account_package(
         "hook_text": hook_text,
         "duration_sec": duration,
         "burn_captions": burn_captions,
-        "caption_engine": "ffmpeg_drawtext",
+        "caption_engine": "remotion_karaoke_or_ffmpeg_drawtext",
+        "subtitle_style": "strong_outline_karaoke",
         "remotion_template": f"templates/{style}",
+        "tts_commentary": tts_meta,
         "render_error": render_error,
+        "footage_source": "campaign_asset",
+        "note": "Not MoneyPrinterTurbo stock+TTS rewrite — campaign footage only",
     }
     (out / "render-meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
@@ -237,4 +270,5 @@ def render_account_package(
         "duration_sec": duration,
         "package_dir": str(out),
         "ok": video_out.exists() and video_out.stat().st_size > 0,
+        "tts_commentary": tts_meta,
     }

@@ -126,20 +126,30 @@ def operator_status(_user: str = Depends(require_operator)):
         "automation_level": "85-90%",
         "manual_gates": [
             "Approve campaign",
-            "Confirm TikTok post",
+            "Confirm Join on Content Rewards (bot notifies — does not click)",
+            "Confirm TikTok / YouTube post",
             "Confirm Content Rewards submission",
-            "Confirm cash-out",
+            "Confirm cash-out (bot notifies — does not withdraw)",
         ],
         "forbidden": [
             "Unattended Playwright Content Rewards bot",
-            "Automatic TikTok posting",
-            "Automatic CR submission",
-            "Automatic payout withdrawal",
+            "Scrapling StealthyFetcher CAPTCHA bypass against logged-in CR",
+            "Automatic TikTok/YouTube posting (except future official OAuth APIs)",
+            "Automatic CR Join / Submit / cash-out",
         ],
         "content_rewards_url": settings.content_rewards_url,
         "tiktok_url": settings.tiktok_url,
+        "youtube_url": settings.youtube_url,
+        "scrapling_discover_url": settings.scrapling_discover_url,
         "extension_required": True,
-        "note": "Extension reads your already-logged-in CR session. You click Join / Post / Submit / Withdraw.",
+        "video_pipeline": (
+            "Campaign footage → Whisper/faster-whisper → scenes → rank → "
+            "FFmpeg 9:16 + Remotion hooks (not MoneyPrinterTurbo stock+TTS)"
+        ),
+        "note": (
+            "Extension or Scrapling public discover feeds ranking. "
+            "You click Join / Post / Submit / Withdraw. ClipOps only notifies."
+        ),
     }
 
 
@@ -179,11 +189,14 @@ def ingest_discovered(
     _user: str = Depends(require_operator),
 ):
     """Ingest campaigns scanned from the operator's logged-in CR tab."""
-    accounts = db.query(SocialAccount).filter(SocialAccount.platform == "tiktok").all()
-    geos: list[str] = []
-    for a in accounts:
-        geos.extend(a.audience_geo or [])
-    geos = list(dict.fromkeys(geos)) or ["US", "CA"]
+    from packages.shared_types.accounts import POSTING_PLATFORMS, merge_audience_geos
+
+    accounts = (
+        db.query(SocialAccount)
+        .filter(SocialAccount.platform.in_(list(POSTING_PLATFORMS)))
+        .all()
+    )
+    geos = merge_audience_geos(accounts)
 
     from packages.services.forecast import PerformanceLearningService
 
@@ -407,11 +420,15 @@ def approve_discovered(
     row.operator_status = "approved"
     _notify(
         db,
-        kind="campaign_approved",
-        title=f"Approved: {row.name}",
-        body="Open the campaign in Content Rewards and click Join. Then collect brief/assets (extension assists).",
+        kind="join_now",
+        title=f"JOIN NOW: {row.name}",
+        body=(
+            "ClipOps approved this campaign and ranked it for your accounts. "
+            "Open Content Rewards and click Join yourself — the bot cannot Join for you "
+            "(Whop bans automated Join). Then collect brief/assets; ClipOps generates clips."
+        ),
         action_url=row.external_url,
-        action_label="Open campaign",
+        action_label="Open CR → Join",
         related_id=row.id,
     )
     db.commit()
@@ -419,13 +436,16 @@ def approve_discovered(
         "discovered_id": row.id,
         "campaign_id": campaign.id,
         "operator_status": row.operator_status,
+        "bot_can_join": False,
         "next_steps": [
-            "Open campaign in Content Rewards (your session)",
+            "JOIN NOW — open campaign in Content Rewards (your session)",
             "Click Join yourself — ClipOps does not auto-join",
-            "Extension will extract brief + asset links after you open the page",
-            "Upload/collect assets → ClipOps generates clips automatically",
+            "Extension extracts brief + asset links after you open the page",
+            "Upload assets → ClipOps generates best clips (Whisper+rank+Remotion)",
+            "Post packages to your 3 TikTok + 3 YouTube accounts",
         ],
         "open_campaign_url": row.external_url,
+        "notification": "join_now",
     }
 
 
@@ -507,38 +527,71 @@ def posting_queue(
     db: Session = Depends(get_db),
     _user: str = Depends(require_operator),
 ):
+    from packages.shared_types.accounts import (
+        POSTING_PLATFORMS,
+        account_label,
+        open_url_for_platform,
+        slot_map_for_accounts,
+    )
+
     q = db.query(ClipVersion)
     if campaign_id:
         q = q.filter(ClipVersion.campaign_id == campaign_id)
-    versions = q.order_by(ClipVersion.created_at.desc()).limit(30).all()
-    # group by campaign, take latest 3 styles
+    versions = q.order_by(ClipVersion.created_at.desc()).limit(60).all()
     by_camp: dict[str, list] = {}
     for v in versions:
         by_camp.setdefault(v.campaign_id, []).append(v)
 
     settings = get_settings()
+    accounts = (
+        db.query(SocialAccount)
+        .filter(SocialAccount.platform.in_(list(POSTING_PLATFORMS)))
+        .order_by(SocialAccount.platform, SocialAccount.handle)
+        .all()
+    )
+    accounts_by_id = {a.id: a for a in accounts}
+    slots = slot_map_for_accounts(accounts)
+    account_meta = {
+        a.id: {
+            "slot": slots[a.id],
+            "label": account_label(a),
+            "platform": a.platform,
+            "style": a.style,
+            "open_url": open_url_for_platform(
+                a.platform, tiktok_url=settings.tiktok_url, youtube_url=settings.youtube_url
+            ),
+        }
+        for a in accounts
+    }
+
     out = []
     for cid, vs in by_camp.items():
-        # one per style
+        # One version per social account (up to all linked TikTok + YouTube)
         picked = []
-        seen = set()
+        seen_accounts: set[str] = set()
         for v in vs:
-            if v.style in seen:
+            if v.social_account_id in seen_accounts:
                 continue
-            seen.add(v.style)
+            seen_accounts.add(v.social_account_id)
             picked.append(v)
-            if len(picked) == 3:
+            if len(picked) >= max(6, len(accounts) or 6):
                 break
-        v_dicts = [
-            {
-                "id": v.id,
-                "campaign_id": v.campaign_id,
-                "style": v.style,
-                "caption": v.caption,
-                "status": v.status,
-            }
-            for v in picked
-        ]
+        v_dicts = []
+        for v in picked:
+            acct = accounts_by_id.get(v.social_account_id)
+            v_dicts.append(
+                {
+                    "id": v.id,
+                    "campaign_id": v.campaign_id,
+                    "style": v.style,
+                    "caption": v.caption,
+                    "status": v.status,
+                    "social_account_id": v.social_account_id,
+                    "platform": acct.platform if acct else "tiktok",
+                    "account_slot": slots.get(v.social_account_id),
+                    "account_label": account_label(acct) if acct else v.style,
+                }
+            )
         renders = []
         comp_map: dict[str, Any] = {}
         hashes: list[str | None] = []
@@ -561,14 +614,27 @@ def posting_queue(
             )
             if c:
                 comp_map[v.id] = {"checks": c.checks, "passed": c.passed}
-        packages = build_posting_packages(v_dicts, renders, comp_map)
+        packages = build_posting_packages(
+            v_dicts,
+            renders,
+            comp_map,
+            account_meta=account_meta,
+            default_open_url=settings.tiktok_url,
+        )
         dup_ok = assert_versions_not_identical(hashes)
         for p in packages:
             p.duplicate_safe = dup_ok
             d = p.to_dict()
-            d["open_tiktok"] = settings.tiktok_url
-            d["buttons"] = ["Download", "Copy Caption", "Open TikTok"]
-            d["manual_gate"] = "You click TikTok's final Post button"
+            platform = d.get("platform") or "tiktok"
+            open_url = d.get("open_url") or open_url_for_platform(
+                platform, tiktok_url=settings.tiktok_url, youtube_url=settings.youtube_url
+            )
+            d["open_url"] = open_url
+            d["open_tiktok"] = settings.tiktok_url if platform == "tiktok" else open_url
+            d["open_youtube"] = settings.youtube_url if platform == "youtube" else None
+            label = "Open TikTok" if platform == "tiktok" else "Open YouTube Studio"
+            d["buttons"] = ["Download", "Copy Caption", label]
+            d["manual_gate"] = f"You click {platform.capitalize()}'s final Post button"
             out.append(d)
     return out
 
@@ -618,9 +684,12 @@ def payout_watch(
     cashout = body.cashout_url or settings.content_rewards_url
     _notify(
         db,
-        kind="payout_ready",
-        title=f"{body.currency} {body.amount:.2f} is ready for withdrawal",
-        body="ClipOps can open the cash-out page. You confirm the transfer (Whop after review).",
+        kind="cashout_now",
+        title=f"CASHOUT NOW: {body.currency} {body.amount:.2f}",
+        body=(
+            "Payout is ready. Open cash-out and confirm the transfer yourself — "
+            "ClipOps cannot withdraw for you (Whop bans automated cash-out)."
+        ),
         action_url=cashout,
         action_label="Open Cash-out",
     )
@@ -630,7 +699,9 @@ def payout_watch(
         "amount": body.amount,
         "currency": body.currency,
         "open_cashout_url": cashout,
+        "bot_can_cashout": False,
         "manual_gate": "You personally confirm the withdrawal",
+        "notification": "cashout_now",
     }
 
 
@@ -769,8 +840,8 @@ def operator_home(db: Session = Depends(get_db), _user: str = Depends(require_op
 
     accounts = (
         db.query(SocialAccount)
-        .filter(SocialAccount.platform == "tiktok")
-        .order_by(SocialAccount.handle)
+        .filter(SocialAccount.platform.in_(["tiktok", "youtube"]))
+        .order_by(SocialAccount.platform, SocialAccount.handle)
         .all()
     )
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -785,12 +856,13 @@ def operator_home(db: Session = Depends(get_db), _user: str = Depends(require_op
             {
                 "id": a.id,
                 "label": a.display_name,
+                "platform": a.platform,
                 "style": a.style,
                 "preferred_clip_length": a.preferred_clip_length,
                 "preferred_hooks": a.preferred_hooks or [],
                 "done": posted_today,
-                "target": 3,
-                "complete": posted_today >= 3,
+                "target": 2 if a.platform == "youtube" else 3,
+                "complete": posted_today >= (2 if a.platform == "youtube" else 3),
             }
         )
 
@@ -957,3 +1029,127 @@ def demo_seed_top3(db: Session = Depends(get_db), _user: str = Depends(require_o
         ),
     ]
     return ingest_discovered(DiscoverBatch(campaigns=sample, source="demo"), db, _user)
+
+
+@router.post("/operator/discover/scrapling")
+def discover_via_scrapling(
+    url: str | None = None,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Pull public CR discover board via Scrapling (https://github.com/D4Vinci/Scrapling).
+
+    Does NOT log in, Join, Submit, or cash-out. Results are ranked through the
+    same ingest pipeline as the browser extension.
+    """
+    settings = get_settings()
+    if not settings.scrapling_enabled:
+        raise HTTPException(400, "SCRAPLING_ENABLED=false")
+    from packages.services.scrapling_cr import discover_public_campaigns
+
+    result = discover_public_campaigns(
+        url=url or settings.scrapling_discover_url,
+        use_scrapling=True,
+    )
+    campaigns_raw = result.get("campaigns") or []
+    if not campaigns_raw:
+        return {
+            **result,
+            "ingested": 0,
+            "bot_can_join": False,
+            "hint": "No campaigns parsed — try the browser extension on your logged-in CR tab, or seed demo.",
+        }
+
+    items: list[DiscoveredItem] = []
+    for c in campaigns_raw:
+        items.append(
+            DiscoveredItem(
+                external_id=c.get("external_id"),
+                external_url=c.get("external_url"),
+                name=c.get("name") or "Campaign",
+                brand=c.get("brand"),
+                cpm=c.get("cpm"),
+                budget_remaining_pct=c.get("budget_remaining_pct"),
+                required_clips=int(c.get("required_clips") or 3),
+                min_duration_sec=int(c.get("min_duration_sec") or 15),
+                max_duration_sec=int(c.get("max_duration_sec") or 60),
+                required_hashtags=list(c.get("required_hashtags") or []),
+                required_tags=list(c.get("required_tags") or []),
+                required_disclosure=c.get("required_disclosure"),
+                required_geo=list(c.get("required_geo") or []),
+                has_rights=bool(c.get("has_rights", True)),
+                brief_text=c.get("brief_text"),
+                asset_urls=list(c.get("asset_urls") or []),
+                raw=c.get("raw") or c,
+            )
+        )
+    ingested = ingest_discovered(
+        DiscoverBatch(campaigns=items, source="scrapling"),
+        db,
+        _user,
+    )
+    _notify(
+        db,
+        kind="discover_ready",
+        title=f"Scrapling found {len(items)} public campaigns — review Top 3",
+        body=(
+            "Ranked via ClipOps scorer. Approve one, then JOIN NOW on Content Rewards yourself. "
+            "Bot cannot Join."
+        ),
+        action_url="/operator",
+        action_label="Review Top 3",
+    )
+    db.commit()
+    return {
+        "source": result.get("source"),
+        "url": result.get("url"),
+        "note": result.get("note"),
+        "scraped_count": result.get("count"),
+        "error": result.get("error"),
+        "ingested": ingested.get("ingested") if isinstance(ingested, dict) else ingested,
+        "top3": ingested.get("top3") if isinstance(ingested, dict) else [],
+        "bot_can_join": False,
+        "next": "Approve a campaign → ClipOps notifies JOIN NOW → you click Join on CR",
+    }
+
+
+@router.get("/oauth/status")
+def oauth_posting_status(_user: str = Depends(require_operator)):
+    """Official TikTok/YouTube OAuth readiness (no unofficial bots)."""
+    from packages.services.oauth_posting import oauth_status
+
+    return oauth_status(get_settings())
+
+
+@router.get("/oauth/tiktok/start")
+def oauth_tiktok_start(_user: str = Depends(require_operator)):
+    from packages.services.oauth_posting import tiktok_authorize_url
+
+    settings = get_settings()
+    url = tiktok_authorize_url(
+        client_key=settings.tiktok_client_key,
+        redirect_uri=settings.tiktok_redirect_uri,
+    )
+    if not url:
+        raise HTTPException(
+            400,
+            "Set TIKTOK_CLIENT_KEY (+ secret) in .env. See https://developers.tiktok.com/products/content-posting-api",
+        )
+    return {"authorize_url": url, "note": "Complete OAuth in browser; app audit required for public posts."}
+
+
+@router.get("/oauth/youtube/start")
+def oauth_youtube_start(_user: str = Depends(require_operator)):
+    from packages.services.oauth_posting import youtube_authorize_url
+
+    settings = get_settings()
+    url = youtube_authorize_url(
+        client_id=settings.youtube_client_id,
+        redirect_uri=settings.youtube_redirect_uri,
+    )
+    if not url:
+        raise HTTPException(
+            400,
+            "Set YOUTUBE_CLIENT_ID (+ secret) in .env. See YouTube Data API videos.insert",
+        )
+    return {"authorize_url": url, "note": "OAuth per YouTube channel for official upload."}

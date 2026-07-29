@@ -203,6 +203,8 @@ class Post(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     clip_version_id: Mapped[str] = mapped_column(String(36), ForeignKey("clip_versions.id", ondelete="CASCADE"))
     social_account_id: Mapped[str] = mapped_column(String(36), ForeignKey("social_accounts.id"))
+    # Generic post URL (TikTok or YouTube). tiktok_url kept for backward compat.
+    post_url: Mapped[Optional[str]] = mapped_column(String(1024))
     tiktok_url: Mapped[Optional[str]] = mapped_column(String(1024))
     posted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(32), default="EXPORTED")
@@ -359,8 +361,39 @@ class OperatorSettings(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     monthly_target: Mapped[float] = mapped_column(Numeric(14, 2), default=1000)
-    currency: Mapped[str] = mapped_column(String(8), default="USD")
+    currency: Mapped[str] = mapped_column(String(8), default="GBP")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AffiliateProduct(Base):
+    """Operator-managed affiliate offers (MoneyPrinterV2 AFM idea — no Amazon scrape bot)."""
+
+    __tablename__ = "affiliate_products"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    product_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    affiliate_tag: Mapped[Optional[str]] = mapped_column(String(128))
+    niche: Mapped[Optional[str]] = mapped_column(String(128))
+    talking_points: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    disclosure: Mapped[str] = mapped_column(String(256), default="Ad / affiliate link")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AffiliateSchedule(Base):
+    """CRON-like reminder slots — notifies operator; does not auto-tweet."""
+
+    __tablename__ = "affiliate_schedules"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    product_id: Mapped[str] = mapped_column(String(36), ForeignKey("affiliate_products.id", ondelete="CASCADE"))
+    platform: Mapped[str] = mapped_column(String(32), default="twitter")  # twitter | tiktok | youtube
+    times_per_day: Mapped[int] = mapped_column(Integer, default=2)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 settings = get_settings()
@@ -377,51 +410,33 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def seed_accounts(db: Session) -> None:
-    if db.query(SocialAccount).count():
+def _ensure_sqlite_columns() -> None:
+    """Add columns introduced after first create_all (SQLite only)."""
+    if not settings.database_url.startswith("sqlite"):
         return
-    rows = [
-        SocialAccount(
-            platform="content_rewards",
-            handle="operator",
-            display_name="ClipOps CR Account",
-            style=None,
-            audience_geo=["US", "CA"],
-            audience_notes="Single Content Rewards identity — never duplicate",
-        ),
-        SocialAccount(
-            platform="tiktok",
-            handle="tiktok_dramatic",
-            display_name="TikTok 1 — Dramatic",
-            style="dramatic",
-            audience_geo=["US", "CA"],
-            audience_notes="Fast, dramatic clips",
-            preferred_clip_length="15-25",
-            preferred_hooks=["drama", "question"],
-        ),
-        SocialAccount(
-            platform="tiktok",
-            handle="tiktok_educational",
-            display_name="TikTok 2 — Educational",
-            style="educational",
-            audience_geo=["US", "CA"],
-            audience_notes="Educational / storytelling",
-            preferred_clip_length="25-40",
-            preferred_hooks=["surprising_fact", "question"],
-        ),
-        SocialAccount(
-            platform="tiktok",
-            handle="tiktok_commentary",
-            display_name="TikTok 3 — Commentary",
-            style="commentary",
-            audience_geo=["US", "CA"],
-            audience_notes="Commentary, captions, reactions",
-            preferred_clip_length="15-25",
-            preferred_hooks=["controversy", "question"],
-        ),
-    ]
-    db.add_all(rows)
-    db.commit()
+    with engine.begin() as conn:
+        cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(posts)").fetchall()}
+        if "post_url" not in cols:
+            conn.exec_driver_sql("ALTER TABLE posts ADD COLUMN post_url VARCHAR(1024)")
+
+
+def seed_accounts(db: Session) -> None:
+    """Seed CR identity + 3 TikTok + 3 YouTube + X affiliate. Idempotent per (platform, handle)."""
+    from packages.shared_types.accounts import default_seed_rows
+
+    existing = {
+        (r.platform, r.handle)
+        for r in db.query(SocialAccount.platform, SocialAccount.handle).all()
+    }
+    added = False
+    for row in default_seed_rows():
+        key = (row["platform"], row["handle"])
+        if key in existing:
+            continue
+        db.add(SocialAccount(**row))
+        added = True
+    if added:
+        db.commit()
 
 
 def seed_settings(db: Session) -> None:
@@ -433,6 +448,7 @@ def seed_settings(db: Session) -> None:
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_columns()
     db = SessionLocal()
     try:
         seed_accounts(db)

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import get_settings
 from app.db import init_db
-from app.routers import campaigns, pipeline, operator
+from app.routers import campaigns, pipeline, operator, affiliates
 from app.schemas import HealthOut
 from app.security_audit import audit_settings, media_stack_status
 
@@ -20,8 +20,8 @@ settings = get_settings()
 
 app = FastAPI(
     title="ClipOps API",
-    version="0.3.0",
-    description="Operator Mode: AI assist → human approve → manual post/submit/cash-out → automatic tracking",
+    version="0.4.0",
+    description="Operator Mode: AI assist → human approve → manual post/submit/cash-out → affiliate bios & promote reminders",
 )
 
 app.add_middleware(
@@ -40,6 +40,7 @@ app.add_middleware(
 app.include_router(campaigns.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
 app.include_router(operator.router, prefix="/api")
+app.include_router(affiliates.router, prefix="/api")
 
 
 @app.on_event("startup")

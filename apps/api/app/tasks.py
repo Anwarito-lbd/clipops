@@ -96,22 +96,28 @@ def process_asset(asset_id: str) -> dict:
 
         # --- Ranking (ClipRankingService: 10–20 candidates, render only top 3–5) ---
         from packages.services.clip_ranking import ClipRankingService
+        from packages.shared_types.accounts import POSTING_PLATFORMS
 
         accounts = (
             db.query(SocialAccount)
-            .filter(SocialAccount.platform == "tiktok", SocialAccount.is_active.is_(True))
-            .order_by(SocialAccount.handle)
+            .filter(
+                SocialAccount.platform.in_(list(POSTING_PLATFORMS)),
+                SocialAccount.is_active.is_(True),
+            )
+            .order_by(SocialAccount.platform, SocialAccount.handle)
             .all()
         )
         pref_length = accounts[0].preferred_clip_length if accounts else None
         pref_hooks = list(accounts[0].preferred_hooks or []) if accounts else []
 
+        # Enough candidates for all linked TikTok + YouTube accounts
+        select_n_target = max(5, len(accounts) or 3)
         ranked_bundle = ClipRankingService().rank_footage(
             transcript,
             scenes,
             campaign_name=campaign.name,
-            keep=20,
-            select=5,
+            keep=max(20, select_n_target * 2),
+            select=select_n_target,
             preferred_length_band=pref_length,
             preferred_hooks=pref_hooks,
         )
@@ -179,7 +185,7 @@ def process_asset(asset_id: str) -> dict:
 
         if not accounts:
             asset.status = "FAILED"
-            asset.error_message = "No TikTok accounts seeded"
+            asset.error_message = "No TikTok/YouTube posting accounts seeded"
             db.commit()
             return {"error": "no_accounts"}
 
@@ -338,13 +344,15 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
         if not asset or not campaign:
             return {"error": "missing_asset_or_campaign"}
 
+        from packages.shared_types.accounts import POSTING_PLATFORMS, slot_map_for_accounts
+
         accounts = (
             db.query(SocialAccount)
-            .filter(SocialAccount.platform == "tiktok")
-            .order_by(SocialAccount.handle)
+            .filter(SocialAccount.platform.in_(list(POSTING_PLATFORMS)))
+            .order_by(SocialAccount.platform, SocialAccount.handle)
             .all()
         )
-        slot_map = {a.id: i + 1 for i, a in enumerate(accounts[:3])}
+        slot_map = slot_map_for_accounts(accounts)
         slot = slot_map.get(version.social_account_id, 1)
 
         storage_root = Path(settings.storage_root)
@@ -369,6 +377,10 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             auto_editor=settings.auto_editor_enabled,
             remotion_url=settings.remotion_url,
             burn_captions=settings.burn_captions,
+            enable_tts_commentary=settings.enable_tts_commentary,
+            tts_voice=settings.tts_voice,
+            campaign_name=campaign.name if campaign else "",
+            excerpt=(candidate.transcript_excerpt if candidate else "") or "",
         )
 
         content_hash = None
