@@ -1,6 +1,7 @@
 import React from "react";
 import {
   AbsoluteFill,
+  Easing,
   OffthreadVideo,
   Sequence,
   interpolate,
@@ -92,16 +93,23 @@ const KaraokeCaptions: React.FC<{
   );
 };
 
+/** video-shotcraft-inspired easing: land the hook, then hold (no frantic loop). */
 const DramaticHook: React.FC<{ hookText: string; caption: string }> = ({
   hookText,
   caption,
 }) => {
   const frame = useCurrentFrame();
-  const opacity = interpolate(frame, [0, 10], [0, 1], {
+  const opacity = interpolate(frame, [0, 12], [0, 1], {
     extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
   });
-  const scale = interpolate(frame, [0, 15], [1.1, 1], {
+  const scale = interpolate(frame, [0, 18], [1.14, 1], {
     extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+  const y = interpolate(frame, [0, 16], [28, 0], {
+    extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
   });
   const { durationInFrames } = useVideoConfig();
   const progress = Math.min(100, (frame / Math.max(1, durationInFrames)) * 100);
@@ -112,7 +120,7 @@ const DramaticHook: React.FC<{ hookText: string; caption: string }> = ({
         style={{
           justifyContent: "flex-start",
           padding: 44,
-          transform: `scale(${scale})`,
+          transform: `translateY(${y}px) scale(${scale})`,
         }}
       >
         <div
@@ -173,7 +181,15 @@ const EducationalHook: React.FC<{ hookText: string; caption: string }> = ({
   caption,
 }) => {
   const frame = useCurrentFrame();
-  const y = interpolate(frame, [0, 20], [48, 0], { extrapolateRight: "clamp" });
+  // marker-underline-title energy: slide + settle, then rest
+  const y = interpolate(frame, [0, 22], [56, 0], {
+    extrapolateRight: "clamp",
+    easing: Easing.out(Easing.cubic),
+  });
+  const bar = interpolate(frame, [8, 26], [0, 100], {
+    extrapolateRight: "clamp",
+    easing: Easing.out(Easing.quad),
+  });
   return (
     <AbsoluteFill>
       <AbsoluteFill style={{ justifyContent: "flex-end", padding: 36 }}>
@@ -193,6 +209,16 @@ const EducationalHook: React.FC<{ hookText: string; caption: string }> = ({
           }}
         >
           {hookText}
+          <div
+            style={{
+              marginTop: 12,
+              height: 4,
+              width: `${bar}%`,
+              background: "#3dd6c6",
+              borderRadius: 2,
+              boxShadow: "0 0 10px rgba(61,214,198,0.45)",
+            }}
+          />
         </div>
       </AbsoluteFill>
       <Sequence from={18}>

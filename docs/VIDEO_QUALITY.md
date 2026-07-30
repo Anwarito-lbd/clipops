@@ -20,6 +20,19 @@ Best-effort **campaign clips** from authorized footage:
 
 Repo: https://github.com/harry0703/MoneyPrinterTurbo
 
+## Animation assist (video-shotcraft)
+
+[video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) is installed as a
+Cursor skill for Remotion motion recipes (shot cards + demos). Use it to improve
+hooks/captions/transitions in `templates/src/StyleOverlay.tsx` while keeping
+**campaign footage** as the base plate.
+
+```bash
+./scripts/install_video_shotcraft.sh
+```
+
+Details: [docs/VIDEO_SHOTCRAFT.md](VIDEO_SHOTCRAFT.md) · Gallery: https://vincentwei1021.github.io/video-shotcraft/
+
 ## Enable TTS commentary
 
 ```bash

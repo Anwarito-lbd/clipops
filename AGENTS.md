@@ -41,7 +41,8 @@ cd apps/dashboard && npm run dev
 - Affiliates: `/affiliates` · `docs/AFFILIATES.md` — Amazon tag, bio, pitch drafts, **PROMOTE NOW** reminders (MoneyPrinterV2 ideas; no browser bots / cold email)
 - Discover: extension **or** `POST /api/operator/discover/scrapling`
 - Captions: Remotion karaoke; optional `ENABLE_TTS_COMMENTARY=true` for commentary accounts
-- Docs: `docs/CONTENT_REWARDS.md`, `docs/VIDEO_QUALITY.md`, `docs/OAUTH_POSTING.md`, `docs/AFFILIATES.md`
+- Animation skill: `./scripts/install_video_shotcraft.sh` → `~/.cursor/skills/video-shotcraft` ([docs/VIDEO_SHOTCRAFT.md](docs/VIDEO_SHOTCRAFT.md))
+- Docs: `docs/CONTENT_REWARDS.md`, `docs/VIDEO_QUALITY.md`, `docs/VIDEO_SHOTCRAFT.md`, `docs/OAUTH_POSTING.md`, `docs/AFFILIATES.md`
 
 ### Tests
 
