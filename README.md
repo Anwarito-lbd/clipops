@@ -62,12 +62,18 @@ Optional stack (Redis async, Remotion, diarization): see [docs/OPS_STACK.md](doc
 
 ## Remotion
 
-`templates/` runs a real render service on `:3100`. FFmpeg still cuts 9:16; Remotion overlays animated hooks and returns `rendered_path` for the export package.
+`templates/` runs a real render service on `:3100`. FFmpeg still cuts 9:16; Remotion overlays animated hooks + karaoke-style captions and returns `rendered_path` for the export package. Optional Edge TTS commentary for the **commentary** account: set `ENABLE_TTS_COMMENTARY=true` (see [docs/VIDEO_QUALITY.md](docs/VIDEO_QUALITY.md)).
+
+## Accounts (3 TikTok + 3 YouTube + X affiliate)
+
+Seeded on API start. Manage in dashboard **Accounts** or `POST /api/accounts`. Content Rewards identity is separate — link via the [browser extension](browser-extension/README.md) or Scrapling public discover ([docs/CONTENT_REWARDS.md](docs/CONTENT_REWARDS.md)).
+
+**Affiliates** (MoneyPrinterV2-inspired, safe subset): dashboard **Affiliates** — paste Amazon URLs, build bios with affiliate links, draft X/TikTok/YouTube pitches, schedule **PROMOTE NOW** reminders. You post; no browser bots / cold email. See [docs/AFFILIATES.md](docs/AFFILIATES.md). Set `AMAZON_AFFILIATE_TAG` in `.env`.
 
 ## Manual gates (never automated)
 
 1. Approve campaign (+ your Join click on CR)  
-2. Confirm TikTok Post  
+2. Confirm TikTok / YouTube Post  
 3. Confirm Content Rewards Submit  
 4. Confirm cash-out  
 
@@ -77,5 +83,6 @@ Optional stack (Redis async, Remotion, diarization): see [docs/OPS_STACK.md](doc
 - `apps/api` — FastAPI  
 - `browser-extension` — CR session assist (no auto-click)  
 - `templates/` — Remotion render service  
-- `workers/` — WhisperX, scenes, ranking, captions, FFmpeg  
+- `workers/` — WhisperX, scenes, ranking, captions, FFmpeg, optional Edge TTS  
+- `packages/services/scrapling_cr.py` — public CR discover via [Scrapling](https://github.com/D4Vinci/Scrapling)  
 - `scripts/` — `rotate_secrets.py`, `install_whisperx_cuda.py`  

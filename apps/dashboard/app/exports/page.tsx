@@ -36,7 +36,7 @@ export default function ExportsPage() {
   const [campaignId, setCampaignId] = useState("");
   const [versions, setVersions] = useState<Version[]>([]);
   const [renders, setRenders] = useState<Record<string, Render[]>>({});
-  const [tiktokUrl, setTiktokUrl] = useState("");
+  const [postUrl, setPostUrl] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,13 +66,13 @@ export default function ExportsPage() {
   }
 
   async function markPosted(versionId: string) {
-    if (!tiktokUrl) {
-      setMsg("Paste TikTok URL first");
+    if (!postUrl) {
+      setMsg("Paste TikTok or YouTube URL first");
       return;
     }
     const res = await api<{ post_id: string }>(`/api/versions/${versionId}/mark-posted`, {
       method: "POST",
-      body: JSON.stringify({ tiktok_url: tiktokUrl }),
+      body: JSON.stringify({ post_url: postUrl }),
     });
     setMsg(`Marked posted · post ${res.post_id}`);
   }
@@ -82,7 +82,7 @@ export default function ExportsPage() {
       <div>
         <h1 className="text-xl font-bold">Exports</h1>
         <p className="text-sm text-muted-foreground">
-          Download packages, copy captions, open TikTok yourself, then mark posted.
+          Download packages, copy captions, open TikTok / YouTube yourself, then mark posted.
         </p>
       </div>
 
@@ -107,11 +107,19 @@ export default function ExportsPage() {
         >
           Open TikTok
         </a>
+        <a
+          className="rounded-md border border-border px-3 py-1.5 text-sm"
+          href="https://studio.youtube.com"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open YouTube Studio
+        </a>
         <input
           className="min-w-[280px] flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-          placeholder="Paste TikTok post URL after you publish"
-          value={tiktokUrl}
-          onChange={(e) => setTiktokUrl(e.target.value)}
+          placeholder="Paste TikTok or YouTube post URL after you publish"
+          value={postUrl}
+          onChange={(e) => setPostUrl(e.target.value)}
         />
       </div>
       {msg && <p className="text-xs text-muted-foreground">{msg}</p>}

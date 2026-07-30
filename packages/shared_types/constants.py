@@ -60,3 +60,5 @@ ALLOWED_TRANSITIONS = {
 
 DURATION_BANDS = ["15-25", "25-40", "40-60"]
 ACCOUNT_STYLES = ["dramatic", "educational", "commentary"]
+POSTING_PLATFORMS = ["tiktok", "youtube"]
+CR_PLATFORM = "content_rewards"

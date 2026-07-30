@@ -87,8 +87,17 @@ class ApproveRequest(BaseModel):
 
 
 class MarkPostedRequest(BaseModel):
-    tiktok_url: str
+    """Accept generic post_url; tiktok_url kept as alias for older clients."""
+
+    post_url: Optional[str] = None
+    tiktok_url: Optional[str] = None
     notes: Optional[str] = None
+
+    def resolved_url(self) -> str:
+        url = (self.post_url or self.tiktok_url or "").strip()
+        if not url:
+            raise ValueError("post_url (or tiktok_url) is required")
+        return url
 
 
 class MarkSubmittedRequest(BaseModel):
@@ -112,12 +121,25 @@ class MarkPayoutReceived(BaseModel):
     notes: Optional[str] = None
 
 
+class AccountUpsert(BaseModel):
+    platform: str  # tiktok | youtube | content_rewards
+    handle: str
+    display_name: str
+    style: Optional[str] = None
+    audience_geo: list[str] = Field(default_factory=lambda: ["US", "CA"])
+    audience_notes: Optional[str] = None
+    preferred_clip_length: Optional[str] = None
+    preferred_hooks: list[str] = Field(default_factory=list)
+    is_active: bool = True
+
+
 class ManualActionLinks(BaseModel):
     open_campaign: Optional[str] = None
     open_tiktok: str
+    open_youtube: str = "https://studio.youtube.com"
     open_content_rewards: str
     note: str = (
-        "AI assists; you post and submit manually. "
+        "AI assists; you Join / Post / Submit / Cash-out manually. "
         "Automated posting or engagement can result in a permanent ban."
     )
 

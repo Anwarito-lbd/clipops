@@ -24,6 +24,7 @@ def compute_go_live(
     security = audit_settings(settings)
 
     accounts = db.query(SocialAccount).filter(SocialAccount.platform == "tiktok").count()
+    youtube_accounts = db.query(SocialAccount).filter(SocialAccount.platform == "youtube").count()
     discovered = db.query(DiscoveredCampaign).count()
     campaigns = db.query(Campaign).count()
     versions = db.query(ClipVersion).count()
@@ -32,7 +33,11 @@ def compute_go_live(
         .filter(Render.status.in_(["DRAFT", "EXPORTED", "REVIEW_REQUIRED"]))
         .count()
     )
-    exported = db.query(ClipVersion).filter(ClipVersion.status == "EXPORTED").count()
+    exported = (
+        db.query(ClipVersion)
+        .filter(ClipVersion.status.in_(["EXPORTED", "MANUALLY_POSTED", "SUBMITTED", "UNDER_REVIEW", "ACCEPTED", "EARNING", "PAYOUT_READY", "PAID"]))
+        .count()
+    )
     posted = db.query(Post).count()
     submitted = db.query(Submission).count()
     perfs_with_views = (
@@ -43,18 +48,18 @@ def compute_go_live(
 
     items = [
         {
-            "id": "cuda_asr",
-            "label": "GPU ASR (CUDA + WhisperX/faster-whisper)",
-            "done": bool(media.get("cuda") and (media.get("whisperx") or media.get("faster_whisper"))),
+            "id": "asr",
+            "label": "ASR ready (faster-whisper and/or WhisperX)",
+            "done": bool(media.get("whisperx") or media.get("faster_whisper")),
             "weight": 12,
-            "how": "Already installed via scripts/install_whisperx_cuda.py",
+            "how": "pip install faster-whisper (default). Optional GPU: scripts/install_whisperx_cuda.py",
         },
         {
             "id": "ffmpeg_remotion",
             "label": "FFmpeg + Remotion render service",
             "done": bool(media.get("ffmpeg") and media.get("remotion")),
             "weight": 10,
-            "how": ".\\scripts\\start_remotion.ps1  (or start_stack.ps1)",
+            "how": "./scripts/start_dev.sh  (or start Remotion: cd templates && npm start)",
         },
         {
             "id": "secrets",
@@ -65,24 +70,24 @@ def compute_go_live(
         },
         {
             "id": "accounts",
-            "label": "3 TikTok accounts configured",
-            "done": accounts >= 3,
+            "label": "3 TikTok + 3 YouTube accounts configured",
+            "done": accounts >= 3 and youtube_accounts >= 3,
             "weight": 8,
-            "how": "Seeded on API start, or add via DB/API",
+            "how": "Seeded on API start (6 posting accounts), or PATCH via /api/accounts",
         },
         {
             "id": "discover",
             "label": "At least one CR campaign discovered/scanned",
             "done": discovered >= 1 or campaigns >= 1,
             "weight": 10,
-            "how": "Load browser-extension → Scan on logged-in Content Rewards",
+            "how": "Extension Scan OR POST /api/operator/discover/scrapling (public board)",
         },
         {
             "id": "joined_campaign",
             "label": "Campaign joined + footage processed",
             "done": versions >= 1,
             "weight": 12,
-            "how": "Approve campaign → Join on CR → Upload Assets",
+            "how": "Approve campaign → YOU Join on CR (bot notifies) → Upload Assets",
         },
         {
             "id": "draft_preview",
@@ -100,10 +105,10 @@ def compute_go_live(
         },
         {
             "id": "posted",
-            "label": "At least one TikTok URL marked posted",
+            "label": "At least one post URL marked posted",
             "done": posted >= 1,
             "weight": 8,
-            "how": "Exports → you Post on TikTok → paste URL → Mark posted",
+            "how": "Exports → you Post on TikTok/YouTube → paste URL → Mark posted",
         },
         {
             "id": "submitted",
@@ -124,6 +129,13 @@ def compute_go_live(
     # Optional polish toward 99 (not required for month-1 start)
     optional = [
         {
+            "id": "cuda_whisperx",
+            "label": "GPU ASR (CUDA + WhisperX) — optional speed upgrade",
+            "done": bool(media.get("cuda") and media.get("whisperx")),
+            "weight": 0,
+            "how": "scripts/install_whisperx_cuda.py on a CUDA machine",
+        },
+        {
             "id": "diarization",
             "label": "Speaker diarization (HF_TOKEN)",
             "done": bool(media.get("diarization_ready")),
@@ -135,7 +147,14 @@ def compute_go_live(
             "label": "Async Celery workers (optional)",
             "done": bool(media.get("redis") and not media.get("celery_eager")),
             "weight": 0,
-            "how": "CELERY_EAGER=false + scripts/start_celery_worker.ps1",
+            "how": "CELERY_EAGER=false + Redis + celery worker",
+        },
+        {
+            "id": "tts_commentary",
+            "label": "Edge TTS commentary for commentary accounts",
+            "done": bool(getattr(settings, "enable_tts_commentary", False)),
+            "weight": 0,
+            "how": "ENABLE_TTS_COMMENTARY=true in .env",
         },
     ]
 
@@ -156,7 +175,8 @@ def compute_go_live(
             {"id": i["id"], "label": i["label"], "how": i["how"]} for i in next_steps[:3]
         ],
         "note": (
-            "99% = software + one full human-gated dry run with real CR/TikTok actions. "
+            "99% = software + one full human-gated dry run with real CR/TikTok/YouTube actions. "
+            "Join and cash-out are NEVER automated — ClipOps only notifies you. "
             "£1K/month is a planning target, not included in this score."
         ),
     }

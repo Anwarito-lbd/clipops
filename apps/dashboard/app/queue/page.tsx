@@ -7,6 +7,7 @@ type Pkg = {
   clip_version_id: string;
   account_slot: number;
   account_label: string;
+  platform: string;
   style: string;
   video_path: string | null;
   caption: string;
@@ -15,14 +16,16 @@ type Pkg = {
   compliance_passed: number;
   compliance_total: number;
   duplicate_safe: boolean;
-  open_tiktok: string;
+  open_url: string;
+  open_tiktok?: string;
+  open_youtube?: string | null;
   manual_gate: string;
 };
 
 export default function QueuePage() {
   const [rows, setRows] = useState<Pkg[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
-  const [tiktokUrl, setTiktokUrl] = useState("");
+  const [postUrl, setPostUrl] = useState("");
 
   useEffect(() => {
     api<Pkg[]>("/api/operator/queue")
@@ -36,13 +39,13 @@ export default function QueuePage() {
   }
 
   async function markPosted(versionId: string) {
-    if (!tiktokUrl) {
-      setMsg("Paste TikTok URL after you post");
+    if (!postUrl) {
+      setMsg("Paste TikTok or YouTube URL after you post");
       return;
     }
     await api(`/api/versions/${versionId}/mark-posted`, {
       method: "POST",
-      body: JSON.stringify({ tiktok_url: tiktokUrl }),
+      body: JSON.stringify({ post_url: postUrl }),
     });
     setMsg("Marked posted — learning record created");
   }
@@ -52,15 +55,15 @@ export default function QueuePage() {
       <div>
         <h1 className="text-xl font-bold">Posting queue</h1>
         <p className="text-sm text-muted-foreground">
-          Packages ready. You click TikTok&apos;s Post. Best 3–5 clips assigned
-          across accounts (not 3 clones of every candidate).
+          Packages for your linked TikTok + YouTube accounts. You click Post.
+          Best clips are assigned across accounts (not clones of every candidate).
         </p>
       </div>
       <input
         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-        placeholder="Paste TikTok URL after posting"
-        value={tiktokUrl}
-        onChange={(e) => setTiktokUrl(e.target.value)}
+        placeholder="Paste TikTok or YouTube post URL after posting"
+        value={postUrl}
+        onChange={(e) => setPostUrl(e.target.value)}
       />
       {msg && <p className="text-xs text-muted-foreground">{msg}</p>}
       <div className="grid gap-3 lg:grid-cols-3">
@@ -68,7 +71,8 @@ export default function QueuePage() {
           <div key={p.clip_version_id} className="rounded-lg border border-border bg-card p-4 space-y-2">
             <div className="text-sm font-semibold">{p.account_label}</div>
             <div className="text-xs text-muted-foreground capitalize">
-              {p.style} · compliance {p.compliance_passed}/{p.compliance_total}
+              {p.platform} · {p.style} · compliance {p.compliance_passed}/
+              {p.compliance_total}
               {p.duplicate_safe ? "" : " · DUPLICATE RISK"}
             </div>
             <div className="text-xs">
@@ -90,11 +94,11 @@ export default function QueuePage() {
               </button>
               <a
                 className="rounded-md border border-border px-2 py-1 text-xs"
-                href={p.open_tiktok}
+                href={p.open_url || p.open_tiktok || "#"}
                 target="_blank"
                 rel="noreferrer"
               >
-                Open TikTok
+                {p.platform === "youtube" ? "Open YouTube" : "Open TikTok"}
               </a>
               <button
                 className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground"

@@ -13,4 +13,5 @@ Ops scripts                    ✅  (start_stack / start_remotion / start_celery
 Stack readiness UI             ✅  (Home + /health media.readiness_pct)
 Secrets / prod gate            ✅
 Tests                          ✅
-Month-1 readiness              ✅  (~90% — see docs/READINESS.md)
+Month-1 readiness                ✅  (~90% — see docs/READINESS.md)
+Affiliates (MPV2-safe)           ✅  (Amazon tag, bios, pitches, PROMOTE NOW; no browser bots)

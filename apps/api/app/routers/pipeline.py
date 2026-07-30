@@ -322,11 +322,16 @@ def mark_posted(
     version = db.get(ClipVersion, version_id)
     if not version:
         raise HTTPException(404, "Version not found")
+    try:
+        url = body.resolved_url()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     _transition(version.status, "MANUALLY_POSTED")
     post = Post(
         clip_version_id=version.id,
         social_account_id=version.social_account_id,
-        tiktok_url=body.tiktok_url,
+        post_url=url,
+        tiktok_url=url,  # backward compat for older tracking UI
         posted_at=datetime.now(timezone.utc),
         status="MANUALLY_POSTED",
         notes=body.notes,
@@ -352,7 +357,12 @@ def mark_posted(
     )
     db.commit()
     db.refresh(post)
-    return {"post_id": post.id, "status": post.status, "tiktok_url": post.tiktok_url}
+    return {
+        "post_id": post.id,
+        "status": post.status,
+        "post_url": post.post_url,
+        "tiktok_url": post.tiktok_url,
+    }
 
 
 @router.post("/posts/{post_id}/mark-submitted")
@@ -511,6 +521,7 @@ def tracking_board(db: Session = Depends(get_db), _user: str = Depends(require_o
             {
                 "post_id": p.id,
                 "tiktok_url": p.tiktok_url,
+                "post_url": getattr(p, "post_url", None) or p.tiktok_url,
                 "post_status": p.status,
                 "submission_id": sub.id if sub else None,
                 "submission_status": sub.status if sub else None,
@@ -631,5 +642,6 @@ def approval_card(
         else None,
         "open_campaign": campaign.external_url if campaign else None,
         "open_tiktok": settings.tiktok_url,
-        "buttons": ["Approve", "Reject", "Regenerate", "Open Campaign", "Open TikTok"],
+        "open_youtube": settings.youtube_url,
+        "buttons": ["Approve", "Reject", "Regenerate", "Open Campaign", "Open TikTok", "Open YouTube"],
     }
