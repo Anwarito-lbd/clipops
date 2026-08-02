@@ -109,6 +109,147 @@ _MAX_PAYOUT_PATTERNS = (
 _CPM_MAX = 100.0
 
 
+# Whop shows an approval rate per campaign ("3% approval rate"). It multiplies
+# directly into expected earnings, so defaulting to 70% when a campaign actually
+# approves 3% overstates EV by more than 20x. This is the second most important
+# number after CPM.
+_APPROVAL_PATTERNS = (
+    re.compile(r"(\d{1,3}(?:\.\d+)?)\s*%\s*approval(?:\s*rate)?", re.I),
+    re.compile(r"approval(?:\s*rate)?\s*[:\-]?\s*(\d{1,3}(?:\.\d+)?)\s*%", re.I),
+)
+
+# "$15 Min  $3000 Max" in the earnings panel - the per-clipper payout bounds.
+_MIN_MAX_PAYOUT = re.compile(
+    r"[\$£€]\s*([\d,]+(?:\.\d+)?)\s*([km])?\s*min\b.{0,40}?"
+    r"[\$£€]\s*([\d,]+(?:\.\d+)?)\s*([km])?\s*max\b",
+    re.I | re.S,
+)
+
+# A clip is short by definition; a 4-minute minimum is long-form work.
+_MIN_VIDEO_LENGTH = re.compile(
+    r"min(?:imum)?\s*video\s*length\s*[:\-]?\s*(\d+)\s*(min(?:ute)?s?|sec(?:ond)?s?)", re.I
+)
+
+
+def extract_approval_rate(text: str) -> float | None:
+    """Campaign approval rate as a 0-1 fraction, or None when not stated."""
+    for pattern in _APPROVAL_PATTERNS:
+        m = pattern.search(text)
+        if m:
+            pct = float(m.group(1))
+            if 0 <= pct <= 100:
+                return round(pct / 100.0, 4)
+    return None
+
+
+def extract_payout_bounds(text: str) -> tuple[float | None, float | None]:
+    """(min_payout, max_payout) from the earnings panel. Max is the clipper cap."""
+    m = _MIN_MAX_PAYOUT.search(text)
+    if not m:
+        return None, None
+    low = _scale_money(m.group(1), m.group(2))
+    high = _scale_money(m.group(3), m.group(4))
+    if high > 0 and high >= low:
+        return low, high
+    return None, None
+
+
+def extract_min_video_seconds(text: str) -> int | None:
+    """Minimum video length in seconds, when the campaign states one."""
+    m = _MIN_VIDEO_LENGTH.search(text)
+    if not m:
+        return None
+    value = int(m.group(1))
+    return value * 60 if m.group(2).lower().startswith("min") else value
+
+
+# --- Operator capability matching -------------------------------------------
+# ClipOps cuts existing footage and posts to TikTok. A campaign that needs
+# original filming, or that excludes TikTok, or that gates entry behind an
+# application, is not work this operator can take - regardless of its CPM. The
+# highest-CPM campaigns on the board are usually high precisely because they are
+# restricted, so without this check the ranker surfaces exactly the wrong ones.
+
+_UGC_ONLY = re.compile(
+    r"\bUGC\b|user[- ]generated|film yourself|on ?camera|your own (?:video|content)"
+    r"|talking[- ]head (?:video|content)|creator brief|record a video",
+    re.I,
+)
+_CLIPPING = re.compile(
+    r"\bclip(?:ping|s|per)?\b|\bedit(?:ing)? the\b|from the (?:provided|supplied|attached)"
+    r"|highlights?|repost(?:ing)?|\bcut(?:ting)? (?:up|down|clips)\b",
+    re.I,
+)
+_GATED = re.compile(
+    r"do\s*NOT\s*apply|screened\s+(?:ugc\s+)?creators?|already have a portfolio"
+    r"|must be (?:approved|accepted|invited)|invite[- ]only|application required"
+    r"|selected creators only|apply to join",
+    re.I,
+)
+_PLATFORM_PATTERNS = {
+    "tiktok": re.compile(r"\btiktok\b|\btik tok\b", re.I),
+    "youtube": re.compile(r"\byoutube\b|\byt shorts?\b", re.I),
+    "instagram": re.compile(r"\binstagram\b|\breels?\b|\big\b", re.I),
+}
+
+
+def detect_platforms(text: str) -> list[str]:
+    """Platforms a campaign names. Empty means unspecified, not 'none'."""
+    return [name for name, pat in _PLATFORM_PATTERNS.items() if pat.search(text)]
+
+
+def detect_work_type(text: str) -> str:
+    """clipping | ugc | unknown — what the campaign asks you to produce."""
+    ugc = bool(_UGC_ONLY.search(text))
+    clip = bool(_CLIPPING.search(text))
+    if clip:
+        # "UGC/Clipping" campaigns accept clips, so clipping wins the tie.
+        return "clipping"
+    if ugc:
+        return "ugc"
+    return "unknown"
+
+
+def is_gated(text: str) -> bool:
+    """True when entry requires screening, a portfolio, or an application."""
+    return bool(_GATED.search(text))
+
+
+def capability_reject_reasons(
+    text: str,
+    *,
+    operator_platforms: list[str] | None = None,
+    can_produce_ugc: bool = False,
+) -> list[str]:
+    """Why this operator cannot take this campaign. Empty means it is workable."""
+    operator_platforms = [p.lower() for p in (operator_platforms or ["tiktok"])]
+    reasons: list[str] = []
+
+    work = detect_work_type(text)
+    if work == "ugc" and not can_produce_ugc:
+        reasons.append(
+            "Needs original UGC filmed by you, not clips cut from supplied footage"
+        )
+
+    named = detect_platforms(text)
+    if named and not (set(named) & set(operator_platforms)):
+        reasons.append(
+            f"Posts to {', '.join(named)} only - you operate {', '.join(operator_platforms)}"
+        )
+
+    if is_gated(text):
+        reasons.append("Entry is gated (screening, portfolio or application required)")
+
+    # A 4-minute minimum is long-form, not a short-form clip.
+    min_len = extract_min_video_seconds(text)
+    if min_len is not None and min_len > 90:
+        reasons.append(
+            f"Requires video at least {min_len // 60}m{min_len % 60:02d}s - long-form, not clips"
+        )
+
+    return reasons
+
+
 def extract_max_payout(text: str) -> float | None:
     """Per-clipper payout cap, or None when the brief doesn't state one."""
     for pattern in _MAX_PAYOUT_PATTERNS:

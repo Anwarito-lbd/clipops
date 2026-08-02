@@ -96,9 +96,11 @@ def _normalise_campaign_numbers(item: dict[str, Any]) -> dict[str, Any]:
         return item
 
     from packages.campaign_parser.parser import (
+        extract_approval_rate,
         extract_budget,
         extract_cpm,
         extract_max_payout,
+        extract_payout_bounds,
         looks_like_multiple_campaigns,
     )
 
@@ -132,8 +134,18 @@ def _normalise_campaign_numbers(item: dict[str, Any]) -> dict[str, Any]:
             item["budget_remaining_pct"] = round((1 - used / total) * 100, 1)
 
     max_payout = extract_max_payout(combined)
+    if max_payout is None:
+        # Whop's earnings panel states bounds as "$15 Min  $3000 Max".
+        _low, high = extract_payout_bounds(combined)
+        max_payout = high
     if max_payout is not None:
         item["max_payout"] = max_payout
+
+    # The stated approval rate replaces the 70% assumption. A campaign approving
+    # 3% of submissions earns ~23x less than the default would forecast.
+    approval = extract_approval_rate(combined)
+    if approval is not None:
+        item["approval_probability"] = approval
     return item
 
 
