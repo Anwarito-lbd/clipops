@@ -108,9 +108,11 @@ Twelve posts across four accounts, respecting the 3-hour same-account minimum:
 
 Submit each post to Content Rewards **immediately** — batching submissions discards views accrued before the link became trackable.
 
-**Warm-up ramp.** The accounts are aged but dormant; jumping straight to 3/day is anomalous. Week 1: 1/day/account. Week 2: 2/day. Week 3 onward: 3/day. Expect 2–4 weeks before the algorithm re-learns each account.
+**Ramp.** Week 1: 2/day/account (8/day). Week 2 onward: 3/day/account (12/day).
 
-**Known tension.** The research recommends 1–3/day generally but 1–2/day across 5–6 days/week *for clipping accounts specifically*. Running 3/day/account, 7 days a week, sits at or above that upper bound. This is a deliberate choice: total volume is what makes the target reachable, and the risk is mitigated by strict per-account topical consistency and the warm-up ramp. **If per-clip reach degrades as volume rises, the lever is to drop to 2/day/account (8/day total) rather than to add a fifth account** — the research is consistent that cadence quality beats raw count. Track views-per-clip weekly against the ramp to detect this.
+The reason to ramp is **measurement, not ban risk**. No published threshold says a dormant account posting 3/day gets flagged — that was an inference and should not be treated as fact. The defensible reason is that clip quality is unproven: going straight to 12/day spends source footage and per-campaign caps on a hook formula that has never been measured. Week 1 produces ~56 clips, enough to read completion rates and correct the formula before it is applied at full volume.
+
+**Known tension.** The research recommends 1–3/day generally but 1–2/day across 5–6 days/week *for clipping accounts specifically*. Running 3/day/account, 7 days a week, sits at or above that upper bound. This is a deliberate choice: total volume is what makes the target reachable, mitigated by strict per-account topical consistency. **If per-clip reach degrades as volume rises, the lever is to drop back to 2/day/account rather than to add a fifth account** — the research is consistent that cadence quality beats raw count. Track views-per-clip weekly to detect this.
 
 ## Earnings model
 
@@ -127,6 +129,49 @@ These are ordinary clips rather than hits, which is what makes the target reacha
 
 The blended $2.40 assumes lanes hold their observed rates. It is sensitive to lane 3 (Podcast Moments, $1–$3) and to how much of the flex lane's volume lands on low-rate music campaigns rather than outliers. At a pessimistic blended $1.50, £1,000 needs ~2,600 views/post before approval — still attainable, but the margin narrows.
 
+## Verifying clip quality
+
+ClipOps currently cannot answer whether its clips are good. The ranker scores segments on regex keyword counts (`HOOK_WORDS`, `CONFLICT`, `EMOTION`, `PAYOFF` in `workers/clip_ranking/rank.py`), and nothing has ever tested whether those correlate with performance. The learning loop ingests views only, though completion rate is the roughly 2×-weighted signal. Three hook variants are generated per campaign but never compared.
+
+The verification loop:
+
+1. **Record the predicted score** on every `ClipVersion` at render time, alongside the hook variant and duration band.
+2. **Capture completion rate** from TikTok analytics when logging metrics, not just view count.
+3. **Correlate predicted score against actual completion and views.** If correlation is near zero after ~30 clips, the ranker is noise and must be replaced rather than tuned.
+4. **Compare hook variants** head to head on completion rate within each lane.
+
+This converts "are these the best clips" from an assumption into a measurement available within the first two weeks.
+
+## Deployment
+
+**Dashboard on Vercel, pipeline on the operator's PC, connected by a Cloudflare Tunnel.**
+
+`apps/dashboard` is a client-side Next.js app that reaches the API through `NEXT_PUBLIC_API_URL` (`apps/dashboard/lib/utils.ts:8`), so it deploys to Vercel unchanged once that variable points at the tunnel URL.
+
+The pipeline cannot move to Vercel:
+
+| Component | Blocker |
+|---|---|
+| WhisperX transcription | Vercel provides no GPU. The local RTX 5060 does this at zero marginal cost |
+| FFmpeg rendering | Multi-minute jobs exceed function limits; no persistent disk |
+| `storage/` media | Ephemeral filesystem |
+| SQLite | Ephemeral filesystem |
+| Celery worker, Remotion service | No long-running processes |
+
+A fully cloud deployment was rejected: it costs roughly $30–100/month and rents a GPU the operator already owns.
+
+**Prerequisites before exposing anything.** The tunnel puts the API on the public internet, and authentication is currently disabled — `require_operator` (`apps/api/app/auth.py:48`) returns the operator identity with no credentials whenever `CLIPOPS_ENV != "production"`. There is also no login page: `apps/dashboard/app/` has no login route and `POST /api/auth/login` has no caller, despite the README claiming otherwise.
+
+Required before the tunnel goes live:
+
+1. Set `CLIPOPS_ENV=production` so the JWT path in `require_operator` is enforced. `.env` already holds a 64-character `JWT_SECRET` and a bcrypt `OPERATOR_PASSWORD_HASH`, so the production boot gate should pass.
+2. Build the missing login page and wire it to `POST /api/auth/login`.
+3. Apply the B1 hardening (loopback/Origin guard adjusted to permit the tunnel hostname and the Vercel origin).
+4. Point `NEXT_PUBLIC_API_URL` at the tunnel URL in Vercel's environment settings.
+5. Update the browser extension's `apiBase` — it stays on `127.0.0.1` since it runs on the same machine as the API.
+
+The PC must be running for the dashboard to function. This is accepted in exchange for free GPU transcription.
+
 ## Implementation implications
 
 Beyond the pipeline defects already scheduled:
@@ -137,8 +182,11 @@ Beyond the pipeline defects already scheduled:
 4. **Duration bands** — drop 40–60s; default 15–25s; honour per-campaign minimums.
 5. **Pattern interrupt** — ensure a zoom/motion beat lands inside the first second of every render.
 6. **Transformation depth** — guarantee distinct trim, opening frame, crop and caption per account.
-7. **Posting scheduler** — 3-hour same-account spacing, warm-up ramp, and a submit-now prompt on each post.
+7. **Posting scheduler** — 3-hour same-account spacing, the two-week ramp, and a submit-now prompt on each post.
 8. **Completion-rate capture** — the learning loop currently ingests views only; completion rate is the higher-signal metric and must be recorded.
+9. **Predicted-score logging and correlation** — store the ranker's prediction per clip and report predicted-vs-actual, so the ranker can be falsified rather than trusted.
+10. **Authentication and login UI** — enforce `CLIPOPS_ENV=production`, build the missing login page, and adjust the Origin guard for the tunnel and Vercel origins.
+11. **Deployment wiring** — Vercel project for `apps/dashboard`, Cloudflare Tunnel for the local API, `NEXT_PUBLIC_API_URL` configured per environment.
 
 ## Open items
 
