@@ -82,6 +82,61 @@ class DiscoverBatch(BaseModel):
     source: str = "browser_extension"
 
 
+def _normalise_campaign_numbers(item: dict[str, Any]) -> dict[str, Any]:
+    """Re-derive money figures server-side from the raw brief text.
+
+    The extension also parses these, but it is an untrusted client: a stale
+    cached content script silently reported $0.70 CPM as $760 and produced a
+    $4,947 EV on the worst-paying campaign. Whenever brief_text is available the
+    server's parser wins, so one bad extension build cannot poison the ranking.
+    Values are left null rather than guessed when nothing matches.
+    """
+    text = item.get("brief_text") or ""
+    if not text.strip():
+        return item
+
+    from packages.campaign_parser.parser import (
+        extract_budget,
+        extract_cpm,
+        extract_max_payout,
+        looks_like_multiple_campaigns,
+    )
+
+    # Titles carry the rate more reliably than body prose ("$5K Budget | $2 CPM").
+    name = item.get("name") or ""
+    combined = f"{name}\n{text}" if name else text
+
+    if looks_like_multiple_campaigns(combined):
+        # Several campaigns scraped into one card — no figure can be attributed.
+        item["cpm"] = None
+        item["total_budget"] = None
+        item["budget_utilised"] = None
+        item["budget_remaining_pct"] = None
+        item["max_payout"] = None
+        item["unclear_instructions"] = True
+        return item
+
+    server_cpm = extract_cpm(combined)
+    if server_cpm is not None:
+        item["cpm"] = server_cpm
+    elif item.get("cpm") is not None:
+        # Client claimed a rate the server cannot corroborate — drop it rather
+        # than forecast earnings from an unverifiable number.
+        item["cpm"] = None
+
+    total, used = extract_budget(combined)
+    if total is not None:
+        item["total_budget"] = total
+        if used is not None:
+            item["budget_utilised"] = used
+            item["budget_remaining_pct"] = round((1 - used / total) * 100, 1)
+
+    max_payout = extract_max_payout(combined)
+    if max_payout is not None:
+        item["max_payout"] = max_payout
+    return item
+
+
 class BriefPayload(BaseModel):
     discovered_id: str
     brief_text: str
@@ -199,7 +254,7 @@ def ingest_discovered(
         )
     priors = PerformanceLearningService().historical_priors(perf_rows)
 
-    payload = [c.model_dump() for c in body.campaigns]
+    payload = [_normalise_campaign_numbers(c.model_dump()) for c in body.campaigns]
     all_ranked = rank_discovered_campaigns(
         payload,
         account_geos=geos,
