@@ -201,6 +201,29 @@ def process_asset(asset_id: str) -> dict:
             .order_by(CampaignRequirement.created_at.desc())
             .first()
         )
+        # Refuse to produce clips against rules that were never fetched. The
+        # discover card carries no hashtags, duration limits or disclosure
+        # wording, so compliance would pass against defaults and the submission
+        # would be rejected for a requirement nobody read.
+        if live_req is not None and (live_req.source or "card") == "card":
+            asset.status = "FAILED"
+            asset.error_message = (
+                "Campaign requirements were never fetched from its brief page. "
+                "Open the campaign in Content Rewards and click the extension's "
+                "Brief button, then reprocess. Producing clips now would enforce "
+                "default rules, not this campaign's."
+            )
+            db.add(
+                ProductionEvent(
+                    campaign_id=campaign.id,
+                    source_asset_id=asset.id,
+                    title="Blocked: campaign brief not captured (click Brief in the extension)",
+                    status="action_required",
+                )
+            )
+            db.commit()
+            return {"error": "requirements_not_fetched", "campaign_id": campaign.id}
+
         snapshot = None
         if live_req:
             snapshot = CampaignRequirement(

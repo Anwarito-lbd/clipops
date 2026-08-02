@@ -105,6 +105,10 @@ class CampaignRequirement(Base):
     no_external_music: Mapped[bool] = mapped_column(Boolean, default=True)
     extra: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # "card" = scraped from the discover listing (defaults only, not the real
+    # rules); "brief" = pulled from the campaign detail page; "manual" = entered
+    # by the operator. Only the latter two are safe to produce clips against.
+    source: Mapped[Optional[str]] = mapped_column(String(16), default="card")
     is_immutable_snapshot: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -449,6 +453,7 @@ def _sqlite_add_missing_columns() -> None:
         "ALTER TABLE source_assets ADD COLUMN transcript_engine VARCHAR(32)",
         "ALTER TABLE clip_versions ADD COLUMN transcript_engine VARCHAR(32)",
         "ALTER TABLE clip_versions ADD COLUMN fabrication_override_reason TEXT",
+        "ALTER TABLE campaign_requirements ADD COLUMN source VARCHAR(16) DEFAULT 'card'",
     ]
     with engine.begin() as conn:
         for sql in statements:

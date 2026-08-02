@@ -104,6 +104,74 @@ document.getElementById("brief").onclick = async () => {
   }
 };
 
+/**
+ * Pull briefs from every open campaign tab in one pass.
+ *
+ * The discover-page scan only sees campaign cards, which carry no hashtags,
+ * duration limits or disclosure wording. Those live on each campaign's own
+ * page, so producing clips from card data alone means enforcing invented
+ * rules. Opening the campaigns you care about in tabs and running this once
+ * captures the real requirements without visiting them one at a time.
+ */
+document.getElementById("briefAll").onclick = async () => {
+  try {
+    const tabs = await chrome.tabs.query({
+      url: ["https://*.contentrewards.com/*", "https://contentrewards.com/*", "https://*.whop.com/*"],
+    });
+    if (!tabs.length) {
+      log("No Content Rewards tabs open. Open each campaign you want in its own tab, then retry.");
+      return;
+    }
+
+    const lines = [];
+    let ok = 0;
+    for (const tab of tabs) {
+      let res;
+      try {
+        res = await chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_BRIEF" });
+      } catch {
+        lines.push(`skip  ${(tab.title || tab.url || "").slice(0, 44)} — no content script`);
+        continue;
+      }
+      const brief = res?.brief;
+      if (!brief?.brief_text || brief.brief_text.trim().length < 400) {
+        lines.push(`skip  ${(tab.title || "").slice(0, 44)} — looks like a listing, not a campaign`);
+        continue;
+      }
+
+      // Match this page to a discovered campaign by its URL.
+      const found = await apiProxy(
+        `/api/operator/discovered/by-url?url=${encodeURIComponent(brief.external_url)}`,
+        "GET"
+      );
+      const id = found?.data?.id;
+      if (!id) {
+        lines.push(`skip  ${(tab.title || "").slice(0, 44)} — not in ClipOps, scan first`);
+        continue;
+      }
+
+      const resources = brief.resources || [];
+      const push = await apiProxy("/api/operator/brief", "POST", {
+        discovered_id: id,
+        brief_text: brief.brief_text,
+        asset_urls: resources.map((r) => r.url),
+        external_url: brief.external_url,
+      });
+      const hosts = resources.filter(
+        (r) => r.kind === "file_host" || r.kind === "direct_media"
+      );
+      lines.push(
+        `${push.ok ? "OK   " : "FAIL "} ${(tab.title || "").slice(0, 40)} — ` +
+          `${resources.length} link(s), ${hosts.length} footage host(s)`
+      );
+      if (push.ok) ok++;
+    }
+    log(`${ok}/${tabs.length} briefs saved\n\n` + lines.join("\n"));
+  } catch (e) {
+    log(String(e));
+  }
+};
+
 document.getElementById("submit").onclick = async () => {
   log(await sendTab("HIGHLIGHT_SUBMIT"));
 };

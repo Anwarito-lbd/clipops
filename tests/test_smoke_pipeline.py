@@ -64,7 +64,16 @@ def test_smoke_process_draft_approve(smoke_video, monkeypatch, tmp_path):
     settings = get_settings()
     assert settings.celery_eager is True
 
-    from app.db import Campaign, ClipVersion, Render, SocialAccount, SourceAsset, init_db, SessionLocal
+    from app.db import (
+        Campaign,
+        CampaignRequirement,
+        ClipVersion,
+        Render,
+        SocialAccount,
+        SourceAsset,
+        init_db,
+        SessionLocal,
+    )
     from app.tasks import process_asset
     from app.routers.pipeline import approve_version
     from app.schemas import ApproveRequest
@@ -87,6 +96,21 @@ def test_smoke_process_draft_approve(smoke_video, monkeypatch, tmp_path):
         db.add(campaign)
         db.commit()
         db.refresh(campaign)
+        # source="brief" mirrors a campaign whose detail page was captured.
+        # Without it, process_asset correctly refuses to run against defaults.
+        db.add(
+            CampaignRequirement(
+                campaign_id=campaign.id,
+                required_hashtags=["#Smoke"],
+                required_tags=[],
+                required_disclosure="Paid partnership",
+                min_duration_sec=15,
+                max_duration_sec=60,
+                source="brief",
+                is_immutable_snapshot=False,
+            )
+        )
+        db.commit()
 
         storage = Path(settings.storage_root)
         rel = Path("sources") / campaign.id / "clip.mp4"

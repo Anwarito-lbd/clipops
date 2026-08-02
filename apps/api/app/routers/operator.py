@@ -467,6 +467,10 @@ def approve_discovered(
             requires_cta=bool(raw.get("requires_cta")),
             forbidden_words=raw.get("forbidden_words") or [],
             forbidden_claims=raw.get("forbidden_claims") or [],
+            # Approval works from the discover-page card, which carries none of
+            # the real rules. Marked "card" so production refuses to run until
+            # the campaign's own brief has been fetched.
+            source="card",
             is_immutable_snapshot=False,
         )
     )
@@ -549,6 +553,18 @@ def save_brief(
                 req.max_duration_sec = parsed.max_duration_sec
                 req.requires_logo = parsed.requires_logo
                 req.requires_cta = parsed.requires_cta
+                req.forbidden_words = parsed.forbidden_words
+                req.forbidden_claims = parsed.forbidden_claims
+                # A brief that yields only defaults means the detail page was
+                # not actually captured - keep it marked unread so production
+                # stays blocked rather than running on invented rules.
+                from packages.campaign_parser.parser import requirements_look_unread
+
+                req.source = (
+                    "card"
+                    if requirements_look_unread(parsed, body.brief_text)
+                    else "brief"
+                )
     _notify(
         db,
         kind="assets_ready",
@@ -566,6 +582,41 @@ def save_brief(
         "campaign_id": row.campaign_id,
         "download_note": "Extension lists authorised download links; you confirm downloads. No unattended CR bot.",
     }
+
+
+@router.get("/operator/discovered/by-url")
+def discovered_by_url(
+    url: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Find a scanned campaign from the page URL currently open in a tab.
+
+    Lets the extension attribute a brief to the right campaign when pulling
+    several campaign tabs at once, without the operator selecting each one.
+    """
+    clean = (url or "").split("?")[0].rstrip("/")
+    if not clean:
+        raise HTTPException(400, "url is required")
+
+    row = (
+        db.query(DiscoveredCampaign)
+        .filter(DiscoveredCampaign.external_url.in_([clean, clean + "/"]))
+        .first()
+    )
+    if row is None:
+        # Campaign pages usually end in a slug that also appears in the stored
+        # URL; fall back to matching on that last path segment.
+        slug = clean.rsplit("/", 1)[-1]
+        if len(slug) >= 6:
+            row = (
+                db.query(DiscoveredCampaign)
+                .filter(DiscoveredCampaign.external_url.like(f"%{slug}%"))
+                .first()
+            )
+    if row is None:
+        raise HTTPException(404, "No scanned campaign matches that URL")
+    return {"id": row.id, "name": row.name, "operator_status": row.operator_status}
 
 
 @router.get("/operator/queue")

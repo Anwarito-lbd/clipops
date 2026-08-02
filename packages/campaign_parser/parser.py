@@ -215,6 +215,29 @@ def is_gated(text: str) -> bool:
     return bool(_GATED.search(text))
 
 
+def requirements_look_unread(parsed: "ParsedBrief", brief_text: str | None = None) -> bool:
+    """True when a brief yielded only defaults, meaning the real rules were never read.
+
+    The discover page shows a one-line campaign card; hashtags, duration limits,
+    disclosure wording and forbidden claims live on the detail page. Parsing the
+    card produces a ParsedBrief full of defaults that looks valid, so compliance
+    would pass against rules nobody fetched and submissions would be rejected for
+    requirements the operator never saw.
+    """
+    # A real brief is substantial. A scraped card is a sentence or two.
+    if brief_text is not None and len(brief_text.strip()) < 400:
+        return True
+    return (
+        not parsed.required_hashtags
+        and not parsed.required_tags
+        and not parsed.forbidden_words
+        and not parsed.forbidden_claims
+        and parsed.min_duration_sec == 15
+        and parsed.max_duration_sec == 60
+        and (parsed.required_disclosure or "") == "Paid partnership / Content Rewards"
+    )
+
+
 def capability_reject_reasons(
     text: str,
     *,
