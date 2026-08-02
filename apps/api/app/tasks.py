@@ -119,6 +119,20 @@ def process_asset(asset_id: str) -> dict:
         )
         top_pool = ranked_bundle["candidates"]
         select_n = ranked_bundle["select_n"]
+        ranker_used = ranked_bundle.get("ranker", "regex")
+        if ranked_bundle.get("llm_error"):
+            db.add(
+                ProductionEvent(
+                    campaign_id=campaign.id,
+                    source_asset_id=asset.id,
+                    title=(
+                        "LLM ranker unavailable, fell back to keyword ranking: "
+                        f"{ranked_bundle['llm_error'][:180]}"
+                    ),
+                    status="action_required",
+                )
+            )
+            db.commit()
 
         # Clear only THIS asset's previous output, and only work the operator
         # hasn't committed to. The old code deleted every ClipVersion for the
@@ -257,7 +271,9 @@ def process_asset(asset_id: str) -> dict:
                 hook_variant=(idx % 3) + 1,
                 subtitle_style=["bold", "minimal"][idx % 2],
                 caption=copy["caption"],
-                hook_text=copy["hook"],
+                # The LLM picked the exact line that stops the scroll and sized
+                # it for on-screen use; prefer it over the templated hook.
+                hook_text=(cand.scores or {}).get("hook_sentence") or copy["hook"],
                 context_intro=copy.get("context_intro") or hook_type,
                 status="REVIEW_REQUIRED",
                 transcript_engine=engine,
@@ -269,11 +285,13 @@ def process_asset(asset_id: str) -> dict:
         db.commit()
 
         # Production timeline events
-        from app.db import ProductionEvent
-
         for title, st in (
             (f"{len(candidates)} candidate clips generated", "done"),
-            (f"AI selected top {len(selected)} for render", "done"),
+            (
+                f"{'LLM' if ranker_used == 'llm' else 'Keyword'} ranker selected "
+                f"top {len(selected)} for render",
+                "done",
+            ),
             (f"{len(versions)} account versions ready for approval", "action_required"),
         ):
             db.add(
