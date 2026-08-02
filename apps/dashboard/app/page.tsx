@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, setToken } from "@/lib/utils";
+import { api } from "@/lib/utils";
 import { StatusBadge } from "@/components/status-badge";
 
 type Home = {
@@ -56,8 +56,6 @@ type GoLive = {
 export default function HomePage() {
   const [home, setHome] = useState<Home | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [email, setEmail] = useState("operator@clipops.local");
-  const [password, setPassword] = useState("");
   const [goLive, setGoLive] = useState<GoLive | null>(null);
   const [stack, setStack] = useState<{
     readiness_pct?: number;
@@ -92,18 +90,14 @@ export default function HomePage() {
     }
   }
 
-  async function login() {
-    const res = await api<{ access_token: string }>("/api/auth/login", {
+  async function clearDemo() {
+    const res = await api<{ removed_discovered: number }>("/api/operator/clear-demo", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: "{}",
     });
-    setToken(res.access_token);
+    setError(null);
     await load();
-  }
-
-  async function seed() {
-    await api("/api/operator/demo/seed-top3", { method: "POST", body: "{}" });
-    await load();
+    alert(`Cleared ${res.removed_discovered} demo campaigns. Scan real CR next.`);
   }
 
   async function approve(id: string) {
@@ -194,30 +188,14 @@ export default function HomePage() {
 
       {error && (
         <div className="rounded-lg border border-border bg-card p-4 space-y-2">
-          <p className="text-sm text-destructive">Sign in to load Operator Mode</p>
-          <p className="text-[10px] text-muted-foreground">
-            Password from rotate_secrets.py (not changeme after rotation).
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <input
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              type="password"
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="password"
-            />
-            <button
-              onClick={login}
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
-            >
-              Sign in
-            </button>
-          </div>
+          <p className="text-sm text-destructive">Could not reach ClipOps API</p>
+          <p className="text-[10px] text-muted-foreground break-all">{error}</p>
+          <button
+            onClick={() => load()}
+            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -280,15 +258,24 @@ export default function HomePage() {
           <div className="rounded-lg border border-border bg-card p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Campaigns
+                Campaigns (real)
               </h2>
-              <button
-                onClick={seed}
-                className="rounded-md border border-border px-2 py-1 text-xs"
-              >
-                Seed demo top 3
-              </button>
+              <div className="flex gap-2">
+                <Link className="rounded-md border border-border px-2 py-1 text-xs" href="/operator">
+                  Operator Mode
+                </Link>
+                <button
+                  onClick={clearDemo}
+                  className="rounded-md border border-border px-2 py-1 text-xs"
+                >
+                  Clear demo
+                </button>
+              </div>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Demo seed removed. Use the Chrome extension on a logged-in Content
+              Rewards tab → Scan campaigns. Ranked top 3 show here and on Operator.
+            </p>
             {home.campaigns.map((c, i) => (
               <div
                 key={c.id}
@@ -320,7 +307,7 @@ export default function HomePage() {
             ))}
             {!home.campaigns.length && (
               <p className="text-sm text-muted-foreground">
-                No ranked campaigns — use the browser extension or Seed demo.
+                No real campaigns yet — open /operator for scan + paste-brief steps.
               </p>
             )}
           </div>

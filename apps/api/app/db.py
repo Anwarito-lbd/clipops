@@ -125,6 +125,9 @@ class SourceAsset(Base):
     status: Mapped[str] = mapped_column(String(32), default="IMPORTED")
     transcript_path: Mapped[Optional[str]] = mapped_column(String(1024))
     scenes_path: Mapped[Optional[str]] = mapped_column(String(1024))
+    # whisperx | faster-whisper | heuristic — "heuristic" means ASR failed and the
+    # transcript is placeholder text, not speech.
+    transcript_engine: Mapped[Optional[str]] = mapped_column(String(32))
     error_message: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -161,6 +164,10 @@ class ClipVersion(Base):
     hook_text: Mapped[Optional[str]] = mapped_column(Text)
     context_intro: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="GENERATED")
+    # Carried from the source asset so the approve/export gate can refuse clips
+    # whose captions came from a fabricated transcript.
+    transcript_engine: Mapped[Optional[str]] = mapped_column(String(32))
+    fabrication_override_reason: Mapped[Optional[str]] = mapped_column(Text)
     requirements_snapshot_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("campaign_requirements.id")
     )
@@ -431,8 +438,29 @@ def seed_settings(db: Session) -> None:
     db.commit()
 
 
+def _sqlite_add_missing_columns() -> None:
+    """Best-effort ALTER for local sqlite when models gain columns."""
+    url = str(engine.url)
+    if not url.startswith("sqlite"):
+        return
+    statements = [
+        "ALTER TABLE social_accounts ADD COLUMN preferred_clip_length VARCHAR(16)",
+        "ALTER TABLE social_accounts ADD COLUMN preferred_hooks JSON",
+        "ALTER TABLE source_assets ADD COLUMN transcript_engine VARCHAR(32)",
+        "ALTER TABLE clip_versions ADD COLUMN transcript_engine VARCHAR(32)",
+        "ALTER TABLE clip_versions ADD COLUMN fabrication_override_reason TEXT",
+    ]
+    with engine.begin() as conn:
+        for sql in statements:
+            try:
+                conn.exec_driver_sql(sql)
+            except Exception:
+                pass  # column already exists
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _sqlite_add_missing_columns()
     db = SessionLocal()
     try:
         seed_accounts(db)

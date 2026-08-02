@@ -17,13 +17,18 @@ class CampaignScoreReport:
     difficulty: str
     estimated_approval_rate: float
     estimated_views_per_clip: float
-    estimated_profit_per_clip: float
-    estimated_profit_per_hour: float
+    # None when CPM is unknown — no rate, no forecast.
+    estimated_profit_per_clip: float | None
+    estimated_profit_per_hour: float | None
     recommendation: str  # HIGH_PRIORITY | CONSIDER | AVOID
     factor_scores: dict[str, float] = field(default_factory=dict)
     explanations: list[str] = field(default_factory=list)
     reject_reasons: list[str] = field(default_factory=list)
     is_recommended: bool = False
+    # Ceiling on what this campaign can pay you, and what bounds it.
+    max_earnings: float | None = None
+    binding_limit: str | None = None
+    views_to_cap: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -109,7 +114,7 @@ class CampaignScoringService:
 
         profit = base.expected_profit
         hours = max(estimated_hours, 0.1)
-        profit_per_hour = round(profit / hours, 2)
+        profit_per_hour = round(profit / hours, 2) if profit is not None else None
 
         explanations: list[str] = []
         fs = base.factor_scores
@@ -125,10 +130,22 @@ class CampaignScoringService:
             explanations.append(f"Budget remaining ~{budget_remaining_pct:.0f}%")
         if cpm is not None:
             explanations.append(f"CPM/reward rate £{cpm:.2f} (fee-adjusted ×{PLATFORM_FEE_MULTIPLIER})")
+        else:
+            explanations.append("CPM unknown — could not be read from the brief")
         explanations.append(f"Difficulty={difficulty}; est. approval={approval_probability:.0%}")
-        explanations.append(
-            f"EV ≈ approval×views/1000×CPM×{PLATFORM_FEE_MULTIPLIER} − cost = £{profit:.2f}/clip"
-        )
+        if profit is not None:
+            explanations.append(
+                f"EV ≈ approval×views/1000×CPM×{PLATFORM_FEE_MULTIPLIER} − cost = £{profit:.2f}/clip"
+            )
+        else:
+            explanations.append("No EV estimate without a CPM — verify the rate on the campaign page")
+        if base.max_earnings is not None:
+            cap_note = f"Max you can take from this campaign ≈ £{base.max_earnings:.2f} ({base.binding_limit})"
+            if base.views_to_cap:
+                cap_note += f" — about {base.views_to_cap:,} views to reach it"
+            explanations.append(cap_note)
+        for w in base.warnings:
+            explanations.append(f"! {w}")
         if historical_approval_rate is not None:
             explanations.append(
                 f"Blended with your history (approval {historical_approval_rate:.0%})"
@@ -136,7 +153,7 @@ class CampaignScoringService:
 
         if not base.is_recommended:
             recommendation = "AVOID"
-        elif base.score >= 85 and profit_per_hour >= 25:
+        elif base.score >= 85 and (profit_per_hour or 0) >= 25:
             recommendation = "HIGH_PRIORITY"
         elif base.score >= 70:
             recommendation = "CONSIDER"
@@ -153,11 +170,14 @@ class CampaignScoringService:
             difficulty=difficulty,
             estimated_approval_rate=round(approval_probability, 4),
             estimated_views_per_clip=float(expected_views),
-            estimated_profit_per_clip=round(profit, 4),
+            estimated_profit_per_clip=round(profit, 4) if profit is not None else None,
             estimated_profit_per_hour=profit_per_hour,
             recommendation=recommendation,
             factor_scores=fs,
             explanations=explanations,
             reject_reasons=base.reject_reasons,
             is_recommended=base.is_recommended,
+            max_earnings=base.max_earnings,
+            binding_limit=base.binding_limit,
+            views_to_cap=base.views_to_cap,
         )

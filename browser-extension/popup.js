@@ -4,6 +4,18 @@ function log(msg) {
   logEl.textContent = typeof msg === "string" ? msg : JSON.stringify(msg, null, 2);
 }
 
+async function getStored() {
+  const local = await chrome.storage.local.get({
+    apiBase: "http://127.0.0.1:8000",
+    lastDiscoveredId: "",
+  });
+  if (local.apiBase) return local;
+  return chrome.storage.sync.get({
+    apiBase: "http://127.0.0.1:8000",
+    lastDiscoveredId: "",
+  });
+}
+
 async function activeTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -12,7 +24,14 @@ async function activeTab() {
 async function sendTab(type) {
   const tab = await activeTab();
   if (!tab?.id) throw new Error("No active tab");
-  return chrome.tabs.sendMessage(tab.id, { type });
+  try {
+    return await chrome.tabs.sendMessage(tab.id, { type });
+  } catch (e) {
+    throw new Error(
+      "No ClipOps content script on this tab. Open a Content Rewards page first, then retry. " +
+        String(e)
+    );
+  }
 }
 
 async function apiProxy(path, method, body) {
@@ -27,12 +46,23 @@ async function apiProxy(path, method, body) {
 document.getElementById("scan").onclick = async () => {
   try {
     const res = await sendTab("SCAN_CAMPAIGNS");
-    if (!res.ok) throw new Error(res.error || "scan failed");
+    if (!res?.ok) throw new Error(res?.error || "scan failed");
+    const n = (res.campaigns || []).length;
+    if (!n) {
+      log(
+        "Scan found 0 campaigns on this page. Open the CR campaign list, or paste the brief in Operator Mode."
+      );
+      return;
+    }
     const push = await apiProxy("/api/operator/discover", "POST", {
       campaigns: res.campaigns,
       source: "browser_extension",
     });
-    log(push.ok ? push.data : push);
+    log(
+      push.ok
+        ? `Scanned ${n} → ingested. Open http://localhost:3000/operator`
+        : push
+    );
   } catch (e) {
     log(String(e));
   }
@@ -41,17 +71,17 @@ document.getElementById("scan").onclick = async () => {
 document.getElementById("brief").onclick = async () => {
   try {
     const res = await sendTab("EXTRACT_BRIEF");
-    const cfg = await chrome.storage.sync.get({ lastDiscoveredId: "" });
-    if (!cfg.lastDiscoveredId) {
-      // Ask API for latest top3 / approved item
+    const cfg = await getStored();
+    let id = cfg.lastDiscoveredId;
+    if (!id) {
       const list = await apiProxy("/api/operator/top3", "GET");
-      const id = list.data?.[0]?.id;
-      if (!id) throw new Error("No discovered campaign in ClipOps — scan first, then approve one.");
+      id = list.data?.[0]?.id;
+      if (!id) throw new Error("No discovered campaign — scan first, then approve one.");
+      await chrome.storage.local.set({ lastDiscoveredId: id });
       await chrome.storage.sync.set({ lastDiscoveredId: id });
-      cfg.lastDiscoveredId = id;
     }
     const push = await apiProxy("/api/operator/brief", "POST", {
-      discovered_id: cfg.lastDiscoveredId,
+      discovered_id: id,
       brief_text: res.brief.brief_text,
       asset_urls: res.assets,
       external_url: res.brief.external_url,

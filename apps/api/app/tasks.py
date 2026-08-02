@@ -22,6 +22,7 @@ from app.db import (
     ClipCandidate,
     ClipVersion,
     ComplianceCheck,
+    ProductionEvent,
     Render,
     SessionLocal,
     SocialAccount,
@@ -75,6 +76,7 @@ def process_asset(asset_id: str) -> dict:
         )
         asset.transcript_path = str(work_dir / "transcript.json")
         engine = (transcript or {}).get("engine") or "unknown"
+        asset.transcript_engine = engine
         asset.error_message = (
             f"transcript_engine={engine}"
             + (f"; diarized={transcript.get('diarized')}" if "diarized" in transcript else "")
@@ -117,6 +119,40 @@ def process_asset(asset_id: str) -> dict:
         )
         top_pool = ranked_bundle["candidates"]
         select_n = ranked_bundle["select_n"]
+
+        # Clear only THIS asset's previous output, and only work the operator
+        # hasn't committed to. The old code deleted every ClipVersion for the
+        # whole campaign, so uploading a second file destroyed the approved and
+        # exported clips from the first — including their renders on disk.
+        # Versions must go before candidates: SQLite has foreign keys off by
+        # default and a bulk delete() does not cascade at the ORM level.
+        old_cand_ids = [
+            r[0]
+            for r in db.query(ClipCandidate.id)
+            .filter(ClipCandidate.source_asset_id == asset.id)
+            .all()
+        ]
+        if old_cand_ids:
+            stale_ids = [
+                r[0]
+                for r in db.query(ClipVersion.id)
+                .filter(
+                    ClipVersion.candidate_id.in_(old_cand_ids),
+                    ClipVersion.status.in_(["REVIEW_REQUIRED", "GENERATED", "FAILED"]),
+                )
+                .all()
+            ]
+            if stale_ids:
+                db.query(Render).filter(
+                    Render.clip_version_id.in_(stale_ids)
+                ).delete(synchronize_session=False)
+                db.query(ComplianceCheck).filter(
+                    ComplianceCheck.clip_version_id.in_(stale_ids)
+                ).delete(synchronize_session=False)
+                db.query(ClipVersion).filter(
+                    ClipVersion.id.in_(stale_ids)
+                ).delete(synchronize_session=False)
+            db.commit()
 
         db.query(ClipCandidate).filter(ClipCandidate.source_asset_id == asset.id).delete()
         candidates: list[ClipCandidate] = []
@@ -187,7 +223,8 @@ def process_asset(asset_id: str) -> dict:
         from workers.clip_ranking.hooks import classify_hook
 
         selected = [c for c in candidates if c.selected][:select_n]
-        db.query(ClipVersion).filter(ClipVersion.campaign_id == campaign.id).delete()
+        # Stale versions for THIS asset were already cleared above, scoped so
+        # approved/exported work from other uploads survives.
         versions: list[ClipVersion] = []
         # Assign best clips to accounts round-robin — NOT 3 variants of every candidate
         for idx, cand in enumerate(selected):
@@ -223,6 +260,7 @@ def process_asset(asset_id: str) -> dict:
                 hook_text=copy["hook"],
                 context_intro=copy.get("context_intro") or hook_type,
                 status="REVIEW_REQUIRED",
+                transcript_engine=engine,
                 requirements_snapshot_id=snapshot.id if snapshot else None,
             )
             db.add(v)
@@ -332,6 +370,16 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
         # Draft renders stay on REVIEW_REQUIRED; final export after approve
         is_draft = draft or version.status == "REVIEW_REQUIRED"
 
+        # Never produce a final export whose on-screen hook and caption came from
+        # placeholder text rather than real speech. Drafts still render so the
+        # operator can see how bad it is.
+        if (
+            not is_draft
+            and version.transcript_engine == "heuristic"
+            and not version.fabrication_override_reason
+        ):
+            return {"error": "blocked_heuristic_transcript", "ok": False}
+
         campaign = db.get(Campaign, version.campaign_id)
         candidate = db.get(ClipCandidate, version.candidate_id)
         asset = db.get(SourceAsset, candidate.source_asset_id) if candidate else None
@@ -344,13 +392,20 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             .order_by(SocialAccount.handle)
             .all()
         )
-        slot_map = {a.id: i + 1 for i, a in enumerate(accounts[:3])}
+        # Slot map covers every account, not a hardcoded first three — a 4th
+        # account previously fell through to slot 1 and overwrote its exports.
+        slot_map = {a.id: i + 1 for i, a in enumerate(accounts)}
         slot = slot_map.get(version.social_account_id, 1)
 
         storage_root = Path(settings.storage_root)
         if not storage_root.is_absolute():
             storage_root = ROOT / storage_root
-        package_dir = storage_root / "exports" / campaign.id / f"account-{slot}"
+        # Include the version id: more clips are selected than there are accounts,
+        # so slot alone collides and later clips silently overwrite earlier ones —
+        # meaning the clip you reviewed is not the clip you export.
+        package_dir = (
+            storage_root / "exports" / campaign.id / f"account-{slot}" / version.id[:8]
+        )
         package_dir.mkdir(parents=True, exist_ok=True)
 
         from workers.video_rendering.render import render_account_package
@@ -370,6 +425,32 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             remotion_url=settings.remotion_url,
             burn_captions=settings.burn_captions,
         )
+
+        # A failed render must never look like a finished one. Record it as
+        # FAILED with no video_path/content_hash and stop — downstream treats a
+        # missing content_hash as "not ready to post".
+        if not result.get("ok"):
+            reason = result.get("error") or "ffmpeg produced no output"
+            db.add(
+                ProductionEvent(
+                    campaign_id=campaign.id,
+                    source_asset_id=asset.id,
+                    title=f"Render FAILED for {version.id[:8]}: {reason}",
+                    status="action_required",
+                )
+            )
+            db.add(
+                Render(
+                    clip_version_id=version.id,
+                    account_slot=slot,
+                    video_path=None,
+                    package_dir=str(package_dir),
+                    content_hash=None,
+                    status="FAILED",
+                )
+            )
+            db.commit()
+            return {"error": "render_failed", "detail": reason, "ok": False}
 
         content_hash = None
         video_path = Path(result["video_path"])

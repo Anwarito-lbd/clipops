@@ -12,6 +12,9 @@ apps/api/.venv/
 apps/api/clipops.db
 clipops.db
 *.db
+# Database snapshots (.bak, .rootbak, .orphan-*, .prereset-*) — these don't end
+# in .db so the pattern above misses them.
+*.db.*
 dist/
 .remotion/
 .supabase/

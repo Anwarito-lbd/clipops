@@ -53,9 +53,13 @@ function clipopsScanCampaigns() {
         card.querySelector("a[href*='campaign' i], a[href*='reward' i], a[href]") || null;
       const link = linkEl?.href || location.href;
 
-      const cpmMatch =
-        text.match(/CPM[^0-9$£€]*[\$£€]?\s*([\d]+(?:\.\d+)?)/i) ||
-        text.match(/[\$£€]\s*([\d]+(?:\.\d+)?)\s*(?:\/\s*)?CPM/i);
+      // When the DOM lumps several campaigns into one node, no figure in it can
+      // be attributed to a specific campaign — report none rather than another
+      // campaign's rate.
+      const merged = looksLikeMultipleCampaigns(text);
+      const cpm = merged ? null : extractCpm(text);
+      const budget = merged ? { total: null, utilised: null } : extractBudget(text);
+
       const remainingMatch =
         text.match(/(?:budget\s+)?remaining[^0-9%]*(\d{1,3})\s*%/i) ||
         text.match(/(\d{1,3})\s*%\s*(?:left|remaining)/i);
@@ -67,8 +71,11 @@ function clipopsScanCampaigns() {
       if (budgetPct == null && utilisedMatch) {
         budgetPct = 100 - parseFloat(utilisedMatch[1]);
       }
+      // Prefer the "$used/$total" progress display when it parsed.
+      if (budgetPct == null && budget.total && budget.utilised != null) {
+        budgetPct = Math.round((1 - budget.utilised / budget.total) * 1000) / 10;
+      }
 
-      const budgetTotal = text.match(/(?:total\s+)?budget[^0-9$£€]*[\$£€]?\s*([\d,]+(?:\.\d+)?)/i);
       const geoMatches = Array.from(
         text.matchAll(/\b(?:US|CA|UK|GB|AU|EU|WW|Worldwide)\b/g)
       ).map((m) => m[0]);
@@ -81,10 +88,9 @@ function clipopsScanCampaigns() {
         external_url: link,
         name,
         brand: null,
-        cpm: cpmMatch ? parseFloat(cpmMatch[1]) : parseMoney(text),
-        total_budget: budgetTotal
-          ? parseFloat(budgetTotal[1].replace(/,/g, ""))
-          : null,
+        cpm,
+        total_budget: budget.total,
+        budget_utilised: budget.utilised,
         budget_remaining_pct: budgetPct,
         required_geo: [...new Set(geoMatches)],
         brief_text: text.slice(0, 4000),
@@ -97,8 +103,14 @@ function clipopsScanCampaigns() {
         misleading_content: /misleading|false claim|deceptive/i.test(text),
         requires_logo: /logo\s+(required|must)|must\s+include\s+logo/i.test(text),
         requires_cta: /\bCTA\b|call to action|must\s+include\s+(cta|link)/i.test(text),
-        unclear_instructions: /TBD|see discord|unclear|contact manager/i.test(text),
-        raw: { snippet: text.slice(0, 500), selector_hit: true },
+        unclear_instructions:
+          merged || /TBD|see discord|unclear|contact manager/i.test(text),
+        raw: {
+          snippet: text.slice(0, 500),
+          selector_hit: true,
+          multiple_campaigns_in_card: merged,
+          rates_seen: merged ? distinctRates(text) : undefined,
+        },
       });
     } catch (err) {
       console.warn("ClipOps scan card error", err);

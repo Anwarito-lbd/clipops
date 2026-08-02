@@ -507,10 +507,12 @@ def posting_queue(
     db: Session = Depends(get_db),
     _user: str = Depends(require_operator),
 ):
-    q = db.query(ClipVersion)
+    # Only clips actually cleared for posting. Without this filter REJECTED and
+    # not-yet-approved versions appeared in the posting queue next to good ones.
+    q = db.query(ClipVersion).filter(ClipVersion.status.in_(["APPROVED", "EXPORTED"]))
     if campaign_id:
         q = q.filter(ClipVersion.campaign_id == campaign_id)
-    versions = q.order_by(ClipVersion.created_at.desc()).limit(30).all()
+    versions = q.order_by(ClipVersion.created_at.desc()).limit(200).all()
     # group by campaign, take latest 3 styles
     by_camp: dict[str, list] = {}
     for v in versions:
@@ -519,16 +521,20 @@ def posting_queue(
     settings = get_settings()
     out = []
     for cid, vs in by_camp.items():
-        # one per style
-        picked = []
-        seen = set()
-        for v in vs:
-            if v.style in seen:
-                continue
-            seen.add(v.style)
-            picked.append(v)
-            if len(picked) == 3:
-                break
+        # Every approved clip surfaces. The old "one per style, max 3" dedup
+        # silently discarded 2 of every 5 rendered clips, since more clips are
+        # selected than there are accounts.
+        picked = vs
+        slot_by_version: dict[str, int] = {}
+        for v in picked:
+            latest = (
+                db.query(Render)
+                .filter(Render.clip_version_id == v.id)
+                .order_by(Render.created_at.desc())
+                .first()
+            )
+            if latest and latest.account_slot:
+                slot_by_version[v.id] = latest.account_slot
         v_dicts = [
             {
                 "id": v.id,
@@ -536,6 +542,9 @@ def posting_queue(
                 "style": v.style,
                 "caption": v.caption,
                 "status": v.status,
+                # Authoritative slot from the render, so the queue label matches
+                # the on-disk exports/<campaign>/account-N folder.
+                "account_slot": slot_by_version.get(v.id),
             }
             for v in picked
         ]
@@ -550,6 +559,7 @@ def posting_queue(
                         "video_path": r.video_path,
                         "package_dir": r.package_dir,
                         "content_hash": r.content_hash,
+                        "account_slot": r.account_slot,
                     }
                 )
                 hashes.append(r.content_hash)
@@ -957,3 +967,86 @@ def demo_seed_top3(db: Session = Depends(get_db), _user: str = Depends(require_o
         ),
     ]
     return ingest_discovered(DiscoverBatch(campaigns=sample, source="demo"), db, _user)
+
+
+@router.post("/operator/clear-demo")
+def clear_demo_data(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Remove seeded demo campaigns so Operator Mode only shows real CR scans."""
+    demo_ids = ("demo-voltpop", "demo-learnhub", "demo-reactco", "demo-bad")
+    demo_names = {
+        "VoltPop Summer Push",
+        "LearnHub Story Explainer",
+        "ReactCo Commentary Drop",
+        "Exhausted Fake Engage",
+    }
+    rows = db.query(DiscoveredCampaign).all()
+    removed = 0
+    for r in rows:
+        if (
+            (r.external_id or "") in demo_ids
+            or r.name in demo_names
+            or (r.raw_payload or {}).get("source") == "demo"
+            or str((r.raw_payload or {}).get("external_id") or "").startswith("demo-")
+        ):
+            db.delete(r)
+            removed += 1
+    camp_removed = 0
+    for c in db.query(Campaign).all():
+        if c.name not in demo_names:
+            continue
+        db.query(CampaignRequirement).filter(CampaignRequirement.campaign_id == c.id).delete()
+        db.delete(c)
+        camp_removed += 1
+    db.commit()
+    return {
+        "removed_discovered": removed,
+        "removed_campaigns": camp_removed,
+        "next": "Open Content Rewards logged-in → ClipOps extension → Scan campaigns",
+    }
+
+
+class PasteBriefIn(BaseModel):
+    """Manual fallback when DOM scan misses — paste a real CR brief."""
+
+    name: Optional[str] = None
+    brief_text: str
+    external_url: Optional[str] = None
+    external_id: Optional[str] = None
+
+
+@router.post("/operator/paste-brief")
+def paste_brief(
+    body: PasteBriefIn,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Ingest one real campaign from pasted brief text (no demo)."""
+    text = (body.brief_text or "").strip()
+    if len(text) < 20:
+        raise HTTPException(400, "Paste a fuller campaign brief (at least ~20 chars)")
+    parsed = parse_campaign_brief(text)
+    item = DiscoveredItem(
+        external_id=body.external_id or f"paste-{hash(text) & 0xFFFFFFFF:x}",
+        external_url=body.external_url or get_settings().content_rewards_url,
+        name=body.name or parsed.name or text.splitlines()[0][:120],
+        brand=parsed.brand,
+        cpm=parsed.cpm,
+        total_budget=parsed.total_budget,
+        budget_utilised=parsed.budget_utilised,
+        required_geo=parsed.required_geo,
+        required_hashtags=parsed.required_hashtags,
+        required_tags=parsed.required_tags,
+        required_disclosure=parsed.required_disclosure,
+        min_duration_sec=parsed.min_duration_sec or 15,
+        max_duration_sec=parsed.max_duration_sec or 60,
+        requires_logo=parsed.requires_logo,
+        requires_cta=parsed.requires_cta,
+        has_rights=parsed.has_rights,
+        unclear_instructions=parsed.unclear_instructions,
+        requires_fake_engagement=parsed.requires_fake_engagement,
+        misleading_content=parsed.misleading_content,
+        brief_text=text,
+        raw={"source": "paste_brief"},
+    )
+    out = ingest_discovered(DiscoverBatch(campaigns=[item], source="paste_brief"), db, _user)
+    return out

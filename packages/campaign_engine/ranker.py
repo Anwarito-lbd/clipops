@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 from packages.campaign_parser.scoring import expected_profit, score_campaign
+from packages.shared_types.constants import DEFAULT_PRODUCTION_COST_PER_CLIP
 
 
 @dataclass
@@ -20,10 +21,15 @@ class RankedCampaign:
     min_duration_sec: int
     max_duration_sec: int
     opportunity_score: float
-    expected_profit: float
+    # None when CPM is unknown — no rate, no forecast.
+    expected_profit: float | None
     is_eligible: bool
     reject_reasons: list[str] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
+    # Ceiling on total takeout from this campaign (per-clipper cap or remaining budget).
+    max_earnings: float | None = None
+    binding_limit: str | None = None
+    views_to_cap: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -125,6 +131,7 @@ def rank_discovered_campaigns(
             cpm=item.get("cpm"),
             total_budget=total_budget,
             budget_utilised=utilised if total_budget else None,
+            max_payout=item.get("max_payout"),
             audience_match=float(item.get("audience_match_score", 70)),
             footage_quality=float(item.get("footage_quality_score", 70)),
             requirement_simplicity=float(item.get("requirement_simplicity_score", 70)),
@@ -132,7 +139,9 @@ def rank_discovered_campaigns(
             competition=float(item.get("competition_score", 50)),
             approval_probability=base_approval,
             expected_views=base_views,
-            estimated_production_cost=float(item.get("estimated_production_cost", 15)),
+            estimated_production_cost=float(
+                item.get("estimated_production_cost", DEFAULT_PRODUCTION_COST_PER_CLIP)
+            ),
             account_geos=account_geos,
             required_geo=item.get("required_geo") or [],
             has_rights=item.get("has_rights", True),
@@ -174,6 +183,9 @@ def rank_discovered_campaigns(
                 is_eligible=result.is_recommended,
                 reject_reasons=result.reject_reasons,
                 raw=item,
+                max_earnings=result.max_earnings,
+                binding_limit=result.binding_limit,
+                views_to_cap=result.views_to_cap,
             )
         )
 

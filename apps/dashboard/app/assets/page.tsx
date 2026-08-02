@@ -99,16 +99,27 @@ export default function AssetsPage() {
           >
             <div>
               <div className="text-sm font-medium">{a.filename}</div>
-              {a.error_message && (
-                <div
-                  className={
-                    a.error_message.includes("heuristic")
-                      ? "text-xs text-amber-600"
-                      : "text-xs text-muted-foreground"
-                  }
-                >
-                  {a.error_message}
+              {a.error_message?.includes("heuristic") ? (
+                <div className="mt-1 rounded-md border-2 border-red-500 bg-red-500/10 p-2">
+                  <div className="text-xs font-semibold text-red-500">
+                    Speech recognition failed — clips from this asset have
+                    placeholder captions
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Check <code>/health</code> for <code>media.cuda</code>, then
+                    Reprocess. Clips from this asset are blocked from export
+                    until it succeeds.
+                  </p>
+                  <div className="mt-1 text-[10px] text-muted-foreground">
+                    {a.error_message}
+                  </div>
                 </div>
+              ) : (
+                a.error_message && (
+                  <div className="text-xs text-muted-foreground">
+                    {a.error_message}
+                  </div>
+                )
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -124,6 +135,7 @@ export default function AssetsPage() {
               </button>
               <StatusBadge status={a.status} />
             </div>
+          </div>
         ))}
       </div>
     </div>

@@ -1,23 +1,24 @@
-# ClipOps Browser Extension (Operator Mode)
+# ClipOps Browser Extension — real campaigns only
 
-Assists your **already logged-in** Content Rewards browser session.
+Assists your **already logged-in** Content Rewards browser session. No demo data.
 
 ## Install (Chrome / Edge)
 
-1. Start ClipOps API (`http://127.0.0.1:8000`)
-2. Open `chrome://extensions` → Enable Developer mode
-3. **Load unpacked** → select this `browser-extension` folder
-4. Open extension **Options** → Login & save token
-5. Open Content Rewards while logged in → use the popup:
-   - Scan campaigns → ClipOps
-   - Extract brief + assets
-   - Highlight Submit / Cash-out
+1. ClipOps API running at `http://127.0.0.1:8000`
+2. `chrome://extensions` → Developer mode → **Load unpacked** → this folder
+3. Extension **Options** → email + password → **Login & save**
+4. Open **Content Rewards** logged in → campaign list page
+5. Popup → **Scan campaigns → ClipOps**
+6. Dashboard → **Operator Mode** → Approve real top 3 → **you** click Join on CR
 
-## What it never does
+## If scan returns nothing
 
-- Auto-click Join, Submit, or Cash-out
-- Post to TikTok
-- Bypass CAPTCHA
-- Run unattended Playwright against Content Rewards
+CR’s DOM changes often. Fallback:
 
-Those final clicks stay yours. An unattended bot should only be considered if Content Rewards gives **written permission**.
+1. Open a campaign page on CR  
+2. Select-all / copy the brief text  
+3. Dashboard → Operator → **Paste brief** → Rank  
+
+## Never does
+
+Auto Join / Submit / Cash-out, TikTok post, CAPTCHA bypass, unattended bots.

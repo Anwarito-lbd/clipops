@@ -181,7 +181,9 @@ def render_account_package(
             raise RuntimeError("base cut empty")
     except Exception as exc:
         render_error = str(exc)
-        video_out.write_bytes(b"")
+        # Do NOT leave a zero-byte mp4 behind — a file that exists but is empty
+        # reads downstream as a finished render and reaches the posting queue.
+        video_out.unlink(missing_ok=True)
         (out / "RENDER_ERROR.txt").write_text(
             f"FFmpeg render failed: {render_error}\n"
             "Ensure ffmpeg is installed and source video exists.\n",
@@ -237,4 +239,5 @@ def render_account_package(
         "duration_sec": duration,
         "package_dir": str(out),
         "ok": video_out.exists() and video_out.stat().st_size > 0,
+        "error": render_error,
     }

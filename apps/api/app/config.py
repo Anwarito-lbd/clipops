@@ -30,7 +30,10 @@ class Settings(BaseSettings):
     # development | production — production refuses weak secrets at startup
     clipops_env: str = "development"
 
-    database_url: str = "sqlite:///./clipops.db"
+    # Absolute, not relative: a "sqlite:///./clipops.db" default resolves against
+    # the working directory, so launching uvicorn from the repo root vs apps/api
+    # silently opened two different databases.
+    database_url: str = f"sqlite:///{(_ROOT / 'apps' / 'api' / 'clipops.db').as_posix()}"
     supabase_url: str = "http://127.0.0.1:54321"
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
