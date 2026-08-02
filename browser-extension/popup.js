@@ -80,13 +80,25 @@ document.getElementById("brief").onclick = async () => {
       await chrome.storage.local.set({ lastDiscoveredId: id });
       await chrome.storage.sync.set({ lastDiscoveredId: id });
     }
+    // Prefer the brief extractor's classified resources over the bare asset
+    // list — it finds "Resources" cards pointing at Drive/Dropbox, which is
+    // where footage actually lives.
+    const found = res.brief.resources || [];
+    const urls = found.length ? found.map((r) => r.url) : res.assets || [];
     const push = await apiProxy("/api/operator/brief", "POST", {
       discovered_id: id,
       brief_text: res.brief.brief_text,
-      asset_urls: res.assets,
+      asset_urls: urls,
       external_url: res.brief.external_url,
     });
-    log(push.ok ? push.data : push);
+    const hosts = found.filter((r) => r.kind === "file_host" || r.kind === "direct_media");
+    log(
+      (push.ok ? "Brief saved. " : JSON.stringify(push) + " ") +
+        `${urls.length} link(s) found` +
+        (hosts.length
+          ? ` — footage likely at: ${hosts.slice(0, 3).map((h) => h.url).join(", ")}`
+          : " — no footage host detected, check the Resources link manually")
+    );
   } catch (e) {
     log(String(e));
   }

@@ -10,9 +10,20 @@ function clipopsExtractBrief() {
   const duration = body.match(/(\d+)\s*[-–to]+\s*(\d+)\s*(?:s|sec|seconds)/i);
   const deadline = body.match(/(?:deadline|due)[^\n]{0,80}/i)?.[0] || null;
 
+  // Where the footage lives. Campaign pages link a "Resources" card rather than
+  // raw files, so this is usually the only path to the source material.
+  let resources = [];
+  try {
+    resources = typeof clipopsCollectAssets === "function" ? clipopsCollectAssets() : [];
+  } catch {
+    /* collector unavailable — brief still worth sending */
+  }
+
   return {
     brief_text: body.slice(0, 8000),
     external_url: location.href,
+    asset_urls: resources.map((r) => r.url),
+    resources,
     required_hashtags: [...new Set(hashtags)].slice(0, 30),
     required_tags: [...new Set(tags)].slice(0, 20),
     required_disclosure: disclosure,
