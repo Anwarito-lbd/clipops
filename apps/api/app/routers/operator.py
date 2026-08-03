@@ -6,6 +6,7 @@ Never auto-posts to TikTok or auto-submits / auto-withdraws on Content Rewards.
 
 from __future__ import annotations
 
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -524,12 +525,26 @@ def save_brief(
     row = db.get(DiscoveredCampaign, body.discovered_id)
     if not row:
         raise HTTPException(404, "Not found")
+
+    # Refuse the discover listing. It contains every campaign's text at once, so
+    # saving it as one campaign's brief overwrites that campaign's real rules
+    # with a blend of 170 others - worse than having no brief at all.
+    text = body.brief_text or ""
+    join_buttons = len(re.findall(r"join\s+campaign", text, re.I))
+    if join_buttons > 1:
+        raise HTTPException(
+            400,
+            f"That page lists {join_buttons} campaigns - it is the discover feed, "
+            "not a campaign brief. Open the individual campaign page and retry.",
+        )
+
     row.brief_text = body.brief_text
     row.asset_urls = body.asset_urls
     if body.external_url:
         row.external_url = body.external_url
     if row.operator_status == "approved":
         row.operator_status = "collecting"
+
     # Mirror into linked campaign if present
     if row.campaign_id:
         camp = db.get(Campaign, row.campaign_id)
@@ -599,11 +614,22 @@ def discovered_by_url(
     if not clean:
         raise HTTPException(400, "url is required")
 
-    row = (
+    matches = (
         db.query(DiscoveredCampaign)
         .filter(DiscoveredCampaign.external_url.in_([clean, clean + "/"]))
-        .first()
+        .limit(2)
+        .all()
     )
+    # The scan stores the listing URL for every card it finds there, so a URL
+    # shared by several campaigns identifies none of them. Returning the first
+    # would attribute one campaign's brief to another.
+    if len(matches) > 1:
+        raise HTTPException(
+            409,
+            "That URL is shared by multiple campaigns (it is the discover feed). "
+            "Open the individual campaign page instead.",
+        )
+    row = matches[0] if matches else None
     if row is None:
         # Campaign pages usually end in a slug that also appears in the stored
         # URL; fall back to matching on that last path segment.

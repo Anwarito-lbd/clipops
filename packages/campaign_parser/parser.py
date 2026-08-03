@@ -224,17 +224,28 @@ def requirements_look_unread(parsed: "ParsedBrief", brief_text: str | None = Non
     would pass against rules nobody fetched and submissions would be rejected for
     requirements the operator never saw.
     """
-    # A real brief is substantial. A scraped card is a sentence or two.
-    if brief_text is not None and len(brief_text.strip()) < 400:
-        return True
-    return (
-        not parsed.required_hashtags
-        and not parsed.required_tags
-        and not parsed.forbidden_words
-        and not parsed.forbidden_claims
-        and parsed.min_duration_sec == 15
-        and parsed.max_duration_sec == 60
-        and (parsed.required_disclosure or "") == "Paid partnership / Content Rewards"
+    # Any rule that differs from the defaults proves the detail page was read.
+    # Length is not the discriminator - a brief can be short and complete, while
+    # the discover feed is far longer than any single campaign page.
+    has_real_rules = bool(
+        parsed.required_hashtags
+        or parsed.required_tags
+        or parsed.forbidden_words
+        or parsed.forbidden_claims
+        or parsed.min_duration_sec != 15
+        or parsed.max_duration_sec != 60
+        or (parsed.required_disclosure or "") != "Paid partnership / Content Rewards"
+    )
+    if has_real_rules:
+        return False
+
+    # No distinguishing rules found. A campaign page still names its requirements
+    # section even when it imposes few; a scraped card never does.
+    text = brief_text or ""
+    return not re.search(
+        r"content requirements?|requirements?\b|campaign brief|guidelines|deliverables",
+        text,
+        re.I,
     )
 
 

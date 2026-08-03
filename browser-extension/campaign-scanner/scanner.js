@@ -1,5 +1,46 @@
 /** Campaign scanner — reads campaign cards from the logged-in CR DOM. */
 
+/** A URL that points at one campaign, not the feed it was listed on. */
+function clipopsCampaignLink(card) {
+  const here = location.href.split("?")[0].replace(/\/$/, "");
+  const isOwnPage = (href) => {
+    if (!href) return false;
+    const clean = href.split("?")[0].replace(/\/$/, "");
+    // Reject the feed itself and bare-origin links.
+    if (clean === here) return false;
+    if (/\/(discover|campaigns?|explore|home)$/i.test(clean)) return false;
+    try {
+      if (!new URL(href).pathname.replace(/^\/|\/$/g, "")) return false;
+    } catch {
+      return false;
+    }
+    return true;
+  };
+
+  // The card may itself be a link, sit inside one, or carry the target in a
+  // data attribute when it is a JS-navigated div.
+  const candidates = [];
+  if (card.tagName === "A") candidates.push(card.href);
+  const ancestor = card.closest?.("a[href]");
+  if (ancestor) candidates.push(ancestor.href);
+  for (const attr of ["data-href", "data-url", "data-link", "href"]) {
+    const v = card.getAttribute?.(attr);
+    if (v) {
+      try {
+        candidates.push(new URL(v, location.origin).href);
+      } catch {
+        /* not a usable url */
+      }
+    }
+  }
+  card.querySelectorAll?.("a[href]").forEach((a) => candidates.push(a.href));
+
+  // Prefer links that look campaign-specific over any other internal link.
+  const usable = candidates.filter(isOwnPage);
+  const specific = usable.find((h) => /campaign|reward|\/c\/|\/r\//i.test(h));
+  return specific || usable[0] || null;
+}
+
 function clipopsScanCampaigns() {
   const campaigns = [];
   const seen = new Set();
@@ -49,9 +90,10 @@ function clipopsScanCampaigns() {
       if (!name || seen.has(name)) return;
       seen.add(name);
 
-      const linkEl =
-        card.querySelector("a[href*='campaign' i], a[href*='reward' i], a[href]") || null;
-      const link = linkEl?.href || location.href;
+      // Each campaign needs its OWN url. Falling back to location.href stamped
+      // every card with the discover-feed address, which made them
+      // indistinguishable and left no way to reach a campaign's brief page.
+      const link = clipopsCampaignLink(card);
 
       // When the DOM lumps several campaigns into one node, no figure in it can
       // be attributed to a specific campaign — report none rather than another

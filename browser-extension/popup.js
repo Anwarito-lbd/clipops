@@ -134,8 +134,18 @@ document.getElementById("briefAll").onclick = async () => {
         continue;
       }
       const brief = res?.brief;
-      if (!brief?.brief_text || brief.brief_text.trim().length < 400) {
-        lines.push(`skip  ${(tab.title || "").slice(0, 44)} — looks like a listing, not a campaign`);
+      if (!brief?.brief_text) {
+        lines.push(`skip  ${(tab.title || "").slice(0, 44)} — no text captured`);
+        continue;
+      }
+      // A length check cannot tell these apart: the discover feed is far LONGER
+      // than any single campaign page. The reliable signal is how many "Join
+      // Campaign" buttons the page has - a feed has one per listing.
+      const joins = (brief.brief_text.match(/join\s+campaign/gi) || []).length;
+      if (joins > 1) {
+        lines.push(
+          `skip  ${(tab.title || "").slice(0, 40)} — feed page (${joins} campaigns), not a brief`
+        );
         continue;
       }
 
