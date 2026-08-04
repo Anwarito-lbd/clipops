@@ -629,6 +629,94 @@ def _storage_root() -> Path:
     return root if root.is_absolute() else (ROOT / root)
 
 
+@router.get("/operator/today")
+def operator_today(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """The daily driver: what to post, to which account, and what is overdue."""
+    from packages.services.schedule import build_schedule, overdue_submissions
+
+    accounts = [
+        {"id": a.id, "label": a.display_name or a.handle}
+        for a in db.query(SocialAccount)
+        .filter(SocialAccount.platform == "tiktok", SocialAccount.is_active.is_(True))
+        .order_by(SocialAccount.handle)
+        .all()
+    ]
+
+    # Days since the first post decides whether the ramp still applies.
+    first_post = db.query(Post).order_by(Post.posted_at.asc()).first()
+    days_active = 0
+    if first_post and first_post.posted_at:
+        started = first_post.posted_at
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        days_active = (datetime.now(timezone.utc) - started).days
+
+    posted_version_ids = {p.clip_version_id for p in db.query(Post).all()}
+    ready = []
+    for v in (
+        db.query(ClipVersion)
+        .filter(ClipVersion.status.in_(["APPROVED", "EXPORTED"]))
+        .order_by(ClipVersion.created_at.asc())
+        .all()
+    ):
+        if v.id in posted_version_ids:
+            continue
+        render = (
+            db.query(Render)
+            .filter(Render.clip_version_id == v.id, Render.content_hash.isnot(None))
+            .order_by(Render.created_at.desc())
+            .first()
+        )
+        if not render:
+            continue  # nothing postable without a real rendered file
+        camp = db.get(Campaign, v.campaign_id)
+        ready.append(
+            {
+                "id": v.id,
+                "account_id": v.social_account_id,
+                "caption": v.caption,
+                "hook_text": v.hook_text,
+                "campaign_name": camp.name if camp else None,
+                "preview_url": f"/api/media/{Path(render.video_path).name}"
+                if render.video_path
+                else None,
+            }
+        )
+
+    schedule = build_schedule(
+        ready_clips=ready, accounts=accounts, days_active=days_active
+    )
+
+    # Posted but not yet submitted - the backlog that costs money directly.
+    submitted_post_ids = {s.post_id for s in db.query(Submission).all()}
+    pending = [
+        {
+            "post_id": p.id,
+            "clip_version_id": p.clip_version_id,
+            "tiktok_url": p.tiktok_url,
+            "posted_at": p.posted_at.isoformat() if p.posted_at else None,
+            "submitted": p.id in submitted_post_ids,
+        }
+        for p in db.query(Post).all()
+    ]
+    awaiting = overdue_submissions(pending)
+
+    return {
+        **schedule,
+        "accounts": accounts,
+        "ready_count": len(ready),
+        "awaiting_submission": [a for a in awaiting if not a["submitted"]],
+        "blocked": {
+            "clips_awaiting_approval": db.query(ClipVersion)
+            .filter(ClipVersion.status == "REVIEW_REQUIRED")
+            .count(),
+            "assets_failed": db.query(SourceAsset)
+            .filter(SourceAsset.status == "FAILED")
+            .count(),
+        },
+    }
+
+
 @router.get("/operator/inbox")
 def inbox_status(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
     """Footage waiting in the drop folder."""

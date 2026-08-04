@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
+  CalendarClock,
   Clapperboard,
   FolderUp,
   LayoutDashboard,
@@ -17,6 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 
 const NAV = [
+  // The daily driver goes first — it is the screen the operator lives in.
+  { href: "/today", label: "Today", icon: CalendarClock },
   { href: "/", label: "Home $1K", icon: LayoutDashboard },
   { href: "/operator", label: "Operator", icon: Sparkles },
   { href: "/campaigns", label: "Campaigns", icon: Clapperboard },
