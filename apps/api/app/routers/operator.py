@@ -37,8 +37,10 @@ from app.db import (
     Render,
     SocialAccount,
     SourceAsset,
+    Submission,
     get_db,
 )
+from packages.services.operations import EXHAUSTED_AT
 from packages.campaign_engine.ranker import rank_discovered_campaigns
 from packages.campaign_parser.parser import parse_campaign_brief
 from packages.posting_queue.router import assert_versions_not_identical, build_posting_packages
@@ -619,6 +621,230 @@ def save_brief(
         "asset_urls": row.asset_urls,
         "campaign_id": row.campaign_id,
         "download_note": "Extension lists authorised download links; you confirm downloads. No unattended CR bot.",
+    }
+
+
+def _storage_root() -> Path:
+    root = Path(get_settings().storage_root)
+    return root if root.is_absolute() else (ROOT / root)
+
+
+@router.get("/operator/inbox")
+def inbox_status(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Footage waiting in the drop folder."""
+    from packages.services.operations import human_bytes, scan_inbox
+
+    root = _storage_root() / "inbox"
+    root.mkdir(parents=True, exist_ok=True)
+    names = {c.id: c.name for c in db.query(Campaign).all()}
+    items = [i.to_dict() for i in scan_inbox(root, names)]
+    ready = [i for i in items if not i["problem"]]
+    return {
+        "inbox_path": str(root),
+        "items": items,
+        "ready_count": len(ready),
+        "total_size": human_bytes(sum(i["size_bytes"] for i in ready)),
+        "how_to": "Drop video files into inbox/<campaign_id>/ then call import.",
+        "campaign_folders": {cid: str(root / cid) for cid in names},
+    }
+
+
+@router.post("/operator/inbox/import")
+def inbox_import(
+    campaign_id: str | None = None,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Move dropped footage into its campaign and start processing."""
+    from packages.services.operations import import_inbox_file, scan_inbox
+
+    storage_root = _storage_root()
+    root = storage_root / "inbox"
+    root.mkdir(parents=True, exist_ok=True)
+    names = {c.id: c.name for c in db.query(Campaign).all()}
+
+    imported, skipped = [], []
+    for item in scan_inbox(root, names):
+        target = item.campaign_id or campaign_id
+        if item.problem and not (campaign_id and "Loose file" in (item.problem or "")):
+            skipped.append({"file": item.filename, "why": item.problem})
+            continue
+        if not target:
+            skipped.append({"file": item.filename, "why": "No campaign to import into"})
+            continue
+
+        src = Path(item.path)
+        dest, rel = import_inbox_file(src, storage_root, target)
+        asset = SourceAsset(
+            campaign_id=target,
+            filename=dest.name,
+            storage_path=rel,
+            status="IMPORTED",
+        )
+        db.add(asset)
+        db.commit()
+        db.refresh(asset)
+
+        from app.jobs import enqueue_or_run
+        from app.tasks import process_asset
+
+        enqueue_or_run(process_asset, asset.id)
+        imported.append({"file": dest.name, "asset_id": asset.id, "campaign_id": target})
+
+    return {"imported": imported, "skipped": skipped, "count": len(imported)}
+
+
+@router.get("/operator/rotation")
+def campaign_rotation(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Which campaigns are running dry, so a replacement can be lined up early."""
+    from packages.services.operations import rotation_signal
+
+    out = []
+    for camp in db.query(Campaign).filter(Campaign.status.notin_(["rejected"])).all():
+        # Earnings attributable to this campaign, for the per-clipper cap.
+        earned = sum(
+            float(e.net_amount or e.provisional_amount or 0)
+            for e in db.query(Earning)
+            .join(Submission, Earning.submission_id == Submission.id)
+            .join(Post, Submission.post_id == Post.id)
+            .join(ClipVersion, Post.clip_version_id == ClipVersion.id)
+            .filter(ClipVersion.campaign_id == camp.id)
+            .all()
+        )
+
+        posted = (
+            db.query(Post)
+            .join(ClipVersion, Post.clip_version_id == ClipVersion.id)
+            .filter(ClipVersion.campaign_id == camp.id)
+            .count()
+        )
+        disc = (
+            db.query(DiscoveredCampaign)
+            .filter(DiscoveredCampaign.campaign_id == camp.id)
+            .first()
+        )
+        raw = (disc.raw_payload if disc else None) or {}
+        sig = rotation_signal(
+            campaign_id=camp.id,
+            campaign_name=camp.name,
+            total_budget=float(camp.total_budget) if camp.total_budget else raw.get("total_budget"),
+            budget_utilised=float(camp.budget_utilised) if camp.budget_utilised else raw.get("budget_utilised"),
+            max_payout=raw.get("max_payout"),
+            earned_so_far=earned,
+            clips_posted=posted,
+        )
+        out.append(sig.to_dict())
+
+    needs_action = [s for s in out if s["state"] != "healthy"]
+    replacements = []
+    if needs_action:
+        replacements = [
+            _serialize_discovered(r)
+            for r in db.query(DiscoveredCampaign)
+            .filter(
+                DiscoveredCampaign.is_eligible.is_(True),
+                DiscoveredCampaign.operator_status.in_(["discovered", "top3"]),
+            )
+            .order_by(DiscoveredCampaign.opportunity_score.desc())
+            .limit(5)
+            .all()
+        ]
+    return {
+        "campaigns": out,
+        "needs_action": needs_action,
+        "suggested_replacements": replacements,
+    }
+
+
+@router.get("/operator/storage")
+def storage_report(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Source footage that can be deleted. Reports only - never deletes."""
+    from packages.services.operations import find_reclaimable_sources, human_bytes
+
+    storage_root = _storage_root()
+    campaigns = []
+    for camp in db.query(Campaign).all():
+        assets = db.query(SourceAsset).filter(SourceAsset.campaign_id == camp.id).all()
+        versions = db.query(ClipVersion).filter(ClipVersion.campaign_id == camp.id).all()
+        disc = (
+            db.query(DiscoveredCampaign)
+            .filter(DiscoveredCampaign.campaign_id == camp.id)
+            .first()
+        )
+        raw = (disc.raw_payload if disc else None) or {}
+        total_budget = float(camp.total_budget) if camp.total_budget else raw.get("total_budget")
+        used = float(camp.budget_utilised) if camp.budget_utilised else raw.get("budget_utilised")
+        exhausted = bool(
+            total_budget and used is not None and (used / total_budget) >= EXHAUSTED_AT
+        )
+        campaigns.append(
+            {
+                "id": camp.id,
+                "name": camp.name,
+                "exhausted": exhausted,
+                "source_paths": [a.storage_path for a in assets],
+                "version_statuses": [v.status for v in versions],
+            }
+        )
+
+    candidates = find_reclaimable_sources(storage_root=storage_root, campaigns=campaigns)
+    total = sum(c.bytes_freed for c in candidates)
+    return {
+        "reclaimable": [c.to_dict() for c in candidates],
+        "total_bytes": total,
+        "total_human": human_bytes(total),
+        "policy": (
+            "Only source footage from exhausted campaigns whose clips are all "
+            "posted or resolved. Exports, captions and covers are never deleted - "
+            "they are your evidence if a submission's views are disputed."
+        ),
+    }
+
+
+@router.post("/operator/storage/reclaim")
+def storage_reclaim(
+    campaign_id: str,
+    confirm: bool = False,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Delete one campaign's source footage. Requires confirm=true."""
+    from packages.services.operations import human_bytes
+
+    report = storage_report(db=db, _user=_user)
+    match = next(
+        (c for c in report["reclaimable"] if c["campaign_id"] == campaign_id), None
+    )
+    if match is None:
+        raise HTTPException(
+            400,
+            "That campaign's footage is not reclaimable - it is still active, or "
+            "some of its clips have not been posted yet.",
+        )
+    if not confirm:
+        return {
+            "dry_run": True,
+            "would_delete": match["paths"],
+            "would_free": human_bytes(match["bytes_freed"]),
+            "note": "Re-send with confirm=true to delete. This cannot be undone.",
+        }
+
+    deleted, failed = [], []
+    for p in match["paths"]:
+        try:
+            Path(p).unlink()
+            deleted.append(p)
+        except OSError as exc:
+            failed.append({"path": p, "error": str(exc)})
+
+    # Keep the rows: they record what was made from what, and re-import can refill.
+    for a in db.query(SourceAsset).filter(SourceAsset.campaign_id == campaign_id).all():
+        a.error_message = "Source file reclaimed to free disk space"
+    db.commit()
+    return {
+        "deleted": deleted,
+        "failed": failed,
+        "freed": human_bytes(match["bytes_freed"]),
     }
 
 
