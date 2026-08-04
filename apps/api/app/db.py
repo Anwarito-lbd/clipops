@@ -305,6 +305,10 @@ class DiscoveredCampaign(Base):
     )  # discovered|top3|approved|rejected|collecting|producing|ready|posted|submitted|done
     campaign_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("campaigns.id"))
     brief_text: Mapped[Optional[str]] = mapped_column(Text)
+    # True only once the campaign's own brief page has been captured. A discover
+    # card states a rate but defers the rules to a document, so an unfetched
+    # campaign cannot be judged workable no matter how good its numbers look.
+    brief_fetched: Mapped[bool] = mapped_column(Boolean, default=False)
     asset_urls: Mapped[list[Any]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -454,6 +458,7 @@ def _sqlite_add_missing_columns() -> None:
         "ALTER TABLE clip_versions ADD COLUMN transcript_engine VARCHAR(32)",
         "ALTER TABLE clip_versions ADD COLUMN fabrication_override_reason TEXT",
         "ALTER TABLE campaign_requirements ADD COLUMN source VARCHAR(16) DEFAULT 'card'",
+        "ALTER TABLE discovered_campaigns ADD COLUMN brief_fetched BOOLEAN DEFAULT 0",
     ]
     with engine.begin() as conn:
         for sql in statements:

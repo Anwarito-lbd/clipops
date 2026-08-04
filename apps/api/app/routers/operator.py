@@ -150,6 +150,21 @@ def _normalise_campaign_numbers(item: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def _brief_fetched_map(db: Session, items: list[dict[str, Any]]) -> None:
+    """Carry each campaign's verified state into the ranking payload."""
+    ids = [i.get("external_id") for i in items if i.get("external_id")]
+    if not ids:
+        return
+    known = {
+        r.external_id: bool(r.brief_fetched)
+        for r in db.query(DiscoveredCampaign)
+        .filter(DiscoveredCampaign.external_id.in_(ids))
+        .all()
+    }
+    for i in items:
+        i["brief_fetched"] = known.get(i.get("external_id"), False)
+
+
 class BriefPayload(BaseModel):
     discovered_id: str
     brief_text: str
@@ -268,6 +283,7 @@ def ingest_discovered(
     priors = PerformanceLearningService().historical_priors(perf_rows)
 
     payload = [_normalise_campaign_numbers(c.model_dump()) for c in body.campaigns]
+    _brief_fetched_map(db, payload)
     all_ranked = rank_discovered_campaigns(
         payload,
         account_geos=geos,
@@ -540,6 +556,13 @@ def save_brief(
 
     row.brief_text = body.brief_text
     row.asset_urls = body.asset_urls
+    # Only a brief that actually yields rules counts as read. A capture that
+    # parses to pure defaults leaves the campaign unverified.
+    from packages.campaign_parser.parser import requirements_look_unread
+
+    row.brief_fetched = not requirements_look_unread(
+        parse_campaign_brief(text), text
+    )
     if body.external_url:
         row.external_url = body.external_url
     if row.operator_status == "approved":

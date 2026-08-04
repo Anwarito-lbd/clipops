@@ -439,8 +439,18 @@ def parse_campaign_brief(raw: str) -> ParsedBrief:
     if parsed.cpm is None and parsed.total_budget is None and len(text) < 80:
         parsed.unclear_instructions = True
 
-    tag_m = re.findall(r"@([A-Za-z0-9._]+)", text)
-    parsed.required_tags = list(dict.fromkeys(f"@{t}" for t in tag_m))
+    # Not every @ in a brief is a handle to tag. "the correct @mention" and the
+    # contact address in "mail info@speaky.ai" both matched, and compliance would
+    # then demand those literal strings in every caption and fail every clip.
+    tag_m = re.findall(r"(?<![\w.])@([A-Za-z0-9._]+)", text)
+    _NOT_A_HANDLE = {"mention", "mentions", "handle", "tag", "tags", "username", "user"}
+    parsed.required_tags = list(
+        dict.fromkeys(
+            f"@{t.rstrip('.')}"
+            for t in tag_m
+            if t.lower() not in _NOT_A_HANDLE and len(t.rstrip(".")) >= 3
+        )
+    )
 
     disc = re.search(r"(?:disclosure|disclose)\s*[:\-]\s*(.+)", text, re.I)
     if disc:

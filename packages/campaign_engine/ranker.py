@@ -180,6 +180,19 @@ def rank_discovered_campaigns(
                 if r not in result.reject_reasons:
                     result.reject_reasons.append(r)
 
+        # A campaign whose brief has not been read cannot be recommended. The
+        # discover card carries a rate but defers the rules elsewhere, so its
+        # numbers look strong precisely when the least is known about it - one
+        # such campaign topped the ranking while actually requiring the operator
+        # to film original content in Dutch for a Netherlands-only audience.
+        if not item.get("brief_fetched"):
+            result.is_recommended = False
+            msg = "Brief not read yet - open the campaign and capture it before judging"
+            if msg not in result.reject_reasons:
+                result.reject_reasons.append(msg)
+            # No verified rules means no basis for a per-clip forecast.
+            result.expected_profit = None
+
         # A stated approval rate this low means most work is done for nothing,
         # whatever the CPM. Surfaced as a rejection so it cannot reach the top 3.
         if stated_approval is not None and stated_approval < LOW_APPROVAL_REJECT:
