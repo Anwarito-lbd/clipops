@@ -38,6 +38,31 @@ Virality signals to prioritise (ranked by impact):
 8. PRACTICAL VALUE - a concrete tip or insight the viewer can apply immediately
 """
 
+# Virality and safety pull in opposite directions: the most shareable moment in a
+# stream is often the most dangerous one to post. Asked only for shock value, the
+# model returned "Is that a Nazi flag?" as its top pick, reasoning that a
+# controversial symbol creates tension - which is true, and would get the account
+# banned. Platform policy has to be a hard constraint on selection, not a filter
+# applied afterwards, because a rejected top pick wastes the whole ranking pass.
+SAFETY_RULES = """
+HARD EXCLUSIONS - never select a moment containing any of these, no matter how
+engaging it is. These get accounts permanently banned, which costs far more than
+any single clip earns:
+- Hate symbols, extremist references, slurs, or discussion of either (including
+  merely pointing one out or reacting to it)
+- Gambling, betting, odds, or wagering amounts
+- Violence, threats, weapons, or self-harm
+- Illegal drugs, alcohol excess, tobacco or vaping
+- Sexual content or objectifying commentary
+- Financial advice framed as a guarantee, or specific profit promises
+- Profanity in the hook_sentence, since that text is burned on screen
+- Medical or health claims
+- Anything mocking a person, group, nationality or religion
+
+If a moment is engaging but touches any of the above, skip it and choose the next
+best. Prefer moments that are engaging AND safe to post under a brand's name.
+"""
+
 CONTENT_TYPE_PROMPT = """Classify this video transcript.
 content_type: one of podcast, interview, tutorial, lecture, commentary, debate, vlog, music, sports, other.
 density: low (mostly filler/chit-chat), medium, or high (dense info/stories).
@@ -79,6 +104,45 @@ class LLMUnavailable(RuntimeError):
     """Raised when no LLM backend is configured or reachable."""
 
 
+class LLMBusy(LLMUnavailable):
+    """Backend is momentarily overloaded — worth retrying, unlike a spent quota."""
+
+
+# Overload and gateway errors clear on their own; a spent quota or bad key does
+# not. Retrying the first costs seconds, while treating it as fatal drops clip
+# selection to keyword scoring, which measurably picks filler over substance.
+_TRANSIENT_STATUS = {429, 500, 502, 503, 504, 529}
+_RETRY_DELAYS = (2.0, 5.0, 12.0)
+
+
+def _is_hard_quota(body: str) -> bool:
+    """A 429 meaning "you are out of credit", not "slow down"."""
+    low = (body or "").lower()
+    return any(
+        s in low
+        for s in ("spending cap", "billing", "quota exceeded", "resource_exhausted",
+                  "insufficient", "exceeded its monthly")
+    )
+
+
+def _call_with_retry(name: str, send, timeout_note: str = "") -> str:
+    """Run a backend call, retrying only what is genuinely worth retrying."""
+    import time
+
+    last: Exception | None = None
+    for attempt, delay in enumerate((*_RETRY_DELAYS, None)):
+        try:
+            return send()
+        except LLMBusy as exc:
+            last = exc
+            if delay is None:
+                break
+            time.sleep(delay)
+        except LLMUnavailable:
+            raise  # permanent for this backend — move on to the next
+    raise LLMUnavailable(f"{name} still busy after {len(_RETRY_DELAYS)} retries: {last}")
+
+
 def gemini_llm(prompt: str, *, model: str | None = None, timeout: float = 120.0) -> str:
     """Call Gemini via REST. Avoids adding an SDK dependency."""
     import httpx
@@ -102,7 +166,10 @@ def gemini_llm(prompt: str, *, model: str | None = None, timeout: float = 120.0)
         timeout=timeout,
     )
     if resp.status_code != 200:
-        raise LLMUnavailable(f"Gemini HTTP {resp.status_code}: {resp.text[:300]}")
+        body = resp.text[:300]
+        if resp.status_code in _TRANSIENT_STATUS and not _is_hard_quota(body):
+            raise LLMBusy(f"Gemini HTTP {resp.status_code}: {body}")
+        raise LLMUnavailable(f"Gemini HTTP {resp.status_code}: {body}")
     data = resp.json()
     try:
         return data["candidates"][0]["content"]["parts"][0]["text"]
@@ -133,7 +200,10 @@ def nvidia_llm(prompt: str, *, model: str | None = None, timeout: float = 180.0)
         timeout=timeout,
     )
     if resp.status_code != 200:
-        raise LLMUnavailable(f"NVIDIA HTTP {resp.status_code}: {resp.text[:300]}")
+        body = resp.text[:300]
+        if resp.status_code in _TRANSIENT_STATUS and not _is_hard_quota(body):
+            raise LLMBusy(f"NVIDIA HTTP {resp.status_code}: {body}")
+        raise LLMUnavailable(f"NVIDIA HTTP {resp.status_code}: {body}")
     try:
         return resp.json()["choices"][0]["message"]["content"]
     except (KeyError, IndexError) as exc:
@@ -141,16 +211,17 @@ def nvidia_llm(prompt: str, *, model: str | None = None, timeout: float = 180.0)
 
 
 def default_llm(prompt: str) -> str:
-    """Gemini first, NVIDIA as fallback.
+    """NVIDIA first, Gemini as fallback.
 
-    Ranking runs a handful of times per source video, so a rate limit on one
-    free tier should degrade to the other rather than dropping the whole batch
-    back to keyword scoring.
+    Gemini's free tier returns HTTP 429 once exhausted and needs a paid plan to
+    continue, which silently dropped ranking back to keyword scoring mid-run.
+    NVIDIA leads because it is the backend actually available; Gemini stays in
+    the chain so it resumes automatically if its quota returns.
     """
     errors: list[str] = []
-    for name, fn in (("gemini", gemini_llm), ("nvidia", nvidia_llm)):
+    for name, fn in (("nvidia", nvidia_llm), ("gemini", gemini_llm)):
         try:
-            return fn(prompt)
+            return _call_with_retry(name, lambda fn=fn: fn(prompt))
         except LLMUnavailable as exc:
             errors.append(f"{name}: {exc}")
     raise LLMUnavailable(" | ".join(errors) or "no LLM backend configured")
@@ -268,6 +339,62 @@ def detect_content_type(transcript: dict, llm_fn: LLMFn) -> dict[str, str]:
         return {"content_type": "other", "density": "medium"}
 
 
+# A second, deterministic pass over whatever the model returns. The prompt asks
+# for safe picks, but a prompt is a request and this is the failure that costs an
+# account, so it is also enforced in code.
+_UNSAFE_PATTERNS = (
+    (re.compile(r"\bnazi|swastika|hitler|holocaust|kkk|white power|heil\b", re.I), "hate symbol or extremist reference"),
+    # Betting is usually said in slang rather than named: "putting 5k on",
+    # "throwing a stack on". Keyword-only matching let "We're putting $4,800 on
+    # Portugal" through as safe.
+    (re.compile(
+        r"\bbet(?:ting|s)?\b|\bwager|\bodds\b|\bgambl|\bparlay|\bcasino|\bsportsbook"
+        r"|\b(?:put|putting|throw|throwing|threw|drop|dropped|dropping"
+        r"|slam|slammed|slamming|stak(?:e|ed|ing)|risk(?:ed|ing)?)\s+"
+        r"(?:another\s+)?(?:[\$£€]\s*[\d,.]+|\d+\s*(?:k|grand|bands?|stacks?))\s+on\b"
+        r"|\ball[- ]in on\b|\bhedge(?:d|ing)? (?:the )?bet", re.I), "gambling"),
+    (re.compile(r"\bkill(?:ing|ed)?\b|\bshoot(?:ing)?\b|\bgun\b|\bweapon|\bstab|\bmurder|\bsuicide|\bkys\b", re.I), "violence or self-harm"),
+    (re.compile(r"\bcocaine|\bheroin|\bmeth\b|\bweed\b|\bdrunk\b|\bvap(?:e|ing)|\bcigarette", re.I), "drugs, alcohol or tobacco"),
+    (re.compile(r"\bguaranteed? (?:profit|return|money|win)|\brisk[- ]free\b|\bcan'?t lose\b", re.I), "financial guarantee"),
+    (re.compile(r"\b(?:fuck|shit|bitch|cunt|nigg|faggot|retard)", re.I), "profanity"),
+)
+
+
+def safety_reject_reason(text: str) -> str | None:
+    """Why this moment must not be posted, or None when it is clear."""
+    for pattern, label in _UNSAFE_PATTERNS:
+        if pattern.search(text or ""):
+            return label
+    return None
+
+
+def filter_unsafe(highlights: list[dict], transcript: dict) -> tuple[list[dict], list[dict]]:
+    """Split highlights into (safe, rejected).
+
+    Checks the hook and title, and the transcript actually spoken inside the
+    clip's window - a clean hook over an unusable segment is still unpostable,
+    and the hook is what gets burned on screen.
+    """
+    segments = transcript.get("segments") or []
+    safe, rejected = [], []
+    for h in highlights:
+        spoken = " ".join(
+            (s.get("text") or "")
+            for s in segments
+            if _f(s.get("end")) >= h["start_time"] and _f(s.get("start")) <= h["end_time"]
+        )
+        reason = (
+            safety_reject_reason(h.get("hook_sentence", ""))
+            or safety_reject_reason(h.get("title", ""))
+            or safety_reject_reason(spoken)
+        )
+        if reason:
+            rejected.append({**h, "safety_reason": reason})
+        else:
+            safe.append(h)
+    return safe, rejected
+
+
 def dedupe_highlights(highlights: list[dict]) -> list[dict]:
     """Drop a clip overlapping >50% with a higher-scoring one already kept."""
     ordered = sorted(highlights, key=lambda h: h.get("score", 0), reverse=True)
@@ -339,7 +466,17 @@ def find_highlights(
     if not collected:
         raise LLMUnavailable(f"LLM produced no usable highlights: {last_error}")
 
+    collected, unsafe = filter_unsafe(collected, transcript)
+    if not collected:
+        raise LLMUnavailable(
+            "Every candidate was unsafe to post ("
+            + ", ".join(sorted({u["safety_reason"] for u in unsafe}))
+            + "). This source footage is not usable for a brand campaign."
+        )
+
     deduped = dedupe_highlights(collected)
+    for h in deduped:
+        h["safety_rejected_count"] = len(unsafe)
     for h in deduped:
         h["content_type"] = content_info["content_type"]
     return deduped
