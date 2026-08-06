@@ -28,6 +28,38 @@ STYLE_HOOK_COLOR = {
 }
 
 
+# drawtext resolves fonts through Fontconfig, which has no default config on
+# Windows. Without an explicit fontfile it does not error - it crashes the whole
+# encode with an access violation, so every clip that burns a hook on screen
+# produced nothing. Naming a font file bypasses Fontconfig entirely.
+_FONT_CANDIDATES = (
+    "C:/Windows/Fonts/arialbd.ttf",
+    "C:/Windows/Fonts/segoeuib.ttf",
+    "C:/Windows/Fonts/verdanab.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+)
+
+
+def _font_file() -> str | None:
+    """First usable font, or None when drawtext must be skipped."""
+    import os
+
+    override = os.environ.get("CLIPOPS_FONT_FILE")
+    if override and Path(override).is_file():
+        return override
+    for candidate in _FONT_CANDIDATES:
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+def _escape_fontfile(path: str) -> str:
+    """A Windows drive colon must be escaped inside a filter argument."""
+    return path.replace("\\", "/").replace(":", r"\:")
+
+
 def _run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True, capture_output=True, text=True)
 
@@ -105,23 +137,29 @@ def render_account_package(
 
     # Crop/scale to 9:16, style zoom, optional burned-in hook for first ~3s
     draw = ""
-    if burn_captions and hook:
+    font = _font_file()
+    if burn_captions and hook and font:
+        f_arg = f"fontfile='{_escape_fontfile(font)}':"
         # Style-specific placement
         if style == "educational":
             draw = (
                 f",drawbox=x=40:y=ih-320:w=iw-80:h=160:color=black@0.55:t=fill,"
-                f"drawtext=text='{hook}':fontcolor={color}:fontsize=42:"
+                f"drawtext={f_arg}text='{hook}':fontcolor={color}:fontsize=42:"
                 f"x=60:y=h-280:box=0"
             )
         elif style == "commentary":
+            # drawbox's own w/h are the box being defined, so referring to w
+            # inside x is circular and aborts the encode. Input dimensions are
+            # iw/ih.
             draw = (
-                f",drawbox=x=(w-w*0.86)/2:y=(h-180)/2:w=w*0.86:h=160:color=black@0.65:t=fill,"
-                f"drawtext=text='{hook}':fontcolor={color}:fontsize=40:"
+                f",drawbox=x=(iw-iw*0.86)/2:y=(ih-180)/2:w=iw*0.86:h=160:"
+                f"color=black@0.65:t=fill,"
+                f"drawtext={f_arg}text='{hook}':fontcolor={color}:fontsize=40:"
                 f"x=(w-text_w)/2:y=(h-text_h)/2"
             )
         else:  # dramatic — top hook
             draw = (
-                f",drawtext=text='{hook}':fontcolor={color}:fontsize=48:"
+                f",drawtext={f_arg}text='{hook}':fontcolor={color}:fontsize=48:"
                 f"x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16"
             )
 
