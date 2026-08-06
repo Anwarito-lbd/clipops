@@ -498,6 +498,17 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
         if video_path.exists() and video_path.stat().st_size > 0:
             content_hash = hashlib.sha256(video_path.read_bytes()).hexdigest()
 
+        # Measure what the file actually is. Compliance previously received an
+        # aspect ratio and duration as literal arguments, so it could report
+        # "9:16, correct length" about a file nobody had looked at.
+        from workers.video_rendering.inspect import audio_is_silent, probe
+
+        facts = probe(str(video_path), ffprobe="ffprobe")
+        if facts.ok and facts.has_audio:
+            facts.audio_silent = audio_is_silent(
+                str(video_path), ffmpeg=settings.ffmpeg_path
+            )
+
         # Duplicate check across renders
         existing = [r.content_hash for r in db.query(Render).all() if r.content_hash]
         from packages.compliance_checker.checker import run_compliance_check
@@ -514,10 +525,14 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             required_tags=list(req.required_tags) if req else [],
             required_disclosure=req.required_disclosure if req else None,
             disclosure_in_video_start=None,
-            duration_sec=result.get("duration_sec", 20),
+            # Measured from the file, not assumed. Falls back to the render's
+            # intent only when the probe itself failed.
+            duration_sec=facts.duration_sec
+            if facts.duration_sec is not None
+            else result.get("duration_sec", 20),
             min_duration_sec=req.min_duration_sec if req else 15,
             max_duration_sec=req.max_duration_sec if req else 60,
-            aspect_ratio="9:16",
+            aspect_ratio=facts.aspect_ratio if facts.ok else None,
             forbidden_words=list(req.forbidden_words) if req else [],
             forbidden_claims=list(req.forbidden_claims) if req else [],
             has_external_music=False,
@@ -530,8 +545,27 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             posting_deadline=req.posting_deadline if req else None,
         )
 
+        # A file with an audio stream that contains nothing passes a "has audio"
+        # check while being unwatchable, so it is failed explicitly rather than
+        # left for the operator to discover after posting.
+        checklist = compliance.to_dict()
+        checklist["media_facts"] = facts.to_dict()
+        if facts.ok and facts.has_audio is False:
+            checklist["checks"].append(
+                {"id": "audio_present", "name": "Audio track", "passed": False,
+                 "detail": "Rendered file has no audio stream"}
+            )
+            compliance.passed = False
+        elif facts.audio_silent:
+            checklist["checks"].append(
+                {"id": "audio_audible", "name": "Audio audible", "passed": False,
+                 "detail": "Audio track is effectively silent (below -60 dB)"}
+            )
+            compliance.passed = False
+        checklist["passed"] = compliance.passed
+
         checklist_path = package_dir / "compliance-checklist.json"
-        checklist_path.write_text(json.dumps(compliance.to_dict(), indent=2), encoding="utf-8")
+        checklist_path.write_text(json.dumps(checklist, indent=2), encoding="utf-8")
 
         render_status = "DRAFT" if is_draft else ("EXPORTED" if compliance.passed else "REVIEW_REQUIRED")
         render = Render(
@@ -550,7 +584,8 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             ComplianceCheck(
                 clip_version_id=version.id,
                 passed=compliance.passed,
-                checks=compliance.to_dict()["checks"],
+                # The enriched list, so the measured audio findings persist.
+                checks=checklist["checks"],
             )
         )
         if not is_draft and compliance.passed and version.status == "APPROVED":

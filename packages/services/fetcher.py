@@ -241,22 +241,74 @@ def fetch_streaming(url: str, dest_dir: Path, max_bytes: int) -> FetchResult:
         )
 
 
+def drive_folder_file_ids(url: str, timeout: float = 30.0, limit: int = 20) -> list[str]:
+    """File ids inside a *publicly shared* Drive folder.
+
+    Drive renders folder contents into the page HTML, so a public folder can be
+    enumerated without an API key. A restricted folder returns the sign-in page
+    instead and yields nothing, which is the correct answer - a server with no
+    browser session genuinely cannot see inside it.
+    """
+    import re as _re
+
+    import httpx
+
+    try:
+        assert_public_https(url)
+    except UnsafeURL:
+        return []
+    try:
+        resp = httpx.get(url, follow_redirects=True, timeout=timeout)
+        if resp.status_code != 200:
+            return []
+        body = resp.text
+    except Exception:  # noqa: BLE001
+        return []
+
+    if "accounts.google.com" in str(resp.url) or "Sign in" in body[:4000]:
+        return []  # login wall - nothing visible
+
+    folder_id = url.rstrip("/").rsplit("/", 1)[-1].split("?")[0]
+    ids: list[str] = []
+    for m in _re.finditer(r'"([-\w]{25,})"', body):
+        fid = m.group(1)
+        if fid != folder_id and fid not in ids:
+            ids.append(fid)
+        if len(ids) >= limit:
+            break
+    return ids
+
+
 def fetch(url: str, dest_dir: Path, max_bytes: int) -> FetchResult:
     """Fetch one campaign resource, choosing the right strategy."""
     kind = classify(url)
 
     if kind == "login_walled":
         direct = drive_direct_url(url)
-        if direct is None:
-            return FetchResult(
-                url, False, kind=kind,
-                error="Shared folder or non-file link",
-                manual_reason=(
-                    "Folder links and private files cannot be fetched by the "
-                    "server - open it, download the video, and drop it in the inbox."
-                ),
-            )
-        return fetch_direct(direct, dest_dir, max_bytes)
+        if direct is not None:
+            return fetch_direct(direct, dest_dir, max_bytes)
+
+        # No single file id: a folder. Public folders list their contents in the
+        # page HTML, so the first video inside can still be fetched.
+        if "drive.google.com" in (urlparse(url).hostname or ""):
+            for fid in drive_folder_file_ids(url):
+                r = fetch_direct(
+                    f"https://drive.google.com/uc?export=download&id={fid}",
+                    dest_dir,
+                    max_bytes,
+                )
+                if r.ok:
+                    r.kind = "drive_folder"
+                    return r
+
+        return FetchResult(
+            url, False, kind=kind,
+            error="Folder is empty, private, or holds no fetchable video",
+            manual_reason=(
+                "This folder needs your Google session - open it, download the "
+                "video, and drop it in the inbox."
+            ),
+        )
 
     if kind == "streaming":
         return fetch_streaming(url, dest_dir, max_bytes)
