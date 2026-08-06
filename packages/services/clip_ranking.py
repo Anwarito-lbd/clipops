@@ -87,6 +87,14 @@ class ClipRankingService:
         ranker = "regex"
         llm_error: str | None = None
         raw: list[dict[str, Any]] = []
+
+        # A heuristic transcript is placeholder text, not speech. Asking a model
+        # to find viral moments in it burns API calls and latency to rank
+        # nothing, and such clips are blocked from export anyway.
+        if use_llm and (transcript or {}).get("engine") == "heuristic":
+            use_llm = False
+            llm_error = "skipped: transcript is placeholder text, not real speech"
+
         if use_llm:
             try:
                 highlights = find_highlights(

@@ -24,6 +24,7 @@ from app.config import get_settings
 from app.db import (
     Campaign,
     CampaignRequirement,
+    ClipCandidate,
     ClipVersion,
     ComplianceCheck,
     ClipPerformance,
@@ -785,6 +786,187 @@ def inbox_import(
         imported.append({"file": dest.name, "asset_id": asset.id, "campaign_id": target})
 
     return {"imported": imported, "skipped": skipped, "count": len(imported)}
+
+
+@router.post("/campaigns/{campaign_id}/fetch-resources")
+def fetch_resources(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Download this campaign's footage from the links the Brief button found.
+
+    Handles direct media and streaming sources (Twitch VODs, YouTube). Anything
+    behind a login cannot be reached from the server and is reported so the
+    operator can download it into the drop folder instead.
+    """
+    from packages.services.fetcher import fetch
+    from packages.services.operations import human_bytes
+
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    disc = (
+        db.query(DiscoveredCampaign)
+        .filter(DiscoveredCampaign.campaign_id == campaign_id)
+        .first()
+    )
+    urls = list((disc.asset_urls if disc else None) or [])
+    if not urls:
+        raise HTTPException(
+            400,
+            "No resource links recorded. Open the campaign page and use the "
+            "extension's Brief button first.",
+        )
+
+    settings = get_settings()
+    max_bytes = int(settings.max_upload_mb) * 1024 * 1024
+    dest_dir = _storage_root() / "sources" / campaign_id
+
+    results, imported = [], []
+    for url in urls[:10]:
+        r = fetch(url, dest_dir, max_bytes)
+        results.append(r.to_dict())
+        if not (r.ok and r.path):
+            continue
+
+        path = Path(r.path)
+        rel = path.relative_to(_storage_root()).as_posix()
+        asset = SourceAsset(
+            campaign_id=campaign_id,
+            filename=path.name,
+            storage_path=rel,
+            status="IMPORTED",
+        )
+        db.add(asset)
+        db.commit()
+        db.refresh(asset)
+
+        from app.jobs import enqueue_or_run
+        from app.tasks import process_asset
+
+        enqueue_or_run(process_asset, asset.id)
+        imported.append(
+            {"file": path.name, "asset_id": asset.id, "size": human_bytes(r.bytes_written)}
+        )
+
+    manual = [
+        {"url": r["url"], "why": r["manual_reason"] or r["error"]}
+        for r in results
+        if not r["ok"]
+    ]
+    return {
+        "imported": imported,
+        "needs_manual_download": manual,
+        "results": results,
+        "inbox_hint": (
+            str(_storage_root() / "inbox" / campaign_id)
+            if manual
+            else None
+        ),
+    }
+
+
+@router.post("/campaigns/{campaign_id}/ready-to-post")
+def build_ready_to_post(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Assemble the delivery folder: one folder per clip, best first."""
+    from packages.services.ready_to_post import prepare_campaign
+
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    req = (
+        db.query(CampaignRequirement)
+        .filter(
+            CampaignRequirement.campaign_id == campaign_id,
+            CampaignRequirement.is_immutable_snapshot.is_(False),
+        )
+        .order_by(CampaignRequirement.created_at.desc())
+        .first()
+    )
+    disc = (
+        db.query(DiscoveredCampaign)
+        .filter(DiscoveredCampaign.campaign_id == campaign_id)
+        .first()
+    )
+
+    clips = []
+    for v in (
+        db.query(ClipVersion)
+        .filter(
+            ClipVersion.campaign_id == campaign_id,
+            ClipVersion.status.in_(["APPROVED", "EXPORTED"]),
+        )
+        .all()
+    ):
+        render = (
+            db.query(Render)
+            .filter(Render.clip_version_id == v.id, Render.content_hash.isnot(None))
+            .order_by(Render.created_at.desc())
+            .first()
+        )
+        if not render:
+            continue
+        cand = db.get(ClipCandidate, v.candidate_id) if v.candidate_id else None
+        asset = db.get(SourceAsset, cand.source_asset_id) if cand else None
+        account = db.get(SocialAccount, v.social_account_id)
+        check = (
+            db.query(ComplianceCheck)
+            .filter(ComplianceCheck.clip_version_id == v.id)
+            .order_by(ComplianceCheck.created_at.desc())
+            .first()
+        )
+        report = (cand.scores if cand else None) or {}
+        clips.append(
+            {
+                "clip_version_id": v.id,
+                "video_path": render.video_path,
+                "cover_path": render.cover_path,
+                "caption": v.caption,
+                "hook_text": v.hook_text,
+                "duration_band": v.duration_band,
+                "content_hash": render.content_hash,
+                "account_label": account.display_name if account else None,
+                "score": float(cand.total_score) if cand else None,
+                "ranker": report.get("ranker"),
+                "start_sec": cand.start_sec if cand else None,
+                "end_sec": cand.end_sec if cand else None,
+                "source_filename": asset.filename if asset else None,
+                "transcript_engine": v.transcript_engine,
+                "compliance_passed": check.passed if check else None,
+                "compliance_checks": (check.checks if check else []) or [],
+            }
+        )
+
+    result = prepare_campaign(
+        out_root=_storage_root() / "ready_to_post",
+        campaign={
+            "name": campaign.name,
+            "external_url": campaign.external_url or (disc.external_url if disc else None),
+            "cpm": float(campaign.cpm) if campaign.cpm else (disc.cpm if disc else None),
+            "requirements": {
+                "source": req.source if req else None,
+                "required_hashtags": list(req.required_hashtags or []) if req else [],
+                "required_tags": list(req.required_tags or []) if req else [],
+                "required_disclosure": req.required_disclosure if req else None,
+                "min_duration_sec": req.min_duration_sec if req else None,
+                "max_duration_sec": req.max_duration_sec if req else None,
+            },
+        },
+        clips=clips,
+    )
+    if result["clip_count"] == 0:
+        result["note"] = (
+            "No exportable clips yet - approve clips first, and check that their "
+            "renders produced a real file."
+        )
+    return result
 
 
 @router.get("/operator/rotation")
