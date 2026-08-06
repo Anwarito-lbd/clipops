@@ -158,6 +158,45 @@ def _normalise_campaign_numbers(item: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def _rescore(db: Session, row: DiscoveredCampaign) -> None:
+    """Re-evaluate one campaign against its current brief.
+
+    Eligibility is otherwise only decided during a scan, so a campaign stayed
+    marked "brief not read" forever even after its brief was captured - the one
+    action meant to clear that verdict could never take effect.
+    """
+    raw = dict(row.raw_payload or {})
+    item = _normalise_campaign_numbers(
+        {
+            **raw,
+            "external_id": row.external_id,
+            "name": row.name,
+            "brief_text": row.brief_text,
+            "brief_fetched": bool(row.brief_fetched),
+        }
+    )
+    item["brief_fetched"] = bool(row.brief_fetched)
+
+    geos: list[str] = []
+    for acc in db.query(SocialAccount).filter(SocialAccount.platform == "tiktok").all():
+        geos.extend(acc.audience_geo or [])
+    ranked = rank_discovered_campaigns(
+        [item], account_geos=list(dict.fromkeys(geos)) or ["US", "CA"], top_n=1
+    )
+    if not ranked:
+        return
+    r = ranked[0]
+    row.cpm = r.cpm
+    row.budget_remaining_pct = r.budget_remaining_pct
+    row.difficulty = r.difficulty
+    row.min_duration_sec = r.min_duration_sec
+    row.max_duration_sec = r.max_duration_sec
+    row.opportunity_score = r.opportunity_score
+    row.expected_profit = r.expected_profit
+    row.is_eligible = r.is_eligible
+    row.reject_reasons = r.reject_reasons
+
+
 def _brief_fetched_map(db: Session, items: list[dict[str, Any]]) -> None:
     """Carry each campaign's verified state into the ranking payload."""
     ids = [i.get("external_id") for i in items if i.get("external_id")]
@@ -471,6 +510,10 @@ def approve_discovered(
         raw_brief=brief,
         status="joined",
         cpm=row.cpm or parsed.cpm,
+        # Carried through so rotation can measure how much of the pool is gone;
+        # without these the campaign reports "no figures captured" forever.
+        total_budget=raw.get("total_budget") or parsed.total_budget,
+        budget_utilised=raw.get("budget_utilised") or parsed.budget_utilised or 0,
         score=row.opportunity_score,
         expected_profit=row.expected_profit,
         is_recommended=True,
@@ -492,10 +535,11 @@ def approve_discovered(
             requires_cta=bool(raw.get("requires_cta")),
             forbidden_words=raw.get("forbidden_words") or [],
             forbidden_claims=raw.get("forbidden_claims") or [],
-            # Approval works from the discover-page card, which carries none of
-            # the real rules. Marked "card" so production refuses to run until
-            # the campaign's own brief has been fetched.
-            source="card",
+            # Approving from the discover card carries none of the real rules, so
+            # production stays blocked until the campaign's own brief is read.
+            # When that brief has already been captured, these ARE the real rules
+            # and marking them "card" would keep a ready campaign locked shut.
+            source="brief" if row.brief_fetched else "card",
             is_immutable_snapshot=False,
         )
     )
@@ -611,6 +655,9 @@ def save_brief(
                     if requirements_look_unread(parsed, body.brief_text)
                     else "brief"
                 )
+    # Judge the campaign again now its real rules are known.
+    _rescore(db, row)
+
     _notify(
         db,
         kind="assets_ready",
