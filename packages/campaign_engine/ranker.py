@@ -147,6 +147,7 @@ def rank_discovered_campaigns(
             total_budget=total_budget,
             budget_utilised=utilised if total_budget else None,
             max_payout=item.get("max_payout"),
+            campaign_age_days=item.get("campaign_age_days"),
             audience_match=float(item.get("audience_match_score", 70)),
             footage_quality=float(item.get("footage_quality_score", 70)),
             requirement_simplicity=float(item.get("requirement_simplicity_score", 70)),

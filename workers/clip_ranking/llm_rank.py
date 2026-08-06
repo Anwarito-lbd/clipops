@@ -110,6 +110,52 @@ def gemini_llm(prompt: str, *, model: str | None = None, timeout: float = 120.0)
         raise LLMUnavailable(f"Unexpected Gemini response shape: {str(data)[:300]}") from exc
 
 
+def nvidia_llm(prompt: str, *, model: str | None = None, timeout: float = 180.0) -> str:
+    """Call NVIDIA's OpenAI-compatible endpoint. Used when Gemini is unavailable."""
+    import httpx
+
+    api_key = os.environ.get("NVIDIA_API_KEY", "").strip()
+    if not api_key:
+        raise LLMUnavailable("NVIDIA_API_KEY is not set")
+
+    model = model or os.environ.get("NVIDIA_MODEL", "deepseek-ai/deepseek-v4-flash")
+    resp = httpx.post(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        json={
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+            "top_p": 0.95,
+            "max_tokens": 8192,
+            "stream": False,
+        },
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=timeout,
+    )
+    if resp.status_code != 200:
+        raise LLMUnavailable(f"NVIDIA HTTP {resp.status_code}: {resp.text[:300]}")
+    try:
+        return resp.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError) as exc:
+        raise LLMUnavailable(f"Unexpected NVIDIA response: {str(resp.text)[:300]}") from exc
+
+
+def default_llm(prompt: str) -> str:
+    """Gemini first, NVIDIA as fallback.
+
+    Ranking runs a handful of times per source video, so a rate limit on one
+    free tier should degrade to the other rather than dropping the whole batch
+    back to keyword scoring.
+    """
+    errors: list[str] = []
+    for name, fn in (("gemini", gemini_llm), ("nvidia", nvidia_llm)):
+        try:
+            return fn(prompt)
+        except LLMUnavailable as exc:
+            errors.append(f"{name}: {exc}")
+    raise LLMUnavailable(" | ".join(errors) or "no LLM backend configured")
+
+
 def _parse_json_loose(raw: str) -> dict:
     """Models sometimes wrap JSON in markdown fences despite instructions."""
     text = (raw or "").strip()
@@ -253,7 +299,7 @@ def find_highlights(
     Asks for ~2x `want` so dedupe has real choices. Raises LLMUnavailable if the
     backend cannot produce usable output; callers fall back to the regex ranker.
     """
-    llm_fn = llm_fn or gemini_llm
+    llm_fn = llm_fn or default_llm
     duration = transcript_duration(transcript)
     content_info = detect_content_type(transcript, llm_fn)
 

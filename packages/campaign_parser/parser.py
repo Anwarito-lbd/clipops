@@ -131,6 +131,23 @@ _MIN_VIDEO_LENGTH = re.compile(
 )
 
 
+# Campaign cards carry an age like "7h", "4d", "1mo". Combined with how much
+# budget is gone it gives a burn rate, which decides whether a generous rate will
+# still be there next week.
+_AGE = re.compile(r"(?<![\w.])(\d{1,3})\s*(mo|d|h|w|y)\b", re.I)
+_AGE_DAYS = {"h": 1 / 24, "d": 1.0, "w": 7.0, "mo": 30.0, "y": 365.0}
+
+
+def extract_campaign_age_days(text: str) -> float | None:
+    """How long the campaign has been live, in days."""
+    m = _AGE.search(text or "")
+    if not m:
+        return None
+    value, unit = float(m.group(1)), m.group(2).lower()
+    days = value * _AGE_DAYS.get(unit, 0.0)
+    return round(days, 3) if days > 0 else None
+
+
 def extract_approval_rate(text: str) -> float | None:
     """Campaign approval rate as a 0-1 fraction, or None when not stated."""
     for pattern in _APPROVAL_PATTERNS:

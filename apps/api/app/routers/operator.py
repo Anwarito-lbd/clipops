@@ -101,6 +101,7 @@ def _normalise_campaign_numbers(item: dict[str, Any]) -> dict[str, Any]:
     from packages.campaign_parser.parser import (
         extract_approval_rate,
         extract_budget,
+        extract_campaign_age_days,
         extract_cpm,
         extract_max_payout,
         extract_payout_bounds,
@@ -149,6 +150,10 @@ def _normalise_campaign_numbers(item: dict[str, Any]) -> dict[str, Any]:
     approval = extract_approval_rate(combined)
     if approval is not None:
         item["approval_probability"] = approval
+
+    age = extract_campaign_age_days(combined)
+    if age is not None:
+        item["campaign_age_days"] = age
     return item
 
 

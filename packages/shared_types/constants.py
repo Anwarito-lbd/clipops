@@ -15,13 +15,18 @@ CPM_SCORE_CEILING = 10.0
 DEFAULT_PRODUCTION_COST_PER_CLIP = 0.50
 
 SCORE_WEIGHTS = {
+    "cpm": 25,
     "remaining_budget": 20,
-    "cpm": 15,
-    "audience_match": 20,
+    # Whop states an approval rate per campaign. It was previously used only in
+    # the expected-value calculation, so a campaign approving a quarter of
+    # submissions scored the same as one approving nearly all of them.
+    "approval_probability": 15,
     "footage_quality": 15,
-    "requirement_simplicity": 10,
-    "viral_potential": 15,
-    "competition": 5,
+    "competition": 10,
+    "audience_match": 10,
+    # How long the campaign will survive at its current burn rate. A generous
+    # rate on a budget that empties this week is worth little.
+    "longevity": 5,
 }
 
 SEGMENT_SCORE_KEYS = [

@@ -115,6 +115,8 @@ def score_campaign(
     total_budget: float | None,
     budget_utilised: float | None,
     max_payout: float | None = None,
+    # Days since the campaign was posted, used with spend to derive burn rate.
+    campaign_age_days: float | None = None,
     audience_match: float = 70.0,
     footage_quality: float = 70.0,
     requirement_simplicity: float = 70.0,
@@ -174,14 +176,29 @@ def score_campaign(
         cpm_score = _clamp(100.0 * math.sqrt(min(cpm, CPM_SCORE_CEILING) / CPM_SCORE_CEILING))
         reasons_soft = None
 
+    # A stated approval rate is hard evidence about whether work turns into
+    # money. 70% is the platform-wide assumption used when none is published.
+    approval_score = _clamp(approval_probability * 100.0)
+
+    # How long the campaign survives at its current burn rate. Age comes from the
+    # brief; without it, a campaign that has barely spent anything scores well
+    # because there is budget left to win.
+    if campaign_age_days and campaign_age_days > 0 and utilisation is not None:
+        burn_per_day = utilisation / campaign_age_days
+        days_left = (1.0 - utilisation) / burn_per_day if burn_per_day > 0 else 999.0
+        # 30+ days of runway is as good as it needs to be.
+        longevity_score = _clamp((min(days_left, 30.0) / 30.0) * 100.0)
+    else:
+        longevity_score = _clamp((1.0 - (utilisation or 0.0)) * 100.0)
+
     factor_scores = {
-        "remaining_budget": remaining_budget_score,
         "cpm": cpm_score,
-        "audience_match": _clamp(audience_match),
+        "remaining_budget": remaining_budget_score,
+        "approval_probability": approval_score,
         "footage_quality": _clamp(footage_quality),
-        "requirement_simplicity": _clamp(requirement_simplicity),
-        "viral_potential": _clamp(viral_potential),
         "competition": _clamp(competition),
+        "audience_match": _clamp(audience_match),
+        "longevity": longevity_score,
     }
 
     weighted = 0.0
