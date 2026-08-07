@@ -12,6 +12,9 @@ def generate_account_copy(
     tags: list[str],
     disclosure: str | None,
     hook_variant: int = 1,
+    # The line the ranker actually chose, drawn from what the speaker said.
+    llm_hook: str | None = None,
+    cta: str | None = None,
 ) -> dict[str, str]:
     excerpt_short = (excerpt or "this moment").strip()
     if len(excerpt_short) > 120:
@@ -34,8 +37,12 @@ def generate_account_copy(
             f"Comment if you noticed this too",
         ],
     }
+    # A ranker-chosen hook quotes what the speaker actually said, so it beats
+    # any template. Captions previously read "Okay but can we talk about this?"
+    # while the video itself displayed "I lost $135,000 in a single day" - the
+    # good line existed and was simply thrown away here.
     style_hooks = hooks.get(style, hooks["dramatic"])
-    hook = style_hooks[(hook_variant - 1) % len(style_hooks)]
+    hook = (llm_hook or "").strip() or style_hooks[(hook_variant - 1) % len(style_hooks)]
 
     context = {
         "dramatic": None,
@@ -43,15 +50,19 @@ def generate_account_copy(
         "commentary": f"Reaction take — not a duplicate cut of the same edit.",
     }.get(style)
 
+    # Lead with the hook. Opening on a disclosure buries the line that decides
+    # whether anyone reads further.
     parts = [hook]
-    if disclosure:
-        parts.insert(0, disclosure)
-    if excerpt_short and style == "educational":
+    if excerpt_short and style == "educational" and excerpt_short != hook:
         parts.append(excerpt_short)
     if style == "commentary":
         parts.append("Thoughts below.")
+    if cta:
+        parts.append(cta)
     parts.extend(tags)
     parts.extend(hashtags)
+    if disclosure:
+        parts.append(disclosure)
     caption = "\n\n".join(p for p in parts if p)
 
     return {

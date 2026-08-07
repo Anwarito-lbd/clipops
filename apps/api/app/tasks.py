@@ -267,6 +267,8 @@ def process_asset(asset_id: str) -> dict:
         for idx, cand in enumerate(selected):
             account = accounts[idx % len(accounts)]
             hook_type = classify_hook(cand.transcript_excerpt or "")
+            # The ranker's own hook, quoting the speaker, beats any template.
+            report = cand.scores or {}
             copy = generate_account_copy(
                 style=account.style or "dramatic",
                 campaign_name=campaign.name,
@@ -275,6 +277,8 @@ def process_asset(asset_id: str) -> dict:
                 tags=list((live_req.required_tags if live_req else []) or []),
                 disclosure=(live_req.required_disclosure if live_req else None),
                 hook_variant=(idx % 3) + 1,
+                llm_hook=report.get("hook_sentence"),
+                cta=(live_req.cta_text if live_req else None),
             )
             duration = float(cand.end_sec) - float(cand.start_sec)
             if account.preferred_clip_length:
