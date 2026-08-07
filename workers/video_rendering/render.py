@@ -60,6 +60,33 @@ def _escape_fontfile(path: str) -> str:
     return path.replace("\\", "/").replace(":", r"\:")
 
 
+# How long the hook stays on screen. Viewers decide inside the first couple of
+# seconds; beyond that the text only covers the speaker.
+HOOK_SECONDS = 3.0
+
+# Hooks are kept to a single line and the font is sized to fit instead of being
+# wrapped. drawtext line breaks proved unreliable to escape through the
+# filtergraph parser - one backslash was unescaped to a bare "n" and welded the
+# lines into "in a" + "n" + "single day", and doubling it did not help either.
+# Sizing to fit removes the need for a line break at all.
+_HOOK_MAX_CHARS = 52
+
+# (max characters, font size) for a 1080-wide frame with margins, using a bold
+# face at roughly 0.55 em average advance.
+_HOOK_SIZES = ((22, 62), (31, 54), (38, 46), (46, 40), (_HOOK_MAX_CHARS, 34))
+
+
+def _fit_hook(text: str) -> tuple[str, int]:
+    """Return the hook trimmed to one line, with a font size that fits."""
+    clean = " ".join((text or "").split())
+    if len(clean) > _HOOK_MAX_CHARS:
+        clean = clean[: _HOOK_MAX_CHARS - 1].rstrip(" ,.;:") + "…"
+    for limit, size in _HOOK_SIZES:
+        if len(clean) <= limit:
+            return clean, size
+    return clean, _HOOK_SIZES[-1][1]
+
+
 def _run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True, capture_output=True, text=True)
 
@@ -135,33 +162,28 @@ def render_account_package(
     color = STYLE_HOOK_COLOR.get(style, "white")
     hook = _escape_drawtext(hook_text or "")
 
-    # Crop/scale to 9:16, style zoom, optional burned-in hook for first ~3s
+    # Crop/scale to 9:16, style zoom, burned-in hook over the opening seconds.
+    #
+    # Placement is the whole game here. Centring the text vertically put a black
+    # bar straight across the speaker's eyes for the full clip - it read as a
+    # censor bar, not a hook. In a 9:16 crop of a talking head the face sits in
+    # the middle band, so text belongs above it. The bottom is unusable too:
+    # TikTok's own caption, username and buttons occupy roughly the lower fifth.
     draw = ""
     font = _font_file()
     if burn_captions and hook and font:
         f_arg = f"fontfile='{_escape_fontfile(font)}':"
-        # Style-specific placement
-        if style == "educational":
-            draw = (
-                f",drawbox=x=40:y=ih-320:w=iw-80:h=160:color=black@0.55:t=fill,"
-                f"drawtext={f_arg}text='{hook}':fontcolor={color}:fontsize=42:"
-                f"x=60:y=h-280:box=0"
-            )
-        elif style == "commentary":
-            # drawbox's own w/h are the box being defined, so referring to w
-            # inside x is circular and aborts the encode. Input dimensions are
-            # iw/ih.
-            draw = (
-                f",drawbox=x=(iw-iw*0.86)/2:y=(ih-180)/2:w=iw*0.86:h=160:"
-                f"color=black@0.65:t=fill,"
-                f"drawtext={f_arg}text='{hook}':fontcolor={color}:fontsize=40:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2"
-            )
-        else:  # dramatic — top hook
-            draw = (
-                f",drawtext={f_arg}text='{hook}':fontcolor={color}:fontsize=48:"
-                f"x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16"
-            )
+        fitted, size = _fit_hook(hook_text or "")
+        text = _escape_drawtext(fitted)
+        # Only over the opening. Viewers decide in the first ~2s, and leaving it
+        # up for twenty seconds obscures the speaker for no benefit.
+        timing = f":enable='between(t,0,{HOOK_SECONDS})'"
+        draw = (
+            f",drawtext={f_arg}text='{text}':fontcolor={color}:fontsize={size}:"
+            f"x=(w-text_w)/2:y=h*0.13:"
+            f"box=1:boxcolor=black@0.6:boxborderw=24:"
+            f"shadowcolor=black@0.8:shadowx=3:shadowy=3{timing}"
+        )
 
     vf = (
         f"trim=start={start_sec}:duration={duration},"
