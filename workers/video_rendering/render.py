@@ -15,6 +15,74 @@ BAND_SECONDS = {
     "40-60": 48.0,
 }
 
+
+def _caption_filters(
+    transcript_path: str, start_sec: float, end_sec: float, font: str
+) -> str:
+    """drawtext filters showing 2-4 spoken words at a time, timed to the speech.
+
+    Sits at 70% height: clear of the hook at 13%, clear of the face in the middle
+    band, and above the bottom fifth that TikTok's own UI covers.
+    """
+    import json as _json
+
+    try:
+        from workers.video_rendering.captions import group_words, words_in_window
+
+        with open(transcript_path, encoding="utf-8") as fh:
+            transcript = _json.load(fh)
+        groups = group_words(words_in_window(transcript, start_sec, end_sec))
+    except Exception:  # noqa: BLE001 - captions are an enhancement, never fatal
+        return ""
+
+    f_arg = f"fontfile='{_escape_fontfile(font)}':"
+    parts = []
+    for g in groups:
+        text = _escape_drawtext(g["text"])
+        if not text:
+            continue
+        parts.append(
+            f",drawtext={f_arg}text='{text}':fontcolor=white:fontsize=58:"
+            f"x=(w-text_w)/2:y=h*0.70:"
+            f"box=1:boxcolor=black@0.55:boxborderw=18:"
+            f"shadowcolor=black@0.9:shadowx=3:shadowy=3:"
+            f"enable='between(t,{g['start']:.2f},{g['end']:.2f})'"
+        )
+    return "".join(parts)
+
+
+def _source_dimensions(path: str) -> tuple[int, int]:
+    """(width, height) of a video, or (0, 0) when ffprobe cannot read it."""
+    import subprocess as _sp
+
+    try:
+        out = _sp.check_output(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", path],
+            text=True,
+        ).strip()
+        w, h = out.split("x")[:2]
+        return int(w), int(h)
+    except Exception:  # noqa: BLE001
+        return 0, 0
+
+
+def band_bounds(band: str | None, *, default: tuple[float, float] = (15.0, 25.0)) -> tuple[float, float]:
+    """(lo, hi) seconds for a "lo-hi" band.
+
+    A band is a range, not a target. Cutting every clip to the band's nominal
+    value truncated a 24s segment the ranker had chosen - inside 15-25 - down to
+    20s, which lopped the payoff off the end and made clips feel unfinished.
+    """
+    try:
+        lo_s, _, hi_s = (band or "").partition("-")
+        lo, hi = float(lo_s), float(hi_s)
+    except ValueError:
+        return default
+    if lo <= 0 or hi < lo:
+        return default
+    return lo, hi
+
 STYLE_ZOOM = {
     "dramatic": "1.12",
     "educational": "1.00",
@@ -92,8 +160,15 @@ def _run(cmd: list[str]) -> None:
 
 
 def _escape_drawtext(text: str) -> str:
-    # FFmpeg drawtext escaping for Windows-safe single-line hooks
-    t = (text or "").replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+    # FFmpeg drawtext escaping for Windows-safe single-line hooks.
+    #
+    # The apostrophe is substituted, not escaped. A backslash-escaped quote
+    # inside a single-quoted filtergraph value closes the string early and
+    # shifts the quoting of everything after it, so ffmpeg then reads a later
+    # timestamp as a filter name ("No such filter: '5.04'"). Spoken captions are
+    # full of contractions, and a typographic apostrophe needs no escaping and
+    # looks better burned in.
+    t = (text or "").replace("\\", "\\\\").replace(":", "\\:").replace("'", "’")
     t = re.sub(r"[\r\n]+", " ", t)
     return t[:90]
 
@@ -147,6 +222,13 @@ def render_account_package(
     auto_editor: bool = False,
     remotion_url: str | None = "http://127.0.0.1:3100",
     burn_captions: bool = True,
+    # Word-level timings for the spoken-word captions. Without it a clip carries
+    # only the hook and then nothing for the rest of its length.
+    transcript_path: str | None = None,
+    # The campaign's hard duration limit. The band is a preference applied when
+    # the segment was selected; cutting again at the band ceiling truncated
+    # sentences the boundary snapper had deliberately extended.
+    max_duration_sec: float | None = None,
 ) -> dict:
     out = Path(package_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -155,9 +237,13 @@ def render_account_package(
     cover_out = out / "cover.jpg"
     base_cut = out / "base_cut.mp4"
 
-    target = BAND_SECONDS.get(duration_band, 20.0)
+    # Keep the ranker's segment whole, trimming only what the campaign forbids.
+    # The segment was chosen to end on a payoff and then extended to complete the
+    # sentence; re-applying the band ceiling here undid that.
+    _lo, band_max = band_bounds(duration_band)
+    ceiling = max_duration_sec if max_duration_sec else band_max
     span = max(0.5, end_sec - start_sec)
-    duration = min(target, span)
+    duration = min(ceiling, span)
     zoom = STYLE_ZOOM.get(style, "1.0")
     color = STYLE_HOOK_COLOR.get(style, "white")
     hook = _escape_drawtext(hook_text or "")
@@ -185,13 +271,33 @@ def render_account_package(
             f"shadowcolor=black@0.8:shadowx=3:shadowy=3{timing}"
         )
 
+    # Centre the 9:16 crop on the speaker rather than on the frame. Falls back
+    # to the frame centre whenever the face cannot be located.
+    try:
+        from workers.video_rendering.reframe import crop_x_expression
+
+        src_w, src_h = _source_dimensions(source_video)
+        crop_x = crop_x_expression(source_video, start_sec, duration, src_w, src_h)
+    except Exception:  # noqa: BLE001 - framing must never fail a render
+        crop_x = "(in_w-1080)/2"
+
+    # Spoken-word captions for the body of the clip. Without them the clip shows
+    # a hook for three seconds and then nothing for the remaining twenty, which
+    # is the clearest difference between these renders and clips that perform.
+    body = ""
+    if burn_captions and font and transcript_path:
+        body = _caption_filters(
+            transcript_path, start_sec, start_sec + duration, font
+        )
+
     vf = (
         f"trim=start={start_sec}:duration={duration},"
         f"setpts=PTS-STARTPTS,"
         f"scale=1080:1920:force_original_aspect_ratio=increase,"
-        f"crop=1080:1920,"
+        f"crop=1080:1920:{crop_x}:0,"
         f"scale=iw*{zoom}:ih*{zoom},"
         f"crop=1080:1920"
+        f"{body}"
         f"{draw}"
     )
     af = f"atrim=start={start_sec}:duration={duration},asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11"
@@ -218,6 +324,13 @@ def render_account_package(
                 "aac",
                 "-b:a",
                 "128k",
+                # loudnorm runs at 192kHz internally; without pinning the rate the
+                # AAC encoder emits 96kHz, which TikTok and most players decode as
+                # silence. The clip looks fine in every check and has no voice.
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
                 "-movflags",
                 "+faststart",
                 str(base_cut),

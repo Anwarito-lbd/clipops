@@ -1,0 +1,34 @@
+diff --git a/reframe_v2.py b/reframe_v2.py
+index f04b497..e792766 100644
+--- a/reframe_v2.py
++++ b/reframe_v2.py
+@@ -225,6 +225,16 @@ def _analyze_trajectory(input_video, scenes_boundaries, scene_strategies,
+ 
+ # --- render -----------------------------------------------------------------
+ 
++def _ffmpeg_path(path):
++    """Path usable inside an ffmpeg filtergraph argument.
++
++    Windows-compatibility shim (local change to the vendored file): forward
++    slashes, and the drive-letter colon escaped, since the filtergraph parser
++    reads both as syntax. A no-op on POSIX paths.
++    """
++    return str(path).replace("\\", "/").replace(":", "\\:")
++
++
+ def _run(cmd):
+     subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE, timeout=1800)
+@@ -415,8 +425,11 @@ def render(input_video, final_output_video, aspect_ratio, content_ranges=None):
+                     init = f"w={crop_w}:h={crop_h}:x={seg_xs[0]}:y=0"
+                 with open(cmd_path, "w") as f:
+                     f.write("\n".join(lines) + "\n")
++                # ffmpeg's filtergraph parser treats backslashes and the
++                # drive-letter colon as syntax, so a native Windows temp path
++                # fails with "No option name near '\Users\...'".
+                 graph = (
+-                    f"[0:v]sendcmd=f='{cmd_path}',"
++                    f"[0:v]sendcmd=f='{_ffmpeg_path(cmd_path)}',"
+                     f"crop@c={init},"
+                     f"scale={out_w}:{out_h},setsar=1[v]"
+                 )

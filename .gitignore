@@ -18,3 +18,8 @@ clipops.db
 dist/
 .remotion/
 .supabase/
+
+# Vendored third-party checkouts and model weights. openshorts is a 161MB clone
+# carrying its own .git; both are reproducible from vendor/README.md.
+vendor/openshorts/
+vendor/models/

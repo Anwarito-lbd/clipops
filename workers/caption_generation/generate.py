@@ -2,6 +2,31 @@
 
 from __future__ import annotations
 
+# Discovery hashtags per lane. These are additive: a campaign's required tags
+# are what compliance checks, so they always come first and are never displaced
+# by these. Without them captions carried no hashtags at all whenever a campaign
+# stated none, which is most of them.
+LANE_HASHTAGS = {
+    "dramatic": ["#trading", "#daytrading", "#tradingstory", "#riskmanagement"],
+    "educational": ["#trading", "#daytrading", "#propfirm", "#tradingtips"],
+    "commentary": ["#trading", "#daytrading", "#tradingpsychology", "#mindset"],
+}
+
+
+def _merge_hashtags(required: list[str], style: str, limit: int = 5) -> list[str]:
+    """Required tags first, then lane discovery tags, deduplicated case-insensitively."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for tag in list(required) + LANE_HASHTAGS.get(style, LANE_HASHTAGS["dramatic"]):
+        key = tag.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(tag)
+        if len(out) >= limit:
+            break
+    return out
+
 
 def generate_account_copy(
     *,
@@ -55,12 +80,14 @@ def generate_account_copy(
     parts = [hook]
     if excerpt_short and style == "educational" and excerpt_short != hook:
         parts.append(excerpt_short)
-    if style == "commentary":
-        parts.append("Thoughts below.")
     if cta:
         parts.append(cta)
     parts.extend(tags)
-    parts.extend(hashtags)
+    # One line, not one paragraph per tag - separate blocks of hashtags read as
+    # spam and push the CTA out of the visible caption.
+    merged = _merge_hashtags(hashtags, style)
+    if merged:
+        parts.append(" ".join(merged))
     if disclosure:
         parts.append(disclosure)
     caption = "\n\n".join(p for p in parts if p)

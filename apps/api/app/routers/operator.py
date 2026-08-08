@@ -736,8 +736,13 @@ def operator_today(db: Session = Depends(get_db), _user: str = Depends(require_o
             }
         )
 
+    op_settings = db.query(OperatorSettings).first()
     schedule = build_schedule(
-        ready_clips=ready, accounts=accounts, days_active=days_active
+        ready_clips=ready,
+        accounts=accounts,
+        days_active=days_active,
+        anchor=op_settings.sitting_anchor_utc if op_settings else None,
+        sitting_count=op_settings.sitting_count if op_settings else None,
     )
 
     # Posted but not yet submitted - the backlog that costs money directly.
