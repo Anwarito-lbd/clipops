@@ -362,8 +362,11 @@ def extract_budget(text: str) -> tuple[float | None, float | None]:
                 return total, None
     return None, None
 _HASHTAG = re.compile(r"#[A-Za-z0-9_]+")
+# "IN" is spelled out as India rather than listed as a bare code: every brief
+# saying "LINK IN BIO" was being read as India-only, which then failed the geo
+# check against the operator's US/CA audience and rejected the campaign outright.
 _GEO = re.compile(
-    r"\b(US|USA|United States|CA|Canada|UK|GB|AU|Australia|EU|JP|Japan|DE|FR|MX|BR|IN)\b",
+    r"\b(US|USA|United States|CA|Canada|UK|GB|AU|Australia|EU|JP|Japan|DE|FR|MX|BR|India)\b",
     re.I,
 )
 _DURATION = re.compile(r"(\d+)\s*[-–to]+\s*(\d+)\s*(?:s|sec|seconds)", re.I)
@@ -423,6 +426,8 @@ def parse_campaign_brief(raw: str) -> ParsedBrief:
             g_up = "UK"
         if g_up == "JAPAN":
             g_up = "JP"
+        if g_up == "INDIA":
+            g_up = "IN"
         geos.append(g_up)
     parsed.required_geo = list(dict.fromkeys(geos))
 

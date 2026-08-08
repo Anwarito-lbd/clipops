@@ -43,6 +43,23 @@ def _run_module(module_path: Path, *args: str) -> dict:
     return {}
 
 
+def band_midpoint_sec(band: str | None, *, default: float = 20.0) -> float:
+    """Representative duration for a "lo-hi" band.
+
+    `duration_band` carries whatever an operator put in an account's
+    preferred_clip_length, so a fixed lookup table raises KeyError on any band
+    outside the three it happens to know - which failed every clip in a run.
+    """
+    try:
+        lo_s, _, hi_s = (band or "").partition("-")
+        lo, hi = float(lo_s), float(hi_s)
+    except ValueError:
+        return default
+    if hi < lo or lo <= 0:
+        return default
+    return (lo + hi) / 2
+
+
 @celery.task(name="clipops.process_asset")
 def process_asset(asset_id: str) -> dict:
     settings = get_settings()
@@ -167,6 +184,37 @@ def process_asset(asset_id: str) -> dict:
                     ClipVersion.id.in_(stale_ids)
                 ).delete(synchronize_session=False)
             db.commit()
+
+        # Snap to sentence boundaries before persisting. A ranked segment stops
+        # where the ranker's window ended, which is regularly mid-sentence, and
+        # the clip then reads as unfinished however good the selection was.
+        from workers.clip_ranking.snap import snap_segments
+
+        # Bound by what the campaign allows, not the account's preferred band -
+        # a band ceiling stops a sentence completing for no reason.
+        _snap_req = (
+            db.query(CampaignRequirement)
+            .filter(CampaignRequirement.campaign_id == campaign.id)
+            .order_by(CampaignRequirement.created_at.desc())
+            .first()
+        )
+        top_pool, snap_adjustments = snap_segments(
+            top_pool,
+            transcript,
+            max_sec=float((_snap_req.max_duration_sec if _snap_req else None) or 60.0),
+        )
+        if snap_adjustments:
+            db.add(
+                ProductionEvent(
+                    campaign_id=campaign.id,
+                    source_asset_id=asset.id,
+                    title=(
+                        f"Snapped {len(snap_adjustments)} of {len(top_pool)} clip "
+                        "boundaries to sentence ends"
+                    ),
+                    status="done",
+                )
+            )
 
         db.query(ClipCandidate).filter(ClipCandidate.source_asset_id == asset.id).delete()
         candidates: list[ClipCandidate] = []
@@ -345,7 +393,7 @@ def process_asset(asset_id: str) -> dict:
                 required_tags=list(req.required_tags) if req else [],
                 required_disclosure=req.required_disclosure if req else None,
                 disclosure_in_video_start=None,
-                duration_sec={"15-25": 20, "25-40": 32, "40-60": 50}[v.duration_band],
+                duration_sec=band_midpoint_sec(v.duration_band),
                 min_duration_sec=req.min_duration_sec if req else 15,
                 max_duration_sec=req.max_duration_sec if req else 60,
                 aspect_ratio="9:16",
@@ -431,6 +479,14 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
         if not asset or not campaign:
             return {"error": "missing_asset_or_campaign"}
 
+        # The campaign's own duration limit, not the account's preferred band.
+        req = (
+            db.query(CampaignRequirement)
+            .filter(CampaignRequirement.campaign_id == campaign.id)
+            .order_by(CampaignRequirement.created_at.desc())
+            .first()
+        )
+
         accounts = (
             db.query(SocialAccount)
             .filter(SocialAccount.platform == "tiktok")
@@ -469,6 +525,8 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             auto_editor=settings.auto_editor_enabled,
             remotion_url=settings.remotion_url,
             burn_captions=settings.burn_captions,
+            transcript_path=asset.transcript_path,
+            max_duration_sec=(req.max_duration_sec if req else None),
         )
 
         # A failed render must never look like a finished one. Record it as

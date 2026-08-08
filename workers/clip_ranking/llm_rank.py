@@ -21,7 +21,38 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 from typing import Any, Callable
+
+
+def _ensure_env_loaded() -> None:
+    """Put .env keys into os.environ if something else has not already.
+
+    Settings are loaded through pydantic, which populates a settings object and
+    never the process environment. This module reads os.environ directly, so any
+    entrypoint that is not the API server - a worker, a maintenance script -
+    found no key, and ranking degraded to keyword matching without the key ever
+    being missing. That silent downgrade is the failure this project can least
+    afford, so the keys are loaded here rather than left to the caller.
+    """
+    if os.environ.get("NVIDIA_API_KEY") or os.environ.get("GEMINI_API_KEY"):
+        return
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    if not env_path.is_file():
+        return
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(env_path)
+    except ImportError:  # dotenv absent: parse the handful of keys we need
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if "=" not in line or line.lstrip().startswith("#"):
+                continue
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+
+
+_ensure_env_loaded()
 
 LLMFn = Callable[[str], str]
 
@@ -98,6 +129,11 @@ LONG_VIDEO_THRESHOLD = 1800
 CHUNK_OVERLAP_SECONDS = 60
 OVERLAP_REJECT_RATIO = 0.5
 MAX_ATTEMPTS = 3
+
+# Concurrent chunk requests. Bounded so a long video does not open a dozen
+# simultaneous connections and trip the provider's rate limit, which would
+# surface as 529s and drop the whole run back to keyword ranking.
+CHUNK_CONCURRENCY = 4
 
 
 class LLMUnavailable(RuntimeError):
@@ -430,12 +466,10 @@ def find_highlights(
     duration = transcript_duration(transcript)
     content_info = detect_content_type(transcript, llm_fn)
 
-    collected: list[dict] = []
-    last_error = "no output"
-    for chunk in chunk_transcript(transcript):
+    def _rank_chunk(chunk: dict) -> tuple[list[dict], str | None]:
         text = build_transcript_text(chunk)
         if not text.strip():
-            continue
+            return [], None
         prompt = HIGHLIGHT_PROMPT.format(
             virality_criteria=VIRALITY_CRITERIA,
             content_type=content_info["content_type"],
@@ -445,23 +479,43 @@ def find_highlights(
             min_clips=max(want * 2, 5),
             transcript=text,
         )
+        error: str | None = "no valid highlights in response"
         for attempt in range(1, MAX_ATTEMPTS + 1):
             try:
                 parsed = _parse_json_loose(llm_fn(prompt))
                 got = _sanitize(parsed.get("highlights"), duration, min_sec, max_sec)
                 if got:
-                    collected.extend(got)
-                    break
-                last_error = "no valid highlights in response"
+                    return got, None
             except LLMUnavailable:
                 raise
-            except Exception as exc:
-                last_error = str(exc)
+            except Exception as exc:  # noqa: BLE001
+                error = str(exc)
             if attempt < MAX_ATTEMPTS:
                 prompt += (
                     "\n\nIMPORTANT: return ONLY valid JSON with a top-level "
                     "'highlights' array. No markdown fences, no commentary."
                 )
+        return [], error
+
+    # Chunks are independent HTTP calls, so running them sequentially made a
+    # long video cost chunks x per-call latency - about 900s on a reasoning
+    # model. Results are reassembled in chunk order so ranking stays
+    # deterministic.
+    chunks = chunk_transcript(transcript)
+    collected: list[dict] = []
+    last_error = "no output"
+    if len(chunks) == 1:
+        got, err = _rank_chunk(chunks[0])
+        collected.extend(got)
+        last_error = err or last_error
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=min(len(chunks), CHUNK_CONCURRENCY)) as pool:
+            for got, err in pool.map(_rank_chunk, chunks):
+                collected.extend(got)
+                if err:
+                    last_error = err
 
     if not collected:
         raise LLMUnavailable(f"LLM produced no usable highlights: {last_error}")
