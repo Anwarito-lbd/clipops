@@ -1,0 +1,36 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      # test_scene_detection builds fixture videos and asserts the detection
+      # budget falls back correctly; without ffmpeg those tests skip and the
+      # 9-hour hang they cover would pass unnoticed.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      # requirements.txt deliberately excludes torch/whisperx — those are a
+      # separate CUDA install (scripts/install_whisperx_cuda.py). The suite was
+      # verified green against this dependency set alone, so CI does not pull
+      # ~2GB of GPU wheels to run it.
+      - name: Install dependencies
+        run: pip install -r apps/api/requirements.txt
+
+      - name: Run tests
+        env:
+          PYTHONPATH: .:apps/api
+        run: pytest tests -q
