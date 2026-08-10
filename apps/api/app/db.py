@@ -105,6 +105,10 @@ class CampaignRequirement(Base):
     no_external_music: Mapped[bool] = mapped_column(Boolean, default=True)
     extra: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # "card" = scraped from the discover listing (defaults only, not the real
+    # rules); "brief" = pulled from the campaign detail page; "manual" = entered
+    # by the operator. Only the latter two are safe to produce clips against.
+    source: Mapped[Optional[str]] = mapped_column(String(16), default="card")
     is_immutable_snapshot: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -125,6 +129,9 @@ class SourceAsset(Base):
     status: Mapped[str] = mapped_column(String(32), default="IMPORTED")
     transcript_path: Mapped[Optional[str]] = mapped_column(String(1024))
     scenes_path: Mapped[Optional[str]] = mapped_column(String(1024))
+    # whisperx | faster-whisper | heuristic — "heuristic" means ASR failed and the
+    # transcript is placeholder text, not speech.
+    transcript_engine: Mapped[Optional[str]] = mapped_column(String(32))
     error_message: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -161,6 +168,10 @@ class ClipVersion(Base):
     hook_text: Mapped[Optional[str]] = mapped_column(Text)
     context_intro: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="GENERATED")
+    # Carried from the source asset so the approve/export gate can refuse clips
+    # whose captions came from a fabricated transcript.
+    transcript_engine: Mapped[Optional[str]] = mapped_column(String(32))
+    fabrication_override_reason: Mapped[Optional[str]] = mapped_column(Text)
     requirements_snapshot_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("campaign_requirements.id")
     )
@@ -294,6 +305,10 @@ class DiscoveredCampaign(Base):
     )  # discovered|top3|approved|rejected|collecting|producing|ready|posted|submitted|done
     campaign_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("campaigns.id"))
     brief_text: Mapped[Optional[str]] = mapped_column(Text)
+    # True only once the campaign's own brief page has been captured. A discover
+    # card states a rate but defers the rules to a document, so an unfetched
+    # campaign cannot be judged workable no matter how good its numbers look.
+    brief_fetched: Mapped[bool] = mapped_column(Boolean, default=False)
     asset_urls: Mapped[list[Any]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -360,6 +375,11 @@ class OperatorSettings(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     monthly_target: Mapped[float] = mapped_column(Numeric(14, 2), default=1000)
     currency: Mapped[str] = mapped_column(String(8), default="USD")
+    # "HH:MM" UTC for the first sitting of the day, and how many sittings follow
+    # it at MIN_GAP_HOURS apart. A campaign whose budget resets at a fixed time
+    # and closes once filled has to be posted into from that reset.
+    sitting_anchor_utc: Mapped[Optional[str]] = mapped_column(String(5), default=None)
+    sitting_count: Mapped[Optional[int]] = mapped_column(Integer, default=None)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -395,7 +415,10 @@ def seed_accounts(db: Session) -> None:
             display_name="TikTok 1 — Dramatic",
             style="dramatic",
             audience_geo=["US", "CA"],
-            audience_notes="Fast, dramatic clips",
+            audience_notes=(
+                "Trading lane: losses and blow-ups. Confession-style openers, "
+                "big numbers, the moment it went wrong."
+            ),
             preferred_clip_length="15-25",
             preferred_hooks=["drama", "question"],
         ),
@@ -405,8 +428,13 @@ def seed_accounts(db: Session) -> None:
             display_name="TikTok 2 — Educational",
             style="educational",
             audience_geo=["US", "CA"],
-            audience_notes="Educational / storytelling",
-            preferred_clip_length="25-40",
+            audience_notes=(
+                "Trading lane: mechanics and rules. Prop firm rules, risk sizing, "
+                "one concrete takeaway per clip."
+            ),
+            # 18-28, not 25-40: completion rate carries roughly double weight and
+            # the 2026 viral threshold is 70%, which a 40s clip rarely clears.
+            preferred_clip_length="18-28",
             preferred_hooks=["surprising_fact", "question"],
         ),
         SocialAccount(
@@ -415,7 +443,10 @@ def seed_accounts(db: Session) -> None:
             display_name="TikTok 3 — Commentary",
             style="commentary",
             audience_geo=["US", "CA"],
-            audience_notes="Commentary, captions, reactions",
+            audience_notes=(
+                "Trading lane: mindset and coaching. Advice delivered to someone, "
+                "before/after arcs, blunt opinions."
+            ),
             preferred_clip_length="15-25",
             preferred_hooks=["controversy", "question"],
         ),
@@ -431,8 +462,33 @@ def seed_settings(db: Session) -> None:
     db.commit()
 
 
+def _sqlite_add_missing_columns() -> None:
+    """Best-effort ALTER for local sqlite when models gain columns."""
+    url = str(engine.url)
+    if not url.startswith("sqlite"):
+        return
+    statements = [
+        "ALTER TABLE social_accounts ADD COLUMN preferred_clip_length VARCHAR(16)",
+        "ALTER TABLE social_accounts ADD COLUMN preferred_hooks JSON",
+        "ALTER TABLE source_assets ADD COLUMN transcript_engine VARCHAR(32)",
+        "ALTER TABLE clip_versions ADD COLUMN transcript_engine VARCHAR(32)",
+        "ALTER TABLE clip_versions ADD COLUMN fabrication_override_reason TEXT",
+        "ALTER TABLE campaign_requirements ADD COLUMN source VARCHAR(16) DEFAULT 'card'",
+        "ALTER TABLE discovered_campaigns ADD COLUMN brief_fetched BOOLEAN DEFAULT 0",
+        "ALTER TABLE operator_settings ADD COLUMN sitting_anchor_utc VARCHAR(5)",
+        "ALTER TABLE operator_settings ADD COLUMN sitting_count INTEGER",
+    ]
+    with engine.begin() as conn:
+        for sql in statements:
+            try:
+                conn.exec_driver_sql(sql)
+            except Exception:
+                pass  # column already exists
+
+
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _sqlite_add_missing_columns()
     db = SessionLocal()
     try:
         seed_accounts(db)

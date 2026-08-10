@@ -6,6 +6,7 @@ Never auto-posts to TikTok or auto-submits / auto-withdraws on Content Rewards.
 
 from __future__ import annotations
 
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,7 @@ from app.config import get_settings
 from app.db import (
     Campaign,
     CampaignRequirement,
+    ClipCandidate,
     ClipVersion,
     ComplianceCheck,
     ClipPerformance,
@@ -36,8 +38,10 @@ from app.db import (
     Render,
     SocialAccount,
     SourceAsset,
+    Submission,
     get_db,
 )
+from packages.services.operations import EXHAUSTED_AT
 from packages.campaign_engine.ranker import rank_discovered_campaigns
 from packages.campaign_parser.parser import parse_campaign_brief
 from packages.posting_queue.router import assert_versions_not_identical, build_posting_packages
@@ -80,6 +84,132 @@ class DiscoveredItem(BaseModel):
 class DiscoverBatch(BaseModel):
     campaigns: list[DiscoveredItem]
     source: str = "browser_extension"
+
+
+def _normalise_campaign_numbers(item: dict[str, Any]) -> dict[str, Any]:
+    """Re-derive money figures server-side from the raw brief text.
+
+    The extension also parses these, but it is an untrusted client: a stale
+    cached content script silently reported $0.70 CPM as $760 and produced a
+    $4,947 EV on the worst-paying campaign. Whenever brief_text is available the
+    server's parser wins, so one bad extension build cannot poison the ranking.
+    Values are left null rather than guessed when nothing matches.
+    """
+    text = item.get("brief_text") or ""
+    if not text.strip():
+        return item
+
+    from packages.campaign_parser.parser import (
+        extract_approval_rate,
+        extract_budget,
+        extract_campaign_age_days,
+        extract_cpm,
+        extract_max_payout,
+        extract_payout_bounds,
+        looks_like_multiple_campaigns,
+    )
+
+    # Titles carry the rate more reliably than body prose ("$5K Budget | $2 CPM").
+    name = item.get("name") or ""
+    combined = f"{name}\n{text}" if name else text
+
+    if looks_like_multiple_campaigns(combined):
+        # Several campaigns scraped into one card — no figure can be attributed.
+        item["cpm"] = None
+        item["total_budget"] = None
+        item["budget_utilised"] = None
+        item["budget_remaining_pct"] = None
+        item["max_payout"] = None
+        item["unclear_instructions"] = True
+        return item
+
+    server_cpm = extract_cpm(combined)
+    if server_cpm is not None:
+        item["cpm"] = server_cpm
+    elif item.get("cpm") is not None:
+        # Client claimed a rate the server cannot corroborate — drop it rather
+        # than forecast earnings from an unverifiable number.
+        item["cpm"] = None
+
+    total, used = extract_budget(combined)
+    if total is not None:
+        item["total_budget"] = total
+        if used is not None:
+            item["budget_utilised"] = used
+            item["budget_remaining_pct"] = round((1 - used / total) * 100, 1)
+
+    max_payout = extract_max_payout(combined)
+    if max_payout is None:
+        # Whop's earnings panel states bounds as "$15 Min  $3000 Max".
+        _low, high = extract_payout_bounds(combined)
+        max_payout = high
+    if max_payout is not None:
+        item["max_payout"] = max_payout
+
+    # The stated approval rate replaces the 70% assumption. A campaign approving
+    # 3% of submissions earns ~23x less than the default would forecast.
+    approval = extract_approval_rate(combined)
+    if approval is not None:
+        item["approval_probability"] = approval
+
+    age = extract_campaign_age_days(combined)
+    if age is not None:
+        item["campaign_age_days"] = age
+    return item
+
+
+def _rescore(db: Session, row: DiscoveredCampaign) -> None:
+    """Re-evaluate one campaign against its current brief.
+
+    Eligibility is otherwise only decided during a scan, so a campaign stayed
+    marked "brief not read" forever even after its brief was captured - the one
+    action meant to clear that verdict could never take effect.
+    """
+    raw = dict(row.raw_payload or {})
+    item = _normalise_campaign_numbers(
+        {
+            **raw,
+            "external_id": row.external_id,
+            "name": row.name,
+            "brief_text": row.brief_text,
+            "brief_fetched": bool(row.brief_fetched),
+        }
+    )
+    item["brief_fetched"] = bool(row.brief_fetched)
+
+    geos: list[str] = []
+    for acc in db.query(SocialAccount).filter(SocialAccount.platform == "tiktok").all():
+        geos.extend(acc.audience_geo or [])
+    ranked = rank_discovered_campaigns(
+        [item], account_geos=list(dict.fromkeys(geos)) or ["US", "CA"], top_n=1
+    )
+    if not ranked:
+        return
+    r = ranked[0]
+    row.cpm = r.cpm
+    row.budget_remaining_pct = r.budget_remaining_pct
+    row.difficulty = r.difficulty
+    row.min_duration_sec = r.min_duration_sec
+    row.max_duration_sec = r.max_duration_sec
+    row.opportunity_score = r.opportunity_score
+    row.expected_profit = r.expected_profit
+    row.is_eligible = r.is_eligible
+    row.reject_reasons = r.reject_reasons
+
+
+def _brief_fetched_map(db: Session, items: list[dict[str, Any]]) -> None:
+    """Carry each campaign's verified state into the ranking payload."""
+    ids = [i.get("external_id") for i in items if i.get("external_id")]
+    if not ids:
+        return
+    known = {
+        r.external_id: bool(r.brief_fetched)
+        for r in db.query(DiscoveredCampaign)
+        .filter(DiscoveredCampaign.external_id.in_(ids))
+        .all()
+    }
+    for i in items:
+        i["brief_fetched"] = known.get(i.get("external_id"), False)
 
 
 class BriefPayload(BaseModel):
@@ -199,7 +329,8 @@ def ingest_discovered(
         )
     priors = PerformanceLearningService().historical_priors(perf_rows)
 
-    payload = [c.model_dump() for c in body.campaigns]
+    payload = [_normalise_campaign_numbers(c.model_dump()) for c in body.campaigns]
+    _brief_fetched_map(db, payload)
     all_ranked = rank_discovered_campaigns(
         payload,
         account_geos=geos,
@@ -379,6 +510,10 @@ def approve_discovered(
         raw_brief=brief,
         status="joined",
         cpm=row.cpm or parsed.cpm,
+        # Carried through so rotation can measure how much of the pool is gone;
+        # without these the campaign reports "no figures captured" forever.
+        total_budget=raw.get("total_budget") or parsed.total_budget,
+        budget_utilised=raw.get("budget_utilised") or parsed.budget_utilised or 0,
         score=row.opportunity_score,
         expected_profit=row.expected_profit,
         is_recommended=True,
@@ -400,6 +535,11 @@ def approve_discovered(
             requires_cta=bool(raw.get("requires_cta")),
             forbidden_words=raw.get("forbidden_words") or [],
             forbidden_claims=raw.get("forbidden_claims") or [],
+            # Approving from the discover card carries none of the real rules, so
+            # production stays blocked until the campaign's own brief is read.
+            # When that brief has already been captured, these ARE the real rules
+            # and marking them "card" would keep a ready campaign locked shut.
+            source="brief" if row.brief_fetched else "card",
             is_immutable_snapshot=False,
         )
     )
@@ -453,12 +593,33 @@ def save_brief(
     row = db.get(DiscoveredCampaign, body.discovered_id)
     if not row:
         raise HTTPException(404, "Not found")
+
+    # Refuse the discover listing. It contains every campaign's text at once, so
+    # saving it as one campaign's brief overwrites that campaign's real rules
+    # with a blend of 170 others - worse than having no brief at all.
+    text = body.brief_text or ""
+    join_buttons = len(re.findall(r"join\s+campaign", text, re.I))
+    if join_buttons > 1:
+        raise HTTPException(
+            400,
+            f"That page lists {join_buttons} campaigns - it is the discover feed, "
+            "not a campaign brief. Open the individual campaign page and retry.",
+        )
+
     row.brief_text = body.brief_text
     row.asset_urls = body.asset_urls
+    # Only a brief that actually yields rules counts as read. A capture that
+    # parses to pure defaults leaves the campaign unverified.
+    from packages.campaign_parser.parser import requirements_look_unread
+
+    row.brief_fetched = not requirements_look_unread(
+        parse_campaign_brief(text), text
+    )
     if body.external_url:
         row.external_url = body.external_url
     if row.operator_status == "approved":
         row.operator_status = "collecting"
+
     # Mirror into linked campaign if present
     if row.campaign_id:
         camp = db.get(Campaign, row.campaign_id)
@@ -482,6 +643,21 @@ def save_brief(
                 req.max_duration_sec = parsed.max_duration_sec
                 req.requires_logo = parsed.requires_logo
                 req.requires_cta = parsed.requires_cta
+                req.forbidden_words = parsed.forbidden_words
+                req.forbidden_claims = parsed.forbidden_claims
+                # A brief that yields only defaults means the detail page was
+                # not actually captured - keep it marked unread so production
+                # stays blocked rather than running on invented rules.
+                from packages.campaign_parser.parser import requirements_look_unread
+
+                req.source = (
+                    "card"
+                    if requirements_look_unread(parsed, body.brief_text)
+                    else "brief"
+                )
+    # Judge the campaign again now its real rules are known.
+    _rescore(db, row)
+
     _notify(
         db,
         kind="assets_ready",
@@ -501,16 +677,562 @@ def save_brief(
     }
 
 
+def _storage_root() -> Path:
+    root = Path(get_settings().storage_root)
+    return root if root.is_absolute() else (ROOT / root)
+
+
+@router.get("/operator/today")
+def operator_today(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """The daily driver: what to post, to which account, and what is overdue."""
+    from packages.services.schedule import build_schedule, overdue_submissions
+
+    accounts = [
+        {"id": a.id, "label": a.display_name or a.handle}
+        for a in db.query(SocialAccount)
+        .filter(SocialAccount.platform == "tiktok", SocialAccount.is_active.is_(True))
+        .order_by(SocialAccount.handle)
+        .all()
+    ]
+
+    # Days since the first post decides whether the ramp still applies.
+    first_post = db.query(Post).order_by(Post.posted_at.asc()).first()
+    days_active = 0
+    if first_post and first_post.posted_at:
+        started = first_post.posted_at
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        days_active = (datetime.now(timezone.utc) - started).days
+
+    posted_version_ids = {p.clip_version_id for p in db.query(Post).all()}
+    ready = []
+    for v in (
+        db.query(ClipVersion)
+        .filter(ClipVersion.status.in_(["APPROVED", "EXPORTED"]))
+        .order_by(ClipVersion.created_at.asc())
+        .all()
+    ):
+        if v.id in posted_version_ids:
+            continue
+        render = (
+            db.query(Render)
+            .filter(Render.clip_version_id == v.id, Render.content_hash.isnot(None))
+            .order_by(Render.created_at.desc())
+            .first()
+        )
+        if not render:
+            continue  # nothing postable without a real rendered file
+        camp = db.get(Campaign, v.campaign_id)
+        ready.append(
+            {
+                "id": v.id,
+                "account_id": v.social_account_id,
+                "caption": v.caption,
+                "hook_text": v.hook_text,
+                "campaign_name": camp.name if camp else None,
+                "preview_url": f"/api/media/{Path(render.video_path).name}"
+                if render.video_path
+                else None,
+            }
+        )
+
+    op_settings = db.query(OperatorSettings).first()
+    schedule = build_schedule(
+        ready_clips=ready,
+        accounts=accounts,
+        days_active=days_active,
+        anchor=op_settings.sitting_anchor_utc if op_settings else None,
+        sitting_count=op_settings.sitting_count if op_settings else None,
+    )
+
+    # Posted but not yet submitted - the backlog that costs money directly.
+    submitted_post_ids = {s.post_id for s in db.query(Submission).all()}
+    pending = [
+        {
+            "post_id": p.id,
+            "clip_version_id": p.clip_version_id,
+            "tiktok_url": p.tiktok_url,
+            "posted_at": p.posted_at.isoformat() if p.posted_at else None,
+            "submitted": p.id in submitted_post_ids,
+        }
+        for p in db.query(Post).all()
+    ]
+    awaiting = overdue_submissions(pending)
+
+    return {
+        **schedule,
+        "accounts": accounts,
+        "ready_count": len(ready),
+        "awaiting_submission": [a for a in awaiting if not a["submitted"]],
+        "blocked": {
+            "clips_awaiting_approval": db.query(ClipVersion)
+            .filter(ClipVersion.status == "REVIEW_REQUIRED")
+            .count(),
+            "assets_failed": db.query(SourceAsset)
+            .filter(SourceAsset.status == "FAILED")
+            .count(),
+        },
+    }
+
+
+@router.get("/operator/inbox")
+def inbox_status(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Footage waiting in the drop folder."""
+    from packages.services.operations import human_bytes, scan_inbox
+
+    root = _storage_root() / "inbox"
+    root.mkdir(parents=True, exist_ok=True)
+    names = {c.id: c.name for c in db.query(Campaign).all()}
+    items = [i.to_dict() for i in scan_inbox(root, names)]
+    ready = [i for i in items if not i["problem"]]
+    return {
+        "inbox_path": str(root),
+        "items": items,
+        "ready_count": len(ready),
+        "total_size": human_bytes(sum(i["size_bytes"] for i in ready)),
+        "how_to": "Drop video files into inbox/<campaign_id>/ then call import.",
+        "campaign_folders": {cid: str(root / cid) for cid in names},
+    }
+
+
+@router.post("/operator/inbox/import")
+def inbox_import(
+    campaign_id: str | None = None,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Move dropped footage into its campaign and start processing."""
+    from packages.services.operations import import_inbox_file, scan_inbox
+
+    storage_root = _storage_root()
+    root = storage_root / "inbox"
+    root.mkdir(parents=True, exist_ok=True)
+    names = {c.id: c.name for c in db.query(Campaign).all()}
+
+    imported, skipped = [], []
+    for item in scan_inbox(root, names):
+        target = item.campaign_id or campaign_id
+        if item.problem and not (campaign_id and "Loose file" in (item.problem or "")):
+            skipped.append({"file": item.filename, "why": item.problem})
+            continue
+        if not target:
+            skipped.append({"file": item.filename, "why": "No campaign to import into"})
+            continue
+
+        src = Path(item.path)
+        dest, rel = import_inbox_file(src, storage_root, target)
+        asset = SourceAsset(
+            campaign_id=target,
+            filename=dest.name,
+            storage_path=rel,
+            status="IMPORTED",
+        )
+        db.add(asset)
+        db.commit()
+        db.refresh(asset)
+
+        from app.jobs import enqueue_or_run
+        from app.tasks import process_asset
+
+        enqueue_or_run(process_asset, asset.id)
+        imported.append({"file": dest.name, "asset_id": asset.id, "campaign_id": target})
+
+    return {"imported": imported, "skipped": skipped, "count": len(imported)}
+
+
+@router.post("/campaigns/{campaign_id}/fetch-resources")
+def fetch_resources(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Download this campaign's footage from the links the Brief button found.
+
+    Handles direct media and streaming sources (Twitch VODs, YouTube). Anything
+    behind a login cannot be reached from the server and is reported so the
+    operator can download it into the drop folder instead.
+    """
+    from packages.services.fetcher import fetch
+    from packages.services.operations import human_bytes
+
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    disc = (
+        db.query(DiscoveredCampaign)
+        .filter(DiscoveredCampaign.campaign_id == campaign_id)
+        .first()
+    )
+    urls = list((disc.asset_urls if disc else None) or [])
+    if not urls:
+        raise HTTPException(
+            400,
+            "No resource links recorded. Open the campaign page and use the "
+            "extension's Brief button first.",
+        )
+
+    settings = get_settings()
+    max_bytes = int(settings.max_upload_mb) * 1024 * 1024
+    dest_dir = _storage_root() / "sources" / campaign_id
+
+    results, imported = [], []
+    for url in urls[:10]:
+        r = fetch(url, dest_dir, max_bytes)
+        results.append(r.to_dict())
+        if not (r.ok and r.path):
+            continue
+
+        path = Path(r.path)
+        rel = path.relative_to(_storage_root()).as_posix()
+        asset = SourceAsset(
+            campaign_id=campaign_id,
+            filename=path.name,
+            storage_path=rel,
+            status="IMPORTED",
+        )
+        db.add(asset)
+        db.commit()
+        db.refresh(asset)
+
+        from app.jobs import enqueue_or_run
+        from app.tasks import process_asset
+
+        enqueue_or_run(process_asset, asset.id)
+        imported.append(
+            {"file": path.name, "asset_id": asset.id, "size": human_bytes(r.bytes_written)}
+        )
+
+    manual = [
+        {"url": r["url"], "why": r["manual_reason"] or r["error"]}
+        for r in results
+        if not r["ok"]
+    ]
+    return {
+        "imported": imported,
+        "needs_manual_download": manual,
+        "results": results,
+        "inbox_hint": (
+            str(_storage_root() / "inbox" / campaign_id)
+            if manual
+            else None
+        ),
+    }
+
+
+@router.post("/campaigns/{campaign_id}/ready-to-post")
+def build_ready_to_post(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Assemble the delivery folder: one folder per clip, best first."""
+    from packages.services.ready_to_post import prepare_campaign
+
+    campaign = db.get(Campaign, campaign_id)
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    req = (
+        db.query(CampaignRequirement)
+        .filter(
+            CampaignRequirement.campaign_id == campaign_id,
+            CampaignRequirement.is_immutable_snapshot.is_(False),
+        )
+        .order_by(CampaignRequirement.created_at.desc())
+        .first()
+    )
+    disc = (
+        db.query(DiscoveredCampaign)
+        .filter(DiscoveredCampaign.campaign_id == campaign_id)
+        .first()
+    )
+
+    clips = []
+    for v in (
+        db.query(ClipVersion)
+        .filter(
+            ClipVersion.campaign_id == campaign_id,
+            ClipVersion.status.in_(["APPROVED", "EXPORTED"]),
+        )
+        .all()
+    ):
+        render = (
+            db.query(Render)
+            .filter(Render.clip_version_id == v.id, Render.content_hash.isnot(None))
+            .order_by(Render.created_at.desc())
+            .first()
+        )
+        if not render:
+            continue
+        cand = db.get(ClipCandidate, v.candidate_id) if v.candidate_id else None
+        asset = db.get(SourceAsset, cand.source_asset_id) if cand else None
+        account = db.get(SocialAccount, v.social_account_id)
+        check = (
+            db.query(ComplianceCheck)
+            .filter(ComplianceCheck.clip_version_id == v.id)
+            .order_by(ComplianceCheck.created_at.desc())
+            .first()
+        )
+        report = (cand.scores if cand else None) or {}
+        clips.append(
+            {
+                "clip_version_id": v.id,
+                "video_path": render.video_path,
+                "cover_path": render.cover_path,
+                "caption": v.caption,
+                "hook_text": v.hook_text,
+                "duration_band": v.duration_band,
+                "content_hash": render.content_hash,
+                "account_label": account.display_name if account else None,
+                "score": float(cand.total_score) if cand else None,
+                "ranker": report.get("ranker"),
+                "start_sec": cand.start_sec if cand else None,
+                "end_sec": cand.end_sec if cand else None,
+                "source_filename": asset.filename if asset else None,
+                "transcript_engine": v.transcript_engine,
+                "compliance_passed": check.passed if check else None,
+                "compliance_checks": (check.checks if check else []) or [],
+            }
+        )
+
+    result = prepare_campaign(
+        out_root=_storage_root() / "ready_to_post",
+        campaign={
+            "name": campaign.name,
+            "external_url": campaign.external_url or (disc.external_url if disc else None),
+            "cpm": float(campaign.cpm) if campaign.cpm else (disc.cpm if disc else None),
+            "requirements": {
+                "source": req.source if req else None,
+                "required_hashtags": list(req.required_hashtags or []) if req else [],
+                "required_tags": list(req.required_tags or []) if req else [],
+                "required_disclosure": req.required_disclosure if req else None,
+                "min_duration_sec": req.min_duration_sec if req else None,
+                "max_duration_sec": req.max_duration_sec if req else None,
+            },
+        },
+        clips=clips,
+    )
+    if result["clip_count"] == 0:
+        result["note"] = (
+            "No exportable clips yet - approve clips first, and check that their "
+            "renders produced a real file."
+        )
+    return result
+
+
+@router.get("/operator/rotation")
+def campaign_rotation(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Which campaigns are running dry, so a replacement can be lined up early."""
+    from packages.services.operations import rotation_signal
+
+    out = []
+    for camp in db.query(Campaign).filter(Campaign.status.notin_(["rejected"])).all():
+        # Earnings attributable to this campaign, for the per-clipper cap.
+        earned = sum(
+            float(e.net_amount or e.provisional_amount or 0)
+            for e in db.query(Earning)
+            .join(Submission, Earning.submission_id == Submission.id)
+            .join(Post, Submission.post_id == Post.id)
+            .join(ClipVersion, Post.clip_version_id == ClipVersion.id)
+            .filter(ClipVersion.campaign_id == camp.id)
+            .all()
+        )
+
+        posted = (
+            db.query(Post)
+            .join(ClipVersion, Post.clip_version_id == ClipVersion.id)
+            .filter(ClipVersion.campaign_id == camp.id)
+            .count()
+        )
+        disc = (
+            db.query(DiscoveredCampaign)
+            .filter(DiscoveredCampaign.campaign_id == camp.id)
+            .first()
+        )
+        raw = (disc.raw_payload if disc else None) or {}
+        sig = rotation_signal(
+            campaign_id=camp.id,
+            campaign_name=camp.name,
+            total_budget=float(camp.total_budget) if camp.total_budget else raw.get("total_budget"),
+            budget_utilised=float(camp.budget_utilised) if camp.budget_utilised else raw.get("budget_utilised"),
+            max_payout=raw.get("max_payout"),
+            earned_so_far=earned,
+            clips_posted=posted,
+        )
+        out.append(sig.to_dict())
+
+    needs_action = [s for s in out if s["state"] != "healthy"]
+    replacements = []
+    if needs_action:
+        replacements = [
+            _serialize_discovered(r)
+            for r in db.query(DiscoveredCampaign)
+            .filter(
+                DiscoveredCampaign.is_eligible.is_(True),
+                DiscoveredCampaign.operator_status.in_(["discovered", "top3"]),
+            )
+            .order_by(DiscoveredCampaign.opportunity_score.desc())
+            .limit(5)
+            .all()
+        ]
+    return {
+        "campaigns": out,
+        "needs_action": needs_action,
+        "suggested_replacements": replacements,
+    }
+
+
+@router.get("/operator/storage")
+def storage_report(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Source footage that can be deleted. Reports only - never deletes."""
+    from packages.services.operations import find_reclaimable_sources, human_bytes
+
+    storage_root = _storage_root()
+    campaigns = []
+    for camp in db.query(Campaign).all():
+        assets = db.query(SourceAsset).filter(SourceAsset.campaign_id == camp.id).all()
+        versions = db.query(ClipVersion).filter(ClipVersion.campaign_id == camp.id).all()
+        disc = (
+            db.query(DiscoveredCampaign)
+            .filter(DiscoveredCampaign.campaign_id == camp.id)
+            .first()
+        )
+        raw = (disc.raw_payload if disc else None) or {}
+        total_budget = float(camp.total_budget) if camp.total_budget else raw.get("total_budget")
+        used = float(camp.budget_utilised) if camp.budget_utilised else raw.get("budget_utilised")
+        exhausted = bool(
+            total_budget and used is not None and (used / total_budget) >= EXHAUSTED_AT
+        )
+        campaigns.append(
+            {
+                "id": camp.id,
+                "name": camp.name,
+                "exhausted": exhausted,
+                "source_paths": [a.storage_path for a in assets],
+                "version_statuses": [v.status for v in versions],
+            }
+        )
+
+    candidates = find_reclaimable_sources(storage_root=storage_root, campaigns=campaigns)
+    total = sum(c.bytes_freed for c in candidates)
+    return {
+        "reclaimable": [c.to_dict() for c in candidates],
+        "total_bytes": total,
+        "total_human": human_bytes(total),
+        "policy": (
+            "Only source footage from exhausted campaigns whose clips are all "
+            "posted or resolved. Exports, captions and covers are never deleted - "
+            "they are your evidence if a submission's views are disputed."
+        ),
+    }
+
+
+@router.post("/operator/storage/reclaim")
+def storage_reclaim(
+    campaign_id: str,
+    confirm: bool = False,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Delete one campaign's source footage. Requires confirm=true."""
+    from packages.services.operations import human_bytes
+
+    report = storage_report(db=db, _user=_user)
+    match = next(
+        (c for c in report["reclaimable"] if c["campaign_id"] == campaign_id), None
+    )
+    if match is None:
+        raise HTTPException(
+            400,
+            "That campaign's footage is not reclaimable - it is still active, or "
+            "some of its clips have not been posted yet.",
+        )
+    if not confirm:
+        return {
+            "dry_run": True,
+            "would_delete": match["paths"],
+            "would_free": human_bytes(match["bytes_freed"]),
+            "note": "Re-send with confirm=true to delete. This cannot be undone.",
+        }
+
+    deleted, failed = [], []
+    for p in match["paths"]:
+        try:
+            Path(p).unlink()
+            deleted.append(p)
+        except OSError as exc:
+            failed.append({"path": p, "error": str(exc)})
+
+    # Keep the rows: they record what was made from what, and re-import can refill.
+    for a in db.query(SourceAsset).filter(SourceAsset.campaign_id == campaign_id).all():
+        a.error_message = "Source file reclaimed to free disk space"
+    db.commit()
+    return {
+        "deleted": deleted,
+        "failed": failed,
+        "freed": human_bytes(match["bytes_freed"]),
+    }
+
+
+@router.get("/operator/discovered/by-url")
+def discovered_by_url(
+    url: str,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Find a scanned campaign from the page URL currently open in a tab.
+
+    Lets the extension attribute a brief to the right campaign when pulling
+    several campaign tabs at once, without the operator selecting each one.
+    """
+    clean = (url or "").split("?")[0].rstrip("/")
+    if not clean:
+        raise HTTPException(400, "url is required")
+
+    matches = (
+        db.query(DiscoveredCampaign)
+        .filter(DiscoveredCampaign.external_url.in_([clean, clean + "/"]))
+        .limit(2)
+        .all()
+    )
+    # The scan stores the listing URL for every card it finds there, so a URL
+    # shared by several campaigns identifies none of them. Returning the first
+    # would attribute one campaign's brief to another.
+    if len(matches) > 1:
+        raise HTTPException(
+            409,
+            "That URL is shared by multiple campaigns (it is the discover feed). "
+            "Open the individual campaign page instead.",
+        )
+    row = matches[0] if matches else None
+    if row is None:
+        # Campaign pages usually end in a slug that also appears in the stored
+        # URL; fall back to matching on that last path segment.
+        slug = clean.rsplit("/", 1)[-1]
+        if len(slug) >= 6:
+            row = (
+                db.query(DiscoveredCampaign)
+                .filter(DiscoveredCampaign.external_url.like(f"%{slug}%"))
+                .first()
+            )
+    if row is None:
+        raise HTTPException(404, "No scanned campaign matches that URL")
+    return {"id": row.id, "name": row.name, "operator_status": row.operator_status}
+
+
 @router.get("/operator/queue")
 def posting_queue(
     campaign_id: str | None = None,
     db: Session = Depends(get_db),
     _user: str = Depends(require_operator),
 ):
-    q = db.query(ClipVersion)
+    # Only clips actually cleared for posting. Without this filter REJECTED and
+    # not-yet-approved versions appeared in the posting queue next to good ones.
+    q = db.query(ClipVersion).filter(ClipVersion.status.in_(["APPROVED", "EXPORTED"]))
     if campaign_id:
         q = q.filter(ClipVersion.campaign_id == campaign_id)
-    versions = q.order_by(ClipVersion.created_at.desc()).limit(30).all()
+    versions = q.order_by(ClipVersion.created_at.desc()).limit(200).all()
     # group by campaign, take latest 3 styles
     by_camp: dict[str, list] = {}
     for v in versions:
@@ -519,16 +1241,20 @@ def posting_queue(
     settings = get_settings()
     out = []
     for cid, vs in by_camp.items():
-        # one per style
-        picked = []
-        seen = set()
-        for v in vs:
-            if v.style in seen:
-                continue
-            seen.add(v.style)
-            picked.append(v)
-            if len(picked) == 3:
-                break
+        # Every approved clip surfaces. The old "one per style, max 3" dedup
+        # silently discarded 2 of every 5 rendered clips, since more clips are
+        # selected than there are accounts.
+        picked = vs
+        slot_by_version: dict[str, int] = {}
+        for v in picked:
+            latest = (
+                db.query(Render)
+                .filter(Render.clip_version_id == v.id)
+                .order_by(Render.created_at.desc())
+                .first()
+            )
+            if latest and latest.account_slot:
+                slot_by_version[v.id] = latest.account_slot
         v_dicts = [
             {
                 "id": v.id,
@@ -536,6 +1262,9 @@ def posting_queue(
                 "style": v.style,
                 "caption": v.caption,
                 "status": v.status,
+                # Authoritative slot from the render, so the queue label matches
+                # the on-disk exports/<campaign>/account-N folder.
+                "account_slot": slot_by_version.get(v.id),
             }
             for v in picked
         ]
@@ -550,6 +1279,7 @@ def posting_queue(
                         "video_path": r.video_path,
                         "package_dir": r.package_dir,
                         "content_hash": r.content_hash,
+                        "account_slot": r.account_slot,
                     }
                 )
                 hashes.append(r.content_hash)
@@ -957,3 +1687,86 @@ def demo_seed_top3(db: Session = Depends(get_db), _user: str = Depends(require_o
         ),
     ]
     return ingest_discovered(DiscoverBatch(campaigns=sample, source="demo"), db, _user)
+
+
+@router.post("/operator/clear-demo")
+def clear_demo_data(db: Session = Depends(get_db), _user: str = Depends(require_operator)):
+    """Remove seeded demo campaigns so Operator Mode only shows real CR scans."""
+    demo_ids = ("demo-voltpop", "demo-learnhub", "demo-reactco", "demo-bad")
+    demo_names = {
+        "VoltPop Summer Push",
+        "LearnHub Story Explainer",
+        "ReactCo Commentary Drop",
+        "Exhausted Fake Engage",
+    }
+    rows = db.query(DiscoveredCampaign).all()
+    removed = 0
+    for r in rows:
+        if (
+            (r.external_id or "") in demo_ids
+            or r.name in demo_names
+            or (r.raw_payload or {}).get("source") == "demo"
+            or str((r.raw_payload or {}).get("external_id") or "").startswith("demo-")
+        ):
+            db.delete(r)
+            removed += 1
+    camp_removed = 0
+    for c in db.query(Campaign).all():
+        if c.name not in demo_names:
+            continue
+        db.query(CampaignRequirement).filter(CampaignRequirement.campaign_id == c.id).delete()
+        db.delete(c)
+        camp_removed += 1
+    db.commit()
+    return {
+        "removed_discovered": removed,
+        "removed_campaigns": camp_removed,
+        "next": "Open Content Rewards logged-in → ClipOps extension → Scan campaigns",
+    }
+
+
+class PasteBriefIn(BaseModel):
+    """Manual fallback when DOM scan misses — paste a real CR brief."""
+
+    name: Optional[str] = None
+    brief_text: str
+    external_url: Optional[str] = None
+    external_id: Optional[str] = None
+
+
+@router.post("/operator/paste-brief")
+def paste_brief(
+    body: PasteBriefIn,
+    db: Session = Depends(get_db),
+    _user: str = Depends(require_operator),
+):
+    """Ingest one real campaign from pasted brief text (no demo)."""
+    text = (body.brief_text or "").strip()
+    if len(text) < 20:
+        raise HTTPException(400, "Paste a fuller campaign brief (at least ~20 chars)")
+    parsed = parse_campaign_brief(text)
+    item = DiscoveredItem(
+        external_id=body.external_id or f"paste-{hash(text) & 0xFFFFFFFF:x}",
+        external_url=body.external_url or get_settings().content_rewards_url,
+        name=body.name or parsed.name or text.splitlines()[0][:120],
+        brand=parsed.brand,
+        cpm=parsed.cpm,
+        total_budget=parsed.total_budget,
+        budget_utilised=parsed.budget_utilised,
+        required_geo=parsed.required_geo,
+        required_hashtags=parsed.required_hashtags,
+        required_tags=parsed.required_tags,
+        required_disclosure=parsed.required_disclosure,
+        min_duration_sec=parsed.min_duration_sec or 15,
+        max_duration_sec=parsed.max_duration_sec or 60,
+        requires_logo=parsed.requires_logo,
+        requires_cta=parsed.requires_cta,
+        has_rights=parsed.has_rights,
+        unclear_instructions=parsed.unclear_instructions,
+        requires_fake_engagement=parsed.requires_fake_engagement,
+        misleading_content=parsed.misleading_content,
+        brief_text=text,
+        raw={"source": "paste_brief"},
+    )
+    out = ingest_discovered(DiscoverBatch(campaigns=[item], source="paste_brief"), db, _user)
+    return out

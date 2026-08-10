@@ -6,6 +6,11 @@ from dataclasses import dataclass, field, asdict
 from typing import Any
 
 from packages.campaign_parser.scoring import expected_profit, score_campaign
+from packages.shared_types.constants import DEFAULT_PRODUCTION_COST_PER_CLIP
+
+# Below this stated approval rate a campaign is not worth working: at 3%, 97 of
+# every 100 clips earn nothing regardless of how well they perform.
+LOW_APPROVAL_REJECT = 0.20
 
 
 @dataclass
@@ -20,10 +25,15 @@ class RankedCampaign:
     min_duration_sec: int
     max_duration_sec: int
     opportunity_score: float
-    expected_profit: float
+    # None when CPM is unknown — no rate, no forecast.
+    expected_profit: float | None
     is_eligible: bool
     reject_reasons: list[str] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)
+    # Ceiling on total takeout from this campaign (per-clipper cap or remaining budget).
+    max_earnings: float | None = None
+    binding_limit: str | None = None
+    views_to_cap: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -114,9 +124,20 @@ def rank_discovered_campaigns(
             budget_utilisation=utilisation,
         )
 
-        base_approval = float(item.get("approval_probability", historical_approval_rate or 0.7))
+        # A campaign-stated approval rate is hard evidence and outranks both the
+        # 0.7 default and the operator's own history.
+        stated_approval = item.get("approval_probability")
+        base_approval = float(
+            stated_approval
+            if stated_approval is not None
+            else (historical_approval_rate or 0.7)
+        )
         base_views = float(item.get("expected_views", historical_avg_views or 10000))
-        if historical_approval_rate is not None and "approval_probability" not in item:
+        if (
+            historical_approval_rate is not None
+            and stated_approval is None
+            and "approval_probability" not in item
+        ):
             base_approval = 0.6 * 0.7 + 0.4 * historical_approval_rate
         if historical_avg_views is not None and "expected_views" not in item:
             base_views = 0.6 * 10000 + 0.4 * historical_avg_views
@@ -125,6 +146,8 @@ def rank_discovered_campaigns(
             cpm=item.get("cpm"),
             total_budget=total_budget,
             budget_utilised=utilised if total_budget else None,
+            max_payout=item.get("max_payout"),
+            campaign_age_days=item.get("campaign_age_days"),
             audience_match=float(item.get("audience_match_score", 70)),
             footage_quality=float(item.get("footage_quality_score", 70)),
             requirement_simplicity=float(item.get("requirement_simplicity_score", 70)),
@@ -132,7 +155,9 @@ def rank_discovered_campaigns(
             competition=float(item.get("competition_score", 50)),
             approval_probability=base_approval,
             expected_views=base_views,
-            estimated_production_cost=float(item.get("estimated_production_cost", 15)),
+            estimated_production_cost=float(
+                item.get("estimated_production_cost", DEFAULT_PRODUCTION_COST_PER_CLIP)
+            ),
             account_geos=account_geos,
             required_geo=item.get("required_geo") or [],
             has_rights=item.get("has_rights", True),
@@ -140,6 +165,46 @@ def rank_discovered_campaigns(
             requires_fake_engagement=item.get("requires_fake_engagement", False),
             misleading_content=item.get("misleading_content", False),
         )
+        # Can this operator actually do the work? A high CPM on a UGC-only,
+        # wrong-platform or gated campaign is worth nothing.
+        from packages.campaign_parser.parser import capability_reject_reasons
+
+        cap_text = f"{item.get('name') or ''}\n{item.get('brief_text') or ''}"
+        cap_reasons = capability_reject_reasons(
+            cap_text,
+            operator_platforms=item.get("operator_platforms") or ["tiktok"],
+            can_produce_ugc=bool(item.get("can_produce_ugc")),
+        )
+        if cap_reasons:
+            result.is_recommended = False
+            for r in cap_reasons:
+                if r not in result.reject_reasons:
+                    result.reject_reasons.append(r)
+
+        # A campaign whose brief has not been read cannot be recommended. The
+        # discover card carries a rate but defers the rules elsewhere, so its
+        # numbers look strong precisely when the least is known about it - one
+        # such campaign topped the ranking while actually requiring the operator
+        # to film original content in Dutch for a Netherlands-only audience.
+        if not item.get("brief_fetched"):
+            result.is_recommended = False
+            msg = "Brief not read yet - open the campaign and capture it before judging"
+            if msg not in result.reject_reasons:
+                result.reject_reasons.append(msg)
+            # No verified rules means no basis for a per-clip forecast.
+            result.expected_profit = None
+
+        # A stated approval rate this low means most work is done for nothing,
+        # whatever the CPM. Surfaced as a rejection so it cannot reach the top 3.
+        if stated_approval is not None and stated_approval < LOW_APPROVAL_REJECT:
+            result.is_recommended = False
+            msg = (
+                f"Campaign approves only {stated_approval:.0%} of submissions - "
+                "most clips would earn nothing"
+            )
+            if msg not in result.reject_reasons:
+                result.reject_reasons.append(msg)
+
         if not eligible:
             result.is_recommended = False
             # merge unique reasons
@@ -174,6 +239,9 @@ def rank_discovered_campaigns(
                 is_eligible=result.is_recommended,
                 reject_reasons=result.reject_reasons,
                 raw=item,
+                max_earnings=result.max_earnings,
+                binding_limit=result.binding_limit,
+                views_to_cap=result.views_to_cap,
             )
         )
 

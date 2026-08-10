@@ -3,14 +3,30 @@
 PLATFORM_FEE_MULTIPLIER = 0.93
 BUDGET_UTILISATION_REJECT_THRESHOLD = 0.90
 
+# CPM that scores 100, on a square-root curve. Observed Content Rewards rates run
+# $0.70–$10. A linear $15 ceiling squashed every real campaign into single digits;
+# a linear $3 ceiling made $3 and $10 tie. The curve separates the low end (where
+# most campaigns sit) while still rewarding a genuinely exceptional rate.
+CPM_SCORE_CEILING = 10.0
+
+# Marginal cash cost of producing one clip on your own hardware — electricity and
+# wear, not your time. The old £15 default assumed paid tooling and made every
+# campaign under ~$2.30 CPM look loss-making, which rejected most viable work.
+DEFAULT_PRODUCTION_COST_PER_CLIP = 0.50
+
 SCORE_WEIGHTS = {
+    "cpm": 25,
     "remaining_budget": 20,
-    "cpm": 15,
-    "audience_match": 20,
+    # Whop states an approval rate per campaign. It was previously used only in
+    # the expected-value calculation, so a campaign approving a quarter of
+    # submissions scored the same as one approving nearly all of them.
+    "approval_probability": 15,
     "footage_quality": 15,
-    "requirement_simplicity": 10,
-    "viral_potential": 15,
-    "competition": 5,
+    "competition": 10,
+    "audience_match": 10,
+    # How long the campaign will survive at its current burn rate. A generous
+    # rate on a budget that empties this week is worth little.
+    "longevity": 5,
 }
 
 SEGMENT_SCORE_KEYS = [

@@ -237,6 +237,20 @@ def approve_version(
     version = db.get(ClipVersion, version_id)
     if not version:
         raise HTTPException(404, "Version not found")
+
+    # Block clips whose hook and caption came from placeholder text. This also
+    # covers the draft-promotion path below, which exports without re-rendering.
+    if version.transcript_engine == "heuristic":
+        if not body.override_reason:
+            raise HTTPException(
+                400,
+                "BLOCKED: this clip's captions and on-screen hook come from a "
+                "placeholder transcript, not real speech. Speech recognition "
+                "failed for this asset — check /health (media.cuda) and reprocess, "
+                "or pass override_reason to approve anyway.",
+            )
+        version.fabrication_override_reason = body.override_reason
+
     check = (
         db.query(ComplianceCheck)
         .filter(ComplianceCheck.clip_version_id == version_id)
@@ -624,6 +638,8 @@ def approval_card(
         "preview_url": preview_url,
         "compliance_passed": check.passed if check else None,
         "compliance_checks": check.checks if check else [],
+        "transcript_engine": version.transcript_engine,
+        "fabricated_transcript": version.transcript_engine == "heuristic",
         "ai_score": score,
         "predicted_performance": pred,
         "expected_earnings": float(campaign.expected_profit)

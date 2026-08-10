@@ -48,7 +48,23 @@ def create_access_token(subject: str) -> str:
 def require_operator(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> str:
+    """Require JWT in production. Local/dev allows open access (no login)."""
     settings = get_settings()
+    env = (settings.clipops_env or "development").lower()
+    if env != "production":
+        if credentials is None:
+            return settings.operator_email
+        # Still accept a valid token if provided; ignore bad ones locally
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                settings.jwt_secret,
+                algorithms=[settings.jwt_algorithm],
+            )
+            return str(payload.get("sub") or settings.operator_email)
+        except JWTError:
+            return settings.operator_email
+
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:

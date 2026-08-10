@@ -55,6 +55,11 @@ def on_startup() -> None:
     for msg in report.messages:
         print(f"[clipops-security] {msg}")
     init_db()
+    # Print the resolved path so a mis-set DATABASE_URL is visible immediately
+    # rather than showing up as mysteriously missing campaigns.
+    from app.db import engine
+
+    print(f"[clipops-db] {engine.url}")
 
 
 @app.get("/health", response_model=HealthOut)

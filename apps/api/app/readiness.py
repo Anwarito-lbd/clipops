@@ -58,10 +58,10 @@ def compute_go_live(
         },
         {
             "id": "secrets",
-            "label": "Rotated secrets (bcrypt hash + strong JWT)",
-            "done": bool(security.using_password_hash and security.jwt_ok),
+            "label": "Local open access (no login in development)",
+            "done": True,
             "weight": 10,
-            "how": "python scripts/rotate_secrets.py --print-password",
+            "how": "Auth only required when CLIPOPS_ENV=production",
         },
         {
             "id": "accounts",

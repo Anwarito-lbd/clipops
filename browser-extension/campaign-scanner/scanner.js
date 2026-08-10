@@ -1,5 +1,46 @@
 /** Campaign scanner — reads campaign cards from the logged-in CR DOM. */
 
+/** A URL that points at one campaign, not the feed it was listed on. */
+function clipopsCampaignLink(card) {
+  const here = location.href.split("?")[0].replace(/\/$/, "");
+  const isOwnPage = (href) => {
+    if (!href) return false;
+    const clean = href.split("?")[0].replace(/\/$/, "");
+    // Reject the feed itself and bare-origin links.
+    if (clean === here) return false;
+    if (/\/(discover|campaigns?|explore|home)$/i.test(clean)) return false;
+    try {
+      if (!new URL(href).pathname.replace(/^\/|\/$/g, "")) return false;
+    } catch {
+      return false;
+    }
+    return true;
+  };
+
+  // The card may itself be a link, sit inside one, or carry the target in a
+  // data attribute when it is a JS-navigated div.
+  const candidates = [];
+  if (card.tagName === "A") candidates.push(card.href);
+  const ancestor = card.closest?.("a[href]");
+  if (ancestor) candidates.push(ancestor.href);
+  for (const attr of ["data-href", "data-url", "data-link", "href"]) {
+    const v = card.getAttribute?.(attr);
+    if (v) {
+      try {
+        candidates.push(new URL(v, location.origin).href);
+      } catch {
+        /* not a usable url */
+      }
+    }
+  }
+  card.querySelectorAll?.("a[href]").forEach((a) => candidates.push(a.href));
+
+  // Prefer links that look campaign-specific over any other internal link.
+  const usable = candidates.filter(isOwnPage);
+  const specific = usable.find((h) => /campaign|reward|\/c\/|\/r\//i.test(h));
+  return specific || usable[0] || null;
+}
+
 function clipopsScanCampaigns() {
   const campaigns = [];
   const seen = new Set();
@@ -49,13 +90,18 @@ function clipopsScanCampaigns() {
       if (!name || seen.has(name)) return;
       seen.add(name);
 
-      const linkEl =
-        card.querySelector("a[href*='campaign' i], a[href*='reward' i], a[href]") || null;
-      const link = linkEl?.href || location.href;
+      // Each campaign needs its OWN url. Falling back to location.href stamped
+      // every card with the discover-feed address, which made them
+      // indistinguishable and left no way to reach a campaign's brief page.
+      const link = clipopsCampaignLink(card);
 
-      const cpmMatch =
-        text.match(/CPM[^0-9$£€]*[\$£€]?\s*([\d]+(?:\.\d+)?)/i) ||
-        text.match(/[\$£€]\s*([\d]+(?:\.\d+)?)\s*(?:\/\s*)?CPM/i);
+      // When the DOM lumps several campaigns into one node, no figure in it can
+      // be attributed to a specific campaign — report none rather than another
+      // campaign's rate.
+      const merged = looksLikeMultipleCampaigns(text);
+      const cpm = merged ? null : extractCpm(text);
+      const budget = merged ? { total: null, utilised: null } : extractBudget(text);
+
       const remainingMatch =
         text.match(/(?:budget\s+)?remaining[^0-9%]*(\d{1,3})\s*%/i) ||
         text.match(/(\d{1,3})\s*%\s*(?:left|remaining)/i);
@@ -67,8 +113,11 @@ function clipopsScanCampaigns() {
       if (budgetPct == null && utilisedMatch) {
         budgetPct = 100 - parseFloat(utilisedMatch[1]);
       }
+      // Prefer the "$used/$total" progress display when it parsed.
+      if (budgetPct == null && budget.total && budget.utilised != null) {
+        budgetPct = Math.round((1 - budget.utilised / budget.total) * 1000) / 10;
+      }
 
-      const budgetTotal = text.match(/(?:total\s+)?budget[^0-9$£€]*[\$£€]?\s*([\d,]+(?:\.\d+)?)/i);
       const geoMatches = Array.from(
         text.matchAll(/\b(?:US|CA|UK|GB|AU|EU|WW|Worldwide)\b/g)
       ).map((m) => m[0]);
@@ -81,10 +130,9 @@ function clipopsScanCampaigns() {
         external_url: link,
         name,
         brand: null,
-        cpm: cpmMatch ? parseFloat(cpmMatch[1]) : parseMoney(text),
-        total_budget: budgetTotal
-          ? parseFloat(budgetTotal[1].replace(/,/g, ""))
-          : null,
+        cpm,
+        total_budget: budget.total,
+        budget_utilised: budget.utilised,
         budget_remaining_pct: budgetPct,
         required_geo: [...new Set(geoMatches)],
         brief_text: text.slice(0, 4000),
@@ -97,8 +145,14 @@ function clipopsScanCampaigns() {
         misleading_content: /misleading|false claim|deceptive/i.test(text),
         requires_logo: /logo\s+(required|must)|must\s+include\s+logo/i.test(text),
         requires_cta: /\bCTA\b|call to action|must\s+include\s+(cta|link)/i.test(text),
-        unclear_instructions: /TBD|see discord|unclear|contact manager/i.test(text),
-        raw: { snippet: text.slice(0, 500), selector_hit: true },
+        unclear_instructions:
+          merged || /TBD|see discord|unclear|contact manager/i.test(text),
+        raw: {
+          snippet: text.slice(0, 500),
+          selector_hit: true,
+          multiple_campaigns_in_card: merged,
+          rates_seen: merged ? distinctRates(text) : undefined,
+        },
       });
     } catch (err) {
       console.warn("ClipOps scan card error", err);

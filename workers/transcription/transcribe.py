@@ -10,15 +10,17 @@ from pathlib import Path
 
 
 def _heuristic_transcript(video_path: str, duration: float | None = None) -> dict:
+    """Placeholder used only when every ASR engine failed.
+
+    The text is deliberately not plausible speech. It previously invented
+    convincing lines ("Wait until you see this.") which flowed straight into
+    published captions and burned-in hooks whenever the GPU path broke — a clip
+    would look finished while saying something the speaker never said. Keeping
+    it obviously broken makes an ASR failure impossible to miss.
+    """
     dur = duration or 60.0
     words = []
-    text_parts = [
-        "Wait until you see this.",
-        "Here is what nobody tells you.",
-        "The surprising part is next.",
-        "That changes everything.",
-        "Here is the payoff.",
-    ]
+    text_parts = ["[NO TRANSCRIPT - SPEECH RECOGNITION UNAVAILABLE]"] * 5
     t = 0.0
     segments = []
     for i, sentence in enumerate(text_parts):

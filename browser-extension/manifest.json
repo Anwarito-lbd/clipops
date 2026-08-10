@@ -3,7 +3,7 @@
   "name": "ClipOps Operator",
   "version": "0.2.0",
   "description": "Read your logged-in Content Rewards session, extract briefs/assets, assist submission and payout alerts. Never auto-posts or auto-submits.",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "tabs"],
   "host_permissions": [
     "http://127.0.0.1:8000/*",
     "http://localhost:8000/*",

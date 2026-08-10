@@ -41,11 +41,16 @@ def build_posting_packages(
     """Map three account versions into an operator posting queue."""
     render_by_version = {r["clip_version_id"]: r for r in renders}
     packages: list[PostingPackage] = []
-    for i, v in enumerate(versions[:3], start=1):
-        style = v.get("style") or ACCOUNT_SLOTS[i]["style"]
-        slot = next(
+    # No cap: more clips are selected than there are accounts, so slicing to 3
+    # discarded real output. `i` can now exceed len(ACCOUNT_SLOTS), so every
+    # lookup below must stay in range.
+    for i, v in enumerate(versions, start=1):
+        fallback_slot = ((i - 1) % len(ACCOUNT_SLOTS)) + 1
+        style = v.get("style") or ACCOUNT_SLOTS[fallback_slot]["style"]
+        # Prefer the slot the renderer actually used.
+        slot = v.get("account_slot") or next(
             (s for s, meta in ACCOUNT_SLOTS.items() if meta["style"] == style),
-            i,
+            fallback_slot,
         )
         render = render_by_version.get(v["id"], {})
         comp = compliance_by_version.get(v["id"], {})
@@ -58,7 +63,14 @@ def build_posting_packages(
                 campaign_id=v.get("campaign_id", ""),
                 clip_version_id=v["id"],
                 account_slot=slot,
-                account_label=ACCOUNT_SLOTS.get(slot, ACCOUNT_SLOTS[1])["label"],
+                # Degrade to a generic label for slots beyond the known set —
+                # mislabelling slot 4 as "TikTok 1" would send the clip to the
+                # wrong account.
+                account_label=(
+                    ACCOUNT_SLOTS[slot]["label"]
+                    if slot in ACCOUNT_SLOTS
+                    else f"TikTok {slot}"
+                ),
                 style=style,
                 video_path=render.get("video_path") or render.get("package_dir"),
                 caption=caption,
@@ -67,7 +79,9 @@ def build_posting_packages(
                 compliance_passed=passed,
                 compliance_total=total,
                 duplicate_safe=True,
-                status="READY" if render else "WAITING_POST",
+                # A Render row exists even for failed renders. Only a content
+                # hash proves a real, non-empty video was produced.
+                status="READY" if render.get("content_hash") else "WAITING_POST",
             )
         )
     return packages

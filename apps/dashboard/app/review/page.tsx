@@ -22,6 +22,8 @@ type Card = {
   predicted_performance: string;
   expected_earnings: number | null;
   compliance_passed: boolean | null;
+  transcript_engine: string | null;
+  fabricated_transcript: boolean;
   video_path: string | null;
   preview_url: string | null;
   open_campaign: string | null;
@@ -127,11 +129,13 @@ export default function ReviewPage() {
     if (campaignId) refresh(campaignId);
   }, [campaignId]);
 
-  async function approve(id: string) {
+  async function approve(id: string, overrideReason?: string) {
     try {
       await api(`/api/versions/${id}/approve`, {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify(
+          overrideReason ? { override_reason: overrideReason } : {}
+        ),
       });
       await refresh(campaignId);
       setMsg("Approved — render queued");
@@ -195,6 +199,19 @@ export default function ReviewPage() {
                 <StatusBadge status={v.status} />
               </div>
               <PreviewPlayer previewUrl={card?.preview_url || null} />
+              {card?.fabricated_transcript && (
+                <div className="rounded-md border-2 border-red-500 bg-red-500/10 p-2 text-xs">
+                  <div className="font-semibold text-red-500">
+                    Placeholder captions — not real speech
+                  </div>
+                  <p className="mt-1 text-muted-foreground">
+                    Speech recognition failed for this footage, so the caption
+                    and on-screen hook are filler text. Do not submit this.
+                    Check <code>/health</code> for <code>media.cuda</code>, then
+                    reprocess the asset.
+                  </p>
+                </div>
+              )}
               <div className="text-xs text-muted-foreground">
                 {card?.account || "—"} · {v.duration_band}s · AI{" "}
                 {card?.ai_score?.toFixed?.(0) ?? "—"} ·{" "}
@@ -215,12 +232,28 @@ export default function ReviewPage() {
                   ` · EV £${card.expected_earnings.toFixed(2)}`}
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => approve(v.id)}
-                  className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground"
-                >
-                  Approve
-                </button>
+                {card?.fabricated_transcript ? (
+                  <button
+                    onClick={() => {
+                      const reason = window.prompt(
+                        "These captions are placeholder text, not real speech.\n\n" +
+                          "Approving means posting a clip whose on-screen hook the " +
+                          "speaker never said. Type a reason to override:"
+                      );
+                      if (reason && reason.trim()) approve(v.id, reason.trim());
+                    }}
+                    className="rounded-md border-2 border-red-500 px-2 py-1 text-xs font-medium text-red-500"
+                  >
+                    Approve anyway
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => approve(v.id)}
+                    className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground"
+                  >
+                    Approve
+                  </button>
+                )}
                 <button
                   onClick={() => reject(v.id)}
                   className="rounded-md border border-border px-2 py-1 text-xs"

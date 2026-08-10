@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
 from packages.shared_types.constants import (
     BUDGET_UTILISATION_REJECT_THRESHOLD,
+    CPM_SCORE_CEILING,
+    DEFAULT_PRODUCTION_COST_PER_CLIP,
     PLATFORM_FEE_MULTIPLIER,
     SCORE_WEIGHTS,
 )
@@ -15,11 +18,18 @@ from packages.shared_types.constants import (
 @dataclass
 class ScoreResult:
     score: float
-    expected_profit: float
+    # None when CPM is unknown — an unparsed rate must not read as a real forecast.
+    expected_profit: float | None
     is_recommended: bool
     reject_reasons: list[str] = field(default_factory=list)
     factor_scores: dict[str, float] = field(default_factory=dict)
     budget_utilisation: float | None = None
+    # Most you can take out of this campaign, and what bounds it.
+    max_earnings: float | None = None
+    binding_limit: str | None = None
+    views_to_cap: int | None = None
+    # Non-blocking data-quality notes (unlike reject_reasons, these don't veto).
+    warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -29,6 +39,10 @@ class ScoreResult:
             "reject_reasons": self.reject_reasons,
             "factor_scores": self.factor_scores,
             "budget_utilisation": self.budget_utilisation,
+            "max_earnings": self.max_earnings,
+            "binding_limit": self.binding_limit,
+            "views_to_cap": self.views_to_cap,
+            "warnings": self.warnings,
         }
 
 
@@ -52,11 +66,57 @@ def expected_profit(
     )
 
 
+def campaign_ceiling(
+    *,
+    cpm: float | None,
+    max_payout: float | None,
+    budget_remaining: float | None,
+    approval_probability: float = 0.7,
+    fee_multiplier: float = PLATFORM_FEE_MULTIPLIER,
+) -> dict[str, Any]:
+    """Most you can realistically take out of one campaign.
+
+    Content Rewards caps payout per clipper, so a campaign's worth is bounded by
+    that cap — not by its CPM. Returns the binding limit and the views needed to
+    reach it, which is what decides how many campaigns must run in parallel.
+    """
+    limits: list[tuple[str, float]] = []
+    if max_payout is not None and max_payout > 0:
+        limits.append(("per_clipper_cap", float(max_payout)))
+    if budget_remaining is not None and budget_remaining > 0:
+        limits.append(("campaign_budget", float(budget_remaining)))
+
+    if not limits:
+        return {
+            "max_earnings": None,
+            "binding_limit": None,
+            "views_to_cap": None,
+            "note": "No payout cap or remaining budget known — treat as unbounded.",
+        }
+
+    binding, ceiling = min(limits, key=lambda kv: kv[1])
+    views_to_cap = None
+    if cpm and cpm > 0:
+        # earnings = views/1000 * cpm * fee * approval  ->  solve for views
+        per_view = (cpm / 1000.0) * fee_multiplier * max(approval_probability, 0.01)
+        if per_view > 0:
+            views_to_cap = round(ceiling / per_view)
+    return {
+        "max_earnings": round(ceiling, 2),
+        "binding_limit": binding,
+        "views_to_cap": views_to_cap,
+        "note": f"Capped at {ceiling:.2f} by {binding.replace('_', ' ')}.",
+    }
+
+
 def score_campaign(
     *,
     cpm: float | None,
     total_budget: float | None,
     budget_utilised: float | None,
+    max_payout: float | None = None,
+    # Days since the campaign was posted, used with spend to derive burn rate.
+    campaign_age_days: float | None = None,
     audience_match: float = 70.0,
     footage_quality: float = 70.0,
     requirement_simplicity: float = 70.0,
@@ -64,7 +124,7 @@ def score_campaign(
     competition: float = 50.0,
     approval_probability: float = 0.7,
     expected_views: float = 10_000,
-    estimated_production_cost: float = 15.0,
+    estimated_production_cost: float = DEFAULT_PRODUCTION_COST_PER_CLIP,
     account_geos: list[str] | None = None,
     required_geo: list[str] | None = None,
     has_rights: bool = True,
@@ -75,6 +135,7 @@ def score_campaign(
     tiktok_policy_risk: bool = False,
 ) -> ScoreResult:
     reasons: list[str] = []
+    warnings: list[str] = []
     account_geos = account_geos or ["US", "CA"]
     required_geo = required_geo or []
 
@@ -106,18 +167,38 @@ def score_campaign(
     if tiktok_policy_risk:
         reasons.append("Required claims could violate TikTok rules")
 
-    cpm_value = cpm or 0.0
-    # Map CPM roughly: $0 → 0, $5 → 50, $15+ → 100
-    cpm_score = _clamp((cpm_value / 15.0) * 100)
+    # An unknown CPM is not a zero CPM. Score it as neutral-low so it ranks below
+    # a campaign with a known good rate, without pretending the rate is £0.
+    if cpm is None:
+        cpm_score = 25.0
+        reasons_soft = "CPM could not be read from the brief — verify before committing"
+    else:
+        cpm_score = _clamp(100.0 * math.sqrt(min(cpm, CPM_SCORE_CEILING) / CPM_SCORE_CEILING))
+        reasons_soft = None
+
+    # A stated approval rate is hard evidence about whether work turns into
+    # money. 70% is the platform-wide assumption used when none is published.
+    approval_score = _clamp(approval_probability * 100.0)
+
+    # How long the campaign survives at its current burn rate. Age comes from the
+    # brief; without it, a campaign that has barely spent anything scores well
+    # because there is budget left to win.
+    if campaign_age_days and campaign_age_days > 0 and utilisation is not None:
+        burn_per_day = utilisation / campaign_age_days
+        days_left = (1.0 - utilisation) / burn_per_day if burn_per_day > 0 else 999.0
+        # 30+ days of runway is as good as it needs to be.
+        longevity_score = _clamp((min(days_left, 30.0) / 30.0) * 100.0)
+    else:
+        longevity_score = _clamp((1.0 - (utilisation or 0.0)) * 100.0)
 
     factor_scores = {
-        "remaining_budget": remaining_budget_score,
         "cpm": cpm_score,
-        "audience_match": _clamp(audience_match),
+        "remaining_budget": remaining_budget_score,
+        "approval_probability": approval_score,
         "footage_quality": _clamp(footage_quality),
-        "requirement_simplicity": _clamp(requirement_simplicity),
-        "viral_potential": _clamp(viral_potential),
         "competition": _clamp(competition),
+        "audience_match": _clamp(audience_match),
+        "longevity": longevity_score,
     }
 
     weighted = 0.0
@@ -125,18 +206,45 @@ def score_campaign(
         weighted += factor_scores[key] * (weight / 100.0)
     score = round(_clamp(weighted), 2)
 
-    profit = expected_profit(
+    # No CPM means no forecast. A guessed profit reads as fact once it's on screen.
+    if cpm is None:
+        profit = None
+    else:
+        profit = round(
+            expected_profit(
+                approval_probability=approval_probability,
+                expected_views=expected_views,
+                cpm=cpm,
+                production_cost=estimated_production_cost,
+            ),
+            4,
+        )
+
+    budget_remaining = None
+    if total_budget and total_budget > 0:
+        budget_remaining = total_budget - (budget_utilised or 0.0)
+
+    ceiling = campaign_ceiling(
+        cpm=cpm,
+        max_payout=max_payout,
+        budget_remaining=budget_remaining,
         approval_probability=approval_probability,
-        expected_views=expected_views,
-        cpm=cpm_value,
-        production_cost=estimated_production_cost,
     )
+
+    if reasons_soft:
+        warnings.append(reasons_soft)
+    if ceiling["max_earnings"] is not None:
+        warnings.append(ceiling["note"])
 
     return ScoreResult(
         score=score,
-        expected_profit=round(profit, 4),
+        expected_profit=profit,
         is_recommended=len(reasons) == 0,
         reject_reasons=reasons,
         factor_scores=factor_scores,
         budget_utilisation=utilisation,
+        max_earnings=ceiling["max_earnings"],
+        binding_limit=ceiling["binding_limit"],
+        views_to_cap=ceiling["views_to_cap"],
+        warnings=warnings,
     )

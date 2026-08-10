@@ -7,6 +7,38 @@ from typing import Any
 
 from workers.clip_ranking.rank import rank_segments
 from workers.clip_ranking.hooks import classify_hook
+from workers.clip_ranking.llm_rank import LLMUnavailable, find_highlights
+
+
+def _highlight_to_segment(h: dict[str, Any]) -> dict[str, Any]:
+    """Adapt an LLM highlight into the segment shape the pipeline expects.
+
+    The LLM gives one authoritative 0-100 viral score plus the hook line and a
+    rationale. There are no sub-scores to fill the regex factor slots with, so
+    they are seeded from the overall score and the real signal is carried in
+    llm_score / hook_sentence / virality_reason.
+    """
+    score = float(h.get("score", 0))
+    return {
+        "start_sec": float(h["start_time"]),
+        "end_sec": float(h["end_time"]),
+        "text": h.get("hook_sentence") or h.get("title") or "",
+        "scores": {
+            "strong_opening": score,
+            "curiosity": score,
+            "conflict_surprise": score,
+            "emotional_reaction": score,
+            "clear_payoff": score,
+            "standalone_clarity": score,
+            "campaign_relevance": score,
+        },
+        "total_score": score,
+        "llm_score": score,
+        "llm_title": h.get("title"),
+        "hook_sentence": h.get("hook_sentence"),
+        "virality_reason": h.get("virality_reason"),
+        "content_type": h.get("content_type"),
+    }
 
 
 @dataclass
@@ -25,6 +57,10 @@ class ClipRankReport:
     predicted_performance: str  # HIGH | MEDIUM | LOW
     hook_type: str
     explanations: list[str]
+    # Which ranker produced this, and the LLM's output when it did.
+    ranker: str = "regex"
+    hook_sentence: str | None = None
+    virality_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -41,8 +77,39 @@ class ClipRankingService:
         select: int = 5,
         preferred_length_band: str | None = None,
         preferred_hooks: list[str] | None = None,
+        min_sec: float = 15.0,
+        max_sec: float = 25.0,
+        use_llm: bool = True,
     ) -> dict[str, Any]:
-        raw = rank_segments(transcript, scenes, campaign_name=campaign_name)
+        # Prefer the LLM ranker. Keyword counting cannot tell an opinion bomb
+        # from small talk — measured on a seeded transcript, the regex ranker
+        # scored "Weather's been alright" above every substantive moment.
+        ranker = "regex"
+        llm_error: str | None = None
+        raw: list[dict[str, Any]] = []
+
+        # A heuristic transcript is placeholder text, not speech. Asking a model
+        # to find viral moments in it burns API calls and latency to rank
+        # nothing, and such clips are blocked from export anyway.
+        if use_llm and (transcript or {}).get("engine") == "heuristic":
+            use_llm = False
+            llm_error = "skipped: transcript is placeholder text, not real speech"
+
+        if use_llm:
+            try:
+                highlights = find_highlights(
+                    transcript, want=select, min_sec=min_sec, max_sec=max_sec
+                )
+                raw = [_highlight_to_segment(h) for h in highlights]
+                ranker = "llm"
+            except LLMUnavailable as exc:
+                llm_error = str(exc)
+            except Exception as exc:  # noqa: BLE001 - never fail the pipeline on ranking
+                llm_error = f"{type(exc).__name__}: {exc}"
+
+        if not raw:
+            # Degrade to keyword ranking rather than failing the run.
+            raw = rank_segments(transcript, scenes, campaign_name=campaign_name)
         reports: list[dict[str, Any]] = []
         for i, seg in enumerate(raw[:keep]):
             scores = seg.get("scores") or {}
@@ -75,16 +142,26 @@ class ClipRankingService:
             conflict = float(scores.get("conflict_surprise", 50))
             clarity = float(scores.get("standalone_clarity", 50))
 
-            total = (
-                hook_score * 0.18
-                + curiosity * 0.12
-                + conflict * 0.12
-                + emotion * 0.12
-                + payoff * 0.18
-                + clarity * 0.12
-                + fit * 0.10
-                + duration_score * 0.06
-            ) - dead_air * 0.05
+            if seg.get("llm_score") is not None:
+                # Trust the model's judgement. Re-deriving a score from the
+                # stand-in sub-scores would just recover the same number, and
+                # the dead-air proxy is meaningless for an LLM-chosen window.
+                total = float(seg["llm_score"])
+                if preferred_length_band and band == preferred_length_band:
+                    total = min(100.0, total + 2)
+                if preferred_hooks and hook_type in preferred_hooks:
+                    total = min(100.0, total + 2)
+            else:
+                total = (
+                    hook_score * 0.18
+                    + curiosity * 0.12
+                    + conflict * 0.12
+                    + emotion * 0.12
+                    + payoff * 0.18
+                    + clarity * 0.12
+                    + fit * 0.10
+                    + duration_score * 0.06
+                ) - dead_air * 0.05
             total = round(max(0.0, min(100.0, total)), 2)
 
             if total >= 80:
@@ -109,10 +186,19 @@ class ClipRankingService:
                 predicted_performance=pred,
                 hook_type=hook_type,
                 explanations=[
-                    f"hook_type={hook_type}",
-                    f"duration_band={band}",
-                    f"words={words}",
+                    e
+                    for e in [
+                        f"ranker={ranker}",
+                        f"hook_type={hook_type}",
+                        f"duration_band={band}",
+                        f"words={words}",
+                        seg.get("virality_reason"),
+                    ]
+                    if e
                 ],
+                ranker=ranker,
+                hook_sentence=seg.get("hook_sentence"),
+                virality_reason=seg.get("virality_reason"),
             )
             enriched = {
                 **seg,
@@ -120,6 +206,7 @@ class ClipRankingService:
                 "hook_type": hook_type,
                 "rank_report": report.to_dict(),
                 "total_score": total,
+                "ranker": ranker,
             }
             reports.append(enriched)
 
@@ -130,5 +217,7 @@ class ClipRankingService:
             "selected": selected,
             "select_n": len(selected),
             "keep_n": len(reports),
+            "ranker": ranker,
+            "llm_error": llm_error,
             "note": "Only selected candidates should be rendered",
         }

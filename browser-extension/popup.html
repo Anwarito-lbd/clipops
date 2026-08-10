@@ -5,7 +5,7 @@
     <title>ClipOps Operator</title>
     <style>
       body {
-        width: 320px;
+        width: 340px;
         margin: 0;
         font: 13px/1.4 system-ui, sans-serif;
         background: #14181f;
@@ -49,7 +49,7 @@
         font-size: 11px;
         color: #a8b0bd;
         white-space: pre-wrap;
-        max-height: 140px;
+        max-height: 160px;
         overflow: auto;
       }
       a {
@@ -60,16 +60,18 @@
   <body>
     <header>
       <h1>ClipOps Operator</h1>
-      <p>Reads your logged-in CR tab. You click Join / Post / Submit / Cash-out.</p>
+      <p>Local mode — no ClipOps login. You still click Join / Post / Submit / Cash-out on CR.</p>
     </header>
+
     <div class="actions">
       <button class="primary" id="scan">Scan campaigns → ClipOps</button>
-      <button id="brief">Extract brief + assets</button>
+      <button id="brief">Extract brief + assets (this tab)</button>
+      <button id="briefAll">Extract briefs from ALL open campaign tabs</button>
       <button id="submit">Highlight Submit</button>
       <button id="package">Copy/prefill submission package</button>
       <button id="payout">Check payout + alert</button>
       <button id="cashout">Highlight Cash-out</button>
-      <a href="options.html" target="_blank">Options / API token</a>
+      <a href="options.html" target="_blank">Options</a>
       <a href="http://localhost:3000/operator" target="_blank">Open Operator Mode</a>
     </div>
     <div id="log"></div>

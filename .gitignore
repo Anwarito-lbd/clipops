@@ -12,6 +12,14 @@ apps/api/.venv/
 apps/api/clipops.db
 clipops.db
 *.db
+# Database snapshots (.bak, .rootbak, .orphan-*, .prereset-*) — these don't end
+# in .db so the pattern above misses them.
+*.db.*
 dist/
 .remotion/
 .supabase/
+
+# Vendored third-party checkouts and model weights. openshorts is a 161MB clone
+# carrying its own .git; both are reproducible from vendor/README.md.
+vendor/openshorts/
+vendor/models/

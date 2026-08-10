@@ -22,6 +22,7 @@ from app.db import (
     ClipCandidate,
     ClipVersion,
     ComplianceCheck,
+    ProductionEvent,
     Render,
     SessionLocal,
     SocialAccount,
@@ -40,6 +41,23 @@ def _run_module(module_path: Path, *args: str) -> dict:
             except json.JSONDecodeError:
                 pass
     return {}
+
+
+def band_midpoint_sec(band: str | None, *, default: float = 20.0) -> float:
+    """Representative duration for a "lo-hi" band.
+
+    `duration_band` carries whatever an operator put in an account's
+    preferred_clip_length, so a fixed lookup table raises KeyError on any band
+    outside the three it happens to know - which failed every clip in a run.
+    """
+    try:
+        lo_s, _, hi_s = (band or "").partition("-")
+        lo, hi = float(lo_s), float(hi_s)
+    except ValueError:
+        return default
+    if hi < lo or lo <= 0:
+        return default
+    return (lo + hi) / 2
 
 
 @celery.task(name="clipops.process_asset")
@@ -75,6 +93,7 @@ def process_asset(asset_id: str) -> dict:
         )
         asset.transcript_path = str(work_dir / "transcript.json")
         engine = (transcript or {}).get("engine") or "unknown"
+        asset.transcript_engine = engine
         asset.error_message = (
             f"transcript_engine={engine}"
             + (f"; diarized={transcript.get('diarized')}" if "diarized" in transcript else "")
@@ -117,6 +136,85 @@ def process_asset(asset_id: str) -> dict:
         )
         top_pool = ranked_bundle["candidates"]
         select_n = ranked_bundle["select_n"]
+        ranker_used = ranked_bundle.get("ranker", "regex")
+        if ranked_bundle.get("llm_error"):
+            db.add(
+                ProductionEvent(
+                    campaign_id=campaign.id,
+                    source_asset_id=asset.id,
+                    title=(
+                        "LLM ranker unavailable, fell back to keyword ranking: "
+                        f"{ranked_bundle['llm_error'][:180]}"
+                    ),
+                    status="action_required",
+                )
+            )
+            db.commit()
+
+        # Clear only THIS asset's previous output, and only work the operator
+        # hasn't committed to. The old code deleted every ClipVersion for the
+        # whole campaign, so uploading a second file destroyed the approved and
+        # exported clips from the first — including their renders on disk.
+        # Versions must go before candidates: SQLite has foreign keys off by
+        # default and a bulk delete() does not cascade at the ORM level.
+        old_cand_ids = [
+            r[0]
+            for r in db.query(ClipCandidate.id)
+            .filter(ClipCandidate.source_asset_id == asset.id)
+            .all()
+        ]
+        if old_cand_ids:
+            stale_ids = [
+                r[0]
+                for r in db.query(ClipVersion.id)
+                .filter(
+                    ClipVersion.candidate_id.in_(old_cand_ids),
+                    ClipVersion.status.in_(["REVIEW_REQUIRED", "GENERATED", "FAILED"]),
+                )
+                .all()
+            ]
+            if stale_ids:
+                db.query(Render).filter(
+                    Render.clip_version_id.in_(stale_ids)
+                ).delete(synchronize_session=False)
+                db.query(ComplianceCheck).filter(
+                    ComplianceCheck.clip_version_id.in_(stale_ids)
+                ).delete(synchronize_session=False)
+                db.query(ClipVersion).filter(
+                    ClipVersion.id.in_(stale_ids)
+                ).delete(synchronize_session=False)
+            db.commit()
+
+        # Snap to sentence boundaries before persisting. A ranked segment stops
+        # where the ranker's window ended, which is regularly mid-sentence, and
+        # the clip then reads as unfinished however good the selection was.
+        from workers.clip_ranking.snap import snap_segments
+
+        # Bound by what the campaign allows, not the account's preferred band -
+        # a band ceiling stops a sentence completing for no reason.
+        _snap_req = (
+            db.query(CampaignRequirement)
+            .filter(CampaignRequirement.campaign_id == campaign.id)
+            .order_by(CampaignRequirement.created_at.desc())
+            .first()
+        )
+        top_pool, snap_adjustments = snap_segments(
+            top_pool,
+            transcript,
+            max_sec=float((_snap_req.max_duration_sec if _snap_req else None) or 60.0),
+        )
+        if snap_adjustments:
+            db.add(
+                ProductionEvent(
+                    campaign_id=campaign.id,
+                    source_asset_id=asset.id,
+                    title=(
+                        f"Snapped {len(snap_adjustments)} of {len(top_pool)} clip "
+                        "boundaries to sentence ends"
+                    ),
+                    status="done",
+                )
+            )
 
         db.query(ClipCandidate).filter(ClipCandidate.source_asset_id == asset.id).delete()
         candidates: list[ClipCandidate] = []
@@ -151,6 +249,29 @@ def process_asset(asset_id: str) -> dict:
             .order_by(CampaignRequirement.created_at.desc())
             .first()
         )
+        # Refuse to produce clips against rules that were never fetched. The
+        # discover card carries no hashtags, duration limits or disclosure
+        # wording, so compliance would pass against defaults and the submission
+        # would be rejected for a requirement nobody read.
+        if live_req is not None and (live_req.source or "card") == "card":
+            asset.status = "FAILED"
+            asset.error_message = (
+                "Campaign requirements were never fetched from its brief page. "
+                "Open the campaign in Content Rewards and click the extension's "
+                "Brief button, then reprocess. Producing clips now would enforce "
+                "default rules, not this campaign's."
+            )
+            db.add(
+                ProductionEvent(
+                    campaign_id=campaign.id,
+                    source_asset_id=asset.id,
+                    title="Blocked: campaign brief not captured (click Brief in the extension)",
+                    status="action_required",
+                )
+            )
+            db.commit()
+            return {"error": "requirements_not_fetched", "campaign_id": campaign.id}
+
         snapshot = None
         if live_req:
             snapshot = CampaignRequirement(
@@ -187,12 +308,15 @@ def process_asset(asset_id: str) -> dict:
         from workers.clip_ranking.hooks import classify_hook
 
         selected = [c for c in candidates if c.selected][:select_n]
-        db.query(ClipVersion).filter(ClipVersion.campaign_id == campaign.id).delete()
+        # Stale versions for THIS asset were already cleared above, scoped so
+        # approved/exported work from other uploads survives.
         versions: list[ClipVersion] = []
         # Assign best clips to accounts round-robin — NOT 3 variants of every candidate
         for idx, cand in enumerate(selected):
             account = accounts[idx % len(accounts)]
             hook_type = classify_hook(cand.transcript_excerpt or "")
+            # The ranker's own hook, quoting the speaker, beats any template.
+            report = cand.scores or {}
             copy = generate_account_copy(
                 style=account.style or "dramatic",
                 campaign_name=campaign.name,
@@ -201,6 +325,8 @@ def process_asset(asset_id: str) -> dict:
                 tags=list((live_req.required_tags if live_req else []) or []),
                 disclosure=(live_req.required_disclosure if live_req else None),
                 hook_variant=(idx % 3) + 1,
+                llm_hook=report.get("hook_sentence"),
+                cta=(live_req.cta_text if live_req else None),
             )
             duration = float(cand.end_sec) - float(cand.start_sec)
             if account.preferred_clip_length:
@@ -220,9 +346,12 @@ def process_asset(asset_id: str) -> dict:
                 hook_variant=(idx % 3) + 1,
                 subtitle_style=["bold", "minimal"][idx % 2],
                 caption=copy["caption"],
-                hook_text=copy["hook"],
+                # The LLM picked the exact line that stops the scroll and sized
+                # it for on-screen use; prefer it over the templated hook.
+                hook_text=(cand.scores or {}).get("hook_sentence") or copy["hook"],
                 context_intro=copy.get("context_intro") or hook_type,
                 status="REVIEW_REQUIRED",
+                transcript_engine=engine,
                 requirements_snapshot_id=snapshot.id if snapshot else None,
             )
             db.add(v)
@@ -231,11 +360,13 @@ def process_asset(asset_id: str) -> dict:
         db.commit()
 
         # Production timeline events
-        from app.db import ProductionEvent
-
         for title, st in (
             (f"{len(candidates)} candidate clips generated", "done"),
-            (f"AI selected top {len(selected)} for render", "done"),
+            (
+                f"{'LLM' if ranker_used == 'llm' else 'Keyword'} ranker selected "
+                f"top {len(selected)} for render",
+                "done",
+            ),
             (f"{len(versions)} account versions ready for approval", "action_required"),
         ):
             db.add(
@@ -262,7 +393,7 @@ def process_asset(asset_id: str) -> dict:
                 required_tags=list(req.required_tags) if req else [],
                 required_disclosure=req.required_disclosure if req else None,
                 disclosure_in_video_start=None,
-                duration_sec={"15-25": 20, "25-40": 32, "40-60": 50}[v.duration_band],
+                duration_sec=band_midpoint_sec(v.duration_band),
                 min_duration_sec=req.min_duration_sec if req else 15,
                 max_duration_sec=req.max_duration_sec if req else 60,
                 aspect_ratio="9:16",
@@ -332,11 +463,29 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
         # Draft renders stay on REVIEW_REQUIRED; final export after approve
         is_draft = draft or version.status == "REVIEW_REQUIRED"
 
+        # Never produce a final export whose on-screen hook and caption came from
+        # placeholder text rather than real speech. Drafts still render so the
+        # operator can see how bad it is.
+        if (
+            not is_draft
+            and version.transcript_engine == "heuristic"
+            and not version.fabrication_override_reason
+        ):
+            return {"error": "blocked_heuristic_transcript", "ok": False}
+
         campaign = db.get(Campaign, version.campaign_id)
         candidate = db.get(ClipCandidate, version.candidate_id)
         asset = db.get(SourceAsset, candidate.source_asset_id) if candidate else None
         if not asset or not campaign:
             return {"error": "missing_asset_or_campaign"}
+
+        # The campaign's own duration limit, not the account's preferred band.
+        req = (
+            db.query(CampaignRequirement)
+            .filter(CampaignRequirement.campaign_id == campaign.id)
+            .order_by(CampaignRequirement.created_at.desc())
+            .first()
+        )
 
         accounts = (
             db.query(SocialAccount)
@@ -344,13 +493,20 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             .order_by(SocialAccount.handle)
             .all()
         )
-        slot_map = {a.id: i + 1 for i, a in enumerate(accounts[:3])}
+        # Slot map covers every account, not a hardcoded first three — a 4th
+        # account previously fell through to slot 1 and overwrote its exports.
+        slot_map = {a.id: i + 1 for i, a in enumerate(accounts)}
         slot = slot_map.get(version.social_account_id, 1)
 
         storage_root = Path(settings.storage_root)
         if not storage_root.is_absolute():
             storage_root = ROOT / storage_root
-        package_dir = storage_root / "exports" / campaign.id / f"account-{slot}"
+        # Include the version id: more clips are selected than there are accounts,
+        # so slot alone collides and later clips silently overwrite earlier ones —
+        # meaning the clip you reviewed is not the clip you export.
+        package_dir = (
+            storage_root / "exports" / campaign.id / f"account-{slot}" / version.id[:8]
+        )
         package_dir.mkdir(parents=True, exist_ok=True)
 
         from workers.video_rendering.render import render_account_package
@@ -369,12 +525,51 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             auto_editor=settings.auto_editor_enabled,
             remotion_url=settings.remotion_url,
             burn_captions=settings.burn_captions,
+            transcript_path=asset.transcript_path,
+            max_duration_sec=(req.max_duration_sec if req else None),
         )
+
+        # A failed render must never look like a finished one. Record it as
+        # FAILED with no video_path/content_hash and stop — downstream treats a
+        # missing content_hash as "not ready to post".
+        if not result.get("ok"):
+            reason = result.get("error") or "ffmpeg produced no output"
+            db.add(
+                ProductionEvent(
+                    campaign_id=campaign.id,
+                    source_asset_id=asset.id,
+                    title=f"Render FAILED for {version.id[:8]}: {reason}",
+                    status="action_required",
+                )
+            )
+            db.add(
+                Render(
+                    clip_version_id=version.id,
+                    account_slot=slot,
+                    video_path=None,
+                    package_dir=str(package_dir),
+                    content_hash=None,
+                    status="FAILED",
+                )
+            )
+            db.commit()
+            return {"error": "render_failed", "detail": reason, "ok": False}
 
         content_hash = None
         video_path = Path(result["video_path"])
         if video_path.exists() and video_path.stat().st_size > 0:
             content_hash = hashlib.sha256(video_path.read_bytes()).hexdigest()
+
+        # Measure what the file actually is. Compliance previously received an
+        # aspect ratio and duration as literal arguments, so it could report
+        # "9:16, correct length" about a file nobody had looked at.
+        from workers.video_rendering.inspect import audio_is_silent, probe
+
+        facts = probe(str(video_path), ffprobe="ffprobe")
+        if facts.ok and facts.has_audio:
+            facts.audio_silent = audio_is_silent(
+                str(video_path), ffmpeg=settings.ffmpeg_path
+            )
 
         # Duplicate check across renders
         existing = [r.content_hash for r in db.query(Render).all() if r.content_hash]
@@ -392,10 +587,14 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             required_tags=list(req.required_tags) if req else [],
             required_disclosure=req.required_disclosure if req else None,
             disclosure_in_video_start=None,
-            duration_sec=result.get("duration_sec", 20),
+            # Measured from the file, not assumed. Falls back to the render's
+            # intent only when the probe itself failed.
+            duration_sec=facts.duration_sec
+            if facts.duration_sec is not None
+            else result.get("duration_sec", 20),
             min_duration_sec=req.min_duration_sec if req else 15,
             max_duration_sec=req.max_duration_sec if req else 60,
-            aspect_ratio="9:16",
+            aspect_ratio=facts.aspect_ratio if facts.ok else None,
             forbidden_words=list(req.forbidden_words) if req else [],
             forbidden_claims=list(req.forbidden_claims) if req else [],
             has_external_music=False,
@@ -408,8 +607,27 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             posting_deadline=req.posting_deadline if req else None,
         )
 
+        # A file with an audio stream that contains nothing passes a "has audio"
+        # check while being unwatchable, so it is failed explicitly rather than
+        # left for the operator to discover after posting.
+        checklist = compliance.to_dict()
+        checklist["media_facts"] = facts.to_dict()
+        if facts.ok and facts.has_audio is False:
+            checklist["checks"].append(
+                {"id": "audio_present", "name": "Audio track", "passed": False,
+                 "detail": "Rendered file has no audio stream"}
+            )
+            compliance.passed = False
+        elif facts.audio_silent:
+            checklist["checks"].append(
+                {"id": "audio_audible", "name": "Audio audible", "passed": False,
+                 "detail": "Audio track is effectively silent (below -60 dB)"}
+            )
+            compliance.passed = False
+        checklist["passed"] = compliance.passed
+
         checklist_path = package_dir / "compliance-checklist.json"
-        checklist_path.write_text(json.dumps(compliance.to_dict(), indent=2), encoding="utf-8")
+        checklist_path.write_text(json.dumps(checklist, indent=2), encoding="utf-8")
 
         render_status = "DRAFT" if is_draft else ("EXPORTED" if compliance.passed else "REVIEW_REQUIRED")
         render = Render(
@@ -428,7 +646,8 @@ def render_version(clip_version_id: str, draft: bool = False) -> dict:
             ComplianceCheck(
                 clip_version_id=version.id,
                 passed=compliance.passed,
-                checks=compliance.to_dict()["checks"],
+                # The enriched list, so the measured audio findings persist.
+                checks=checklist["checks"],
             )
         )
         if not is_draft and compliance.passed and version.status == "APPROVED":
