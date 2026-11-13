@@ -3,24 +3,23 @@ tags:
   - config
 ---
 
-# Models
+# Models, Presets & Schemas
 
-What “model” means in this repo: an ASR checkpoint name, a caption style, or a SQLAlchemy row. None of the ranking math calls an external LLM. [[Transcription]] and [[Editing]] are the two places a model name is used. [[Config]] holds the env vars.
+Referenced by [[Transcription]], [[Editing]], [[Remotion]], [[Config]], [[EXAMPLES]]. Back to [[Home]].
 
-## Speech
+None of the ranking or hook scoring math calls an external LLM. "Model" in ClipOps refers to ASR checkpoints, editorial style presets, and database schemas.
 
-`transcribe_video` passes `settings.whisperx_model` through. faster-whisper only accepts `tiny`, `base`, `small`, `medium`, `large-v2`, and `large-v3`; anything else becomes `medium` (`workers/transcription/transcribe.py`). The offline demo and the API session both requested `tiny` on CPU int8 so the run would not download a larger checkpoint. WhisperX was absent, so the chain never loaded a WhisperX checkpoint. Diarization is the WhisperX `DiarizationPipeline` and only runs with an HF token.
+## Speech Recognition Checkpoints
 
-The heuristic fallback does not load weights. It splits the probed duration across five fixed sentences, starting with “Wait until you see this.” That is why a silent color-bar file still ranks.
+- `workers/transcription/transcribe.py` passes `WHISPERX_MODEL` through to WhisperX (`wav2vec2` phoneme alignment + Silero VAD) or `faster-whisper` (`tiny`, `base`, `small`, `medium`, `large-v2`, `large-v3`; unknown names normalize to `medium`).
+- Diarization uses `whisperx.DiarizationPipeline` only when `HF_TOKEN` is configured.
+- The heuristic fallback loads zero weights and maps five timed anchor lines across the probed duration so silent/tone test fixtures still exercise [[Scoring]] and [[RetentionPacing]].
 
-## Picture
+## Editorial Style Presets
 
-Account styles are `dramatic`, `educational`, and `commentary` (`ACCOUNT_STYLES` in `packages/shared_types/constants.py`). Remotion compositions of the same names live under `templates/`. The render service is `templates/server.js`: `GET /health` and `POST /render` on port 3100. This audit did not start it.
+`ACCOUNT_STYLES = ["dramatic", "educational", "commentary"]` (`packages/shared_types/constants.py`) map 1:1 to FFmpeg zoom/overlay geometries in [[Editing]] and React compositions in [[Remotion]].
 
-## Rows
+## Database & Forecast Constants
 
-`apps/api/app/db.py` is the working schema for SQLite and for `create_all`: `SocialAccount`, `Campaign`, `CampaignRequirement`, `SourceAsset`, `ClipCandidate`, `ClipVersion`, `Render`, `ComplianceCheck`, plus operator tables for discoveries, notifications, performance, and production events. Three TikTok accounts are seeded on startup, one per style. The review session addressed them as TikTok 3 Commentary, TikTok 1 Dramatic, and TikTok 2 Educational.
-
-Forecast defaults, used when no performance rows exist, are in `ForecastService.forecast`: `avg_views_per_clip=8210.0`, `planning_cpm=2.0`, `approval_rate=0.7`, `clips_per_day_capacity=7.5`. Home showed 8210 and £2 because the database had no view rows. Those are planning constants, not measured clip performance.
-
-[[Home]]
+- `apps/api/app/db.py` defines SQLAlchemy models (`SocialAccount`, `Campaign`, `CampaignRequirement`, `SourceAsset`, `ClipCandidate`, `ClipVersion`, `Render`, `ComplianceCheck`, `DiscoveredCampaign`, `ClipPerformance`, `ProductionEvent`).
+- `ForecastService.forecast` (`packages/services/forecast.py`) uses explicit planning defaults (`avg_views_per_clip=8210.0`, `planning_cpm=2.0`, `approval_rate=0.7`) when performance rows are empty — clearly labeled as planning assumptions, never fabricated metrics.

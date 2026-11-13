@@ -1,8 +1,9 @@
-"""FFmpeg (+ optional Auto-Editor / Remotion) account package renderer."""
+"""FFmpeg (+ optional Auto-Editor / Remotion) short-form package renderer."""
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import urllib.request
@@ -27,6 +28,31 @@ STYLE_HOOK_COLOR = {
     "commentary": "yellow",
 }
 
+_FONT_CANDIDATES = (
+    "C:/Windows/Fonts/arial.ttf",
+    "C:/Windows/Fonts/segoeui.ttf",
+    "C:/Windows/Fonts/calibrib.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+)
+
+
+def _resolve_fontfile() -> str | None:
+    """Return an existing system font path so FFmpeg drawtext works without Fontconfig."""
+    override = os.environ.get("CLIPOPS_FONTFILE")
+    if override and Path(override).exists():
+        return override
+    for candidate in _FONT_CANDIDATES:
+        if Path(candidate).exists():
+            return candidate
+    return None
+
+
+def _escape_filter_path(path: str) -> str:
+    return path.replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+
 
 def _run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True, capture_output=True, text=True)
@@ -37,6 +63,94 @@ def _escape_drawtext(text: str) -> str:
     t = (text or "").replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
     t = re.sub(r"[\r\n]+", " ", t)
     return t[:90]
+
+
+def build_filtergraph(
+    *,
+    source_video: str,
+    start_sec: float,
+    end_sec: float,
+    style: str,
+    duration_band: str,
+    hook_text: str,
+    output_path: str,
+    ffmpeg_path: str = "ffmpeg",
+    burn_captions: bool = True,
+) -> dict:
+    """Build deterministic FFmpeg video/audio filtergraphs and CLI args for preview or execution."""
+    target = BAND_SECONDS.get(duration_band, 20.0)
+    span = max(0.5, float(end_sec) - float(start_sec))
+    duration = min(target, span)
+    zoom = STYLE_ZOOM.get(style, "1.0")
+    color = STYLE_HOOK_COLOR.get(style, "white")
+    hook = _escape_drawtext(hook_text or "")
+    fontfile = _resolve_fontfile()
+    font_opt = f"fontfile='{_escape_filter_path(fontfile)}':" if fontfile else ""
+
+    draw = ""
+    if burn_captions and hook:
+        if style == "educational":
+            draw = (
+                f",drawbox=x=40:y=ih-320:w=iw-80:h=160:color=black@0.55:t=fill,"
+                f"drawtext={font_opt}text='{hook}':fontcolor={color}:fontsize=42:"
+                f"x=60:y=h-280:box=0"
+            )
+        elif style == "commentary":
+            # drawbox's own w/h are the box size, so frame size must be iw/ih.
+            draw = (
+                f",drawbox=x=(iw-iw*0.86)/2:y=(ih-180)/2:w=iw*0.86:h=160:color=black@0.65:t=fill,"
+                f"drawtext={font_opt}text='{hook}':fontcolor={color}:fontsize=40:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2"
+            )
+        else:  # dramatic — top hook
+            draw = (
+                f",drawtext={font_opt}text='{hook}':fontcolor={color}:fontsize=48:"
+                f"x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16"
+            )
+
+    vf = (
+        f"trim=start={start_sec}:duration={duration},"
+        f"setpts=PTS-STARTPTS,"
+        f"scale=1080:1920:force_original_aspect_ratio=increase,"
+        f"crop=1080:1920,"
+        f"scale=iw*{zoom}:ih*{zoom},"
+        f"crop=1080:1920"
+        f"{draw}"
+    )
+    af = f"atrim=start={start_sec}:duration={duration},asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11"
+    command = [
+        ffmpeg_path,
+        "-y",
+        "-i",
+        source_video,
+        "-vf",
+        vf,
+        "-af",
+        af,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "20",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
+        output_path,
+    ]
+    return {
+        "style": style,
+        "duration_band": duration_band,
+        "duration_sec": round(duration, 3),
+        "zoom": zoom,
+        "fontfile": fontfile,
+        "vf": vf,
+        "af": af,
+        "command": command,
+    }
 
 
 def _try_remotion_overlay(
@@ -96,74 +210,22 @@ def render_account_package(
     cover_out = out / "cover.jpg"
     base_cut = out / "base_cut.mp4"
 
-    target = BAND_SECONDS.get(duration_band, 20.0)
-    span = max(0.5, end_sec - start_sec)
-    duration = min(target, span)
-    zoom = STYLE_ZOOM.get(style, "1.0")
-    color = STYLE_HOOK_COLOR.get(style, "white")
-    hook = _escape_drawtext(hook_text or "")
-
-    # Crop/scale to 9:16, style zoom, optional burned-in hook for first ~3s
-    draw = ""
-    if burn_captions and hook:
-        # Style-specific placement
-        if style == "educational":
-            draw = (
-                f",drawbox=x=40:y=ih-320:w=iw-80:h=160:color=black@0.55:t=fill,"
-                f"drawtext=text='{hook}':fontcolor={color}:fontsize=42:"
-                f"x=60:y=h-280:box=0"
-            )
-        elif style == "commentary":
-            # drawbox's own w/h are the box size, so frame size must be iw/ih.
-            draw = (
-                f",drawbox=x=(iw-iw*0.86)/2:y=(ih-180)/2:w=iw*0.86:h=160:color=black@0.65:t=fill,"
-                f"drawtext=text='{hook}':fontcolor={color}:fontsize=40:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2"
-            )
-        else:  # dramatic — top hook
-            draw = (
-                f",drawtext=text='{hook}':fontcolor={color}:fontsize=48:"
-                f"x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16"
-            )
-
-    vf = (
-        f"trim=start={start_sec}:duration={duration},"
-        f"setpts=PTS-STARTPTS,"
-        f"scale=1080:1920:force_original_aspect_ratio=increase,"
-        f"crop=1080:1920,"
-        f"scale=iw*{zoom}:ih*{zoom},"
-        f"crop=1080:1920"
-        f"{draw}"
+    plan = build_filtergraph(
+        source_video=source_video,
+        start_sec=start_sec,
+        end_sec=end_sec,
+        style=style,
+        duration_band=duration_band,
+        hook_text=hook_text,
+        output_path=str(base_cut),
+        ffmpeg_path=ffmpeg_path,
+        burn_captions=burn_captions,
     )
-    af = f"atrim=start={start_sec}:duration={duration},asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11"
+    duration = plan["duration_sec"]
 
     render_error = None
     try:
-        _run(
-            [
-                ffmpeg_path,
-                "-y",
-                "-i",
-                source_video,
-                "-vf",
-                vf,
-                "-af",
-                af,
-                "-c:v",
-                "libx264",
-                "-preset",
-                "fast",
-                "-crf",
-                "20",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "128k",
-                "-movflags",
-                "+faststart",
-                str(base_cut),
-            ]
-        )
+        _run(plan["command"])
         if base_cut.exists() and base_cut.stat().st_size > 0:
             # Prefer Remotion if it actually writes a file; else use FFmpeg burn-in
             remotion_out = out / "video_remotion.mp4"

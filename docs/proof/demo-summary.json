@@ -1,9 +1,10 @@
 {
   "source": {
-    "path": "docs/proof/work/sample-source.mp4",
-    "bytes": 138181,
+    "path": "docs\\proof\\work\\sample-source.mp4",
+    "bytes": 138180,
     "probe": {
       "programs": [],
+      "stream_groups": [],
       "streams": [
         {
           "codec_name": "h264",
@@ -18,7 +19,7 @@
       ],
       "format": {
         "duration": "12.000000",
-        "size": "138181"
+        "size": "138180"
       }
     }
   },
@@ -33,16 +34,25 @@
     "count": 3,
     "windows": [
       {
+        "scene_index": 0,
         "start_sec": 0.0,
-        "end_sec": 4.0
+        "end_sec": 4.0,
+        "duration_sec": 4.0,
+        "detector": "content"
       },
       {
+        "scene_index": 1,
         "start_sec": 4.0,
-        "end_sec": 8.0
+        "end_sec": 8.0,
+        "duration_sec": 4.0,
+        "detector": "content"
       },
       {
+        "scene_index": 2,
         "start_sec": 8.0,
-        "end_sec": 12.0
+        "end_sec": 12.0,
+        "duration_sec": 4.0,
+        "detector": "content"
       }
     ]
   },
@@ -102,9 +112,10 @@
   "render": {
     "ok": true,
     "duration_sec": 4.0,
-    "video_bytes": 86902,
+    "video_bytes": 88394,
     "probe": {
       "programs": [],
+      "stream_groups": [],
       "streams": [
         {
           "codec_name": "h264",
@@ -119,7 +130,7 @@
       ],
       "format": {
         "duration": "4.000000",
-        "size": "86902"
+        "size": "88394"
       }
     },
     "meta": {
@@ -182,13 +193,13 @@
         "key": "external_music",
         "label": "No copyrighted external music",
         "passed": true,
-        "detail": "Flagged external music \u2014 use campaign-approved audio only"
+        "detail": "clean audio"
       },
       {
         "key": "duplicate_export",
         "label": "No duplicated export",
         "passed": true,
-        "detail": "Identical asset hash already exported \u2014 meaningfully change each account version"
+        "detail": "unique SHA-256 hash"
       },
       {
         "key": "misleading_caption",
@@ -216,5 +227,5 @@
       }
     ]
   },
-  "frame": "docs/proof/sample-frame.png"
+  "frame": "docs\\proof\\sample-frame.png"
 }

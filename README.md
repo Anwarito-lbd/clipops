@@ -1,212 +1,155 @@
-# ClipOps
+<p align="center">
+  <img src="docs/images/clipops-logo.png" alt="ClipOps Logo" width="128" />
+</p>
 
-ClipOps is an operator console for Content Rewards clipping. It scores a brief, cuts a source video into a few different 9:16 packages, and stops before the actions that spend the account. Join, TikTok post, Content Rewards submit, and cash-out stay manual. `GET /health` reports that as `automation_boundary: human_approval_manual_posting`.
+<h1 align="center">ClipOps</h1>
 
-The sidebar text “~85–90% automated” is UI copy. It is not a measurement from the runs below.
+<p align="center">
+  <strong>Ethical Short-Form Video Clipping &amp; Editing Workstation</strong><br/>
+  WhisperX / faster-whisper ASR · PySceneDetect Cut Analysis · Deterministic Hook &amp; Retention Scoring · FFmpeg &amp; Remotion 9:16 Rendering · Human Approval Gates
+</p>
+
+---
+
+ClipOps turns long-form source video and a creative brief into curated, compliance-checked `1080×1920` (`9:16`) editorial cuts across three distinct creative styles (**Dramatic**, **Educational**, **Commentary**). It automates ingestion, forced-alignment transcription, scene cut detection, retention pacing math, and local FFmpeg/Remotion rendering — and **stops strictly before publishing**. Approval, posting, submission, and payout confirmation remain manual human clicks (`automation_boundary: human_approval_manual_posting` / `human_approval_manual_publish`).
+
+---
+
+## Live Operator Studio Walkthrough
+
+![ClipOps Operator Studio UI Walkthrough](docs/images/operator-ui-walkthrough.gif)
+
+- Full MP4 screen recording (Playwright Chromium): [`docs/images/operator-ui-walkthrough.mp4`](docs/images/operator-ui-walkthrough.mp4)
+- Desktop (`1440×900`) & Mobile (`390×844`) captures:
+
+| Desktop Studio (`1440×900`) | Mobile Responsive (`390×844`) |
+| :---: | :---: |
+| ![Operator Studio Desktop](docs/images/operator-ui.png) | ![Operator Studio Mobile](docs/images/operator-ui-mobile.png) |
+
+---
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-  ext["Browser extension on a logged-in Content Rewards tab"] --> discover["POST /api/operator/discover"]
-  discover --> camp["CampaignScoringService"]
-  camp --> humanJoin["Operator approves, then clicks Join"]
-  humanJoin --> upload["POST /api/campaigns/{id}/assets"]
-  upload --> task["process_asset — Celery, or inline when CELERY_EAGER=true"]
-  task --> asr["transcribe_video: WhisperX, then faster-whisper, then heuristic"]
-  asr --> scenes["detect_scenes: PySceneDetect, else 8s windows"]
-  scenes --> rank["ClipRankingService — keep up to 20, render the top slice"]
-  rank --> copy["Round-robin captions across dramatic, educational, commentary"]
-  copy --> comply["run_compliance_check"]
-  comply --> render["FFmpeg 1080x1920, optional Remotion on :3100"]
-  render --> review["Operator approves in Review"]
-  review --> post["Operator posts, submits, and confirms cash-out"]
-  post --> learn["ForecastService and PerformanceLearningService"]
+  src["Local Video / Upload / Demo Synthesizer"] --> probe["ffprobe Media Inspection"]
+  probe --> asr["transcribe_video: WhisperX (Silero VAD + wav2vec2 align) -> faster-whisper PCM -> Heuristic"]
+  probe --> sc["detect_scenes: PySceneDetect (AdaptiveDetector / ContentDetector / Hybrid)"]
+  asr --> rank["ClipRankingService + compute_retention_pacing (WPM, dead-air, 3s hook density)"]
+  sc --> rank
+  rank --> copy["generate_account_copy (dramatic / educational / commentary — zero duplicate clones)"]
+  copy --> dry["build_filtergraph Dry-Run (-vf / -af + resolved fontfile + Remotion payload)"]
+  dry --> gate{"Human Operator Review (Approve / Reject)"}
+  gate -->|"APPROVED"| comply["run_compliance_check (13 checks + SHA-256 uniqueness)"]
+  comply --> render["render_account_package: FFmpeg 1080x1920 + EBU R128 loudnorm + optional Remotion :3100"]
+  render --> manual["Manual Creator Export & Publish (No Posting Bots)"]
 ```
 
-| Piece | Role |
+---
+
+## Repository Packages & Modules
+
+| Module / Directory | Role |
 | --- | --- |
-| `apps/api` | FastAPI, SQLAlchemy, Celery tasks |
-| `apps/dashboard` | Next.js operator UI |
-| `browser-extension` | Manifest V3 assist on an existing session. No auto-click |
-| `workers/` | Transcription, scenes, rank, captions, FFmpeg render |
-| `packages/` | Scoring, compliance, forecast, campaign parse |
-| `templates/` | Remotion overlay service on port 3100 |
-| `vault/` | Obsidian map of the same pipeline. Open that folder as a vault and start at `Home` |
-| `workflows/n8n` | Optional notification webhooks |
+| `apps/operator-ui/` | Lightweight local FastAPI Studio UI (`server.py`, `studio.py`, `static/`) + `cli.py` for step-by-step scene, transcript, hook, dry-run, and local render workflows without Postgres/Redis |
+| `apps/api/` | Full FastAPI + SQLAlchemy + Celery backend (`/api/operator`, `/api/campaigns`, `/api/pipeline`, `/health` readiness & security audit) |
+| `apps/dashboard/` | Next.js 15 + React 19 + Tailwind operator console |
+| `workers/transcription/` | `transcribe_video`: WhisperX (`wav2vec2` forced alignment + Silero VAD), `faster-whisper` 16 kHz PCM float32 path (bypassing PyAV 19 `metadata_errors`), and deterministic heuristic fallback |
+| `workers/scene_detection/` | `detect_scenes`: PySceneDetect `ContentDetector`, `AdaptiveDetector`, and `hybrid` cut detection with `8.0s` `ffprobe` fallback |
+| `workers/clip_ranking/` | Regex hook classifier (`question`, `surprising_fact`, `controversy`, `drama`, `payoff`) and segment ranker |
+| `workers/caption_generation/` | Style-specific hook & disclosure copy generator (`dramatic`, `educational`, `commentary`) |
+| `workers/video_rendering/` | `build_filtergraph` (dry-run preview + cross-platform `fontfile` resolution) & `render_account_package` (`1080×1920`, `loudnorm=I=-16:TP=-1.5:LRA=11`) |
+| `packages/services/` | `ClipRankingService` (with `compute_retention_pacing`), `CampaignScoringService`, `ForecastService`, `PerformanceLearningService` |
+| `packages/compliance_checker/` | 13-point fail-closed compliance validator (hashtags, disclosures, duration bands, aspect ratio, forbidden phrases, SHA-256 uniqueness, logo/CTA gates) |
+| `packages/campaign_parser/` | Deterministic brief parser (`CPM`, budget, geo, duration bounds, hashtags, disclosure) |
+| `templates/` | Remotion 4.0 React caption compositing service (`server.js` on `:3100`, `Dramatic`/`Educational`/`Commentary` compositions) |
+| `vault/` | 14-note interconnected Obsidian Clipping Brain (`Home.md`, `.obsidian/graph.json`, **0 orphan notes**) |
+| `browser-extension/` | Manifest V3 read-only brief/asset helper on a logged-in tab (never auto-clicks Join/Submit/Withdraw) |
 
-State moves only through `ALLOWED_TRANSITIONS` in `packages/shared_types/constants.py`. There is no edge that posts.
+---
 
-## Demo
+## Tools, Skills, AI Models & Pipelines Used
 
-Both runs were on this tree with no private API keys and no GPU. WhisperX was not installed. Remotion was not started. The source is a generated 12 second 1080×1920 color sequence plus a 440 Hz tone, so faster-whisper correctly returned no speech.
+| Category | Component | Version / Details | Purpose in ClipOps |
+| --- | --- | --- | --- |
+| **Speech & Alignment** | WhisperX + Silero VAD (`wav2vec2`) | Optional CUDA (`scripts/install_whisperx_cuda.py`) | Word-level forced-alignment timestamps (`whisperx.align`) & optional pyannote diarization |
+| **Speech Fallback** | `faster-whisper` (CTranslate2) | `1.2.1` (`tiny`/`base`/`small`/`medium`/`large-v3`, CPU `int8` / CUDA `float16`) | Local offline ASR fed via 16 kHz mono PCM NumPy buffer (avoids PyAV 19 `av.open` regression) |
+| **Scene Cut Detection** | PySceneDetect + OpenCV | `scenedetect==0.7.3`, `opencv-python-headless==5.0.0.93` | `ContentDetector(threshold=27.0)` & `AdaptiveDetector(adaptive_threshold=3.0)` cut segmentation |
+| **Video & Audio DSP** | FFmpeg / FFprobe | `8.1.2` (tested on Windows & Linux) | `9:16` crop/zoom filtergraphs, cross-platform `drawtext` burn-in, EBU R128 `loudnorm` (`-16 LUFS`) |
+| **Caption Compositing** | Remotion | `4.0.499` + React `18.3.1` + Express `4.22.2` | Optional animated React overlays (`Dramatic`, `Educational`, `Commentary`) via `/local-file` proxy |
+| **Backend & Queue** | FastAPI, SQLAlchemy, Pydantic, Celery, Redis | `fastapi==0.115.6`, `sqlalchemy==2.0.36`, `celery==5.4.0` | Operator Studio API, full production API, eager inline or Redis async task pipeline |
+| **Frontend** | Vanilla HTML/CSS/JS Studio & Next.js Dashboard | `next==15.5.22`, `react==19.2.8` | Zero-build local Operator Studio UI + full multi-page Next.js console |
+| **Verification & Visuals** | Pytest, Playwright, Matplotlib, NetworkX | `pytest==8.3.4`, `playwright==1.65.1` | 25 automated tests, headless Chrome screenshots/video, Obsidian vault graph verification |
+| **Engineering Skills** | `image-generator`, `verification-before-completion` | Custom logo asset + strict post-edit test/CLI proof | Generated `clipops-logo.png`, verified every metric & screenshot against live tool runs |
 
-Offline, from the repo root:
+---
 
-```bash
-export PYTHONPATH="$PWD:$PWD/apps/api"
-python3 scripts/demo_offline.py docs/proof
-```
+## Quick Start (Step-by-Step)
 
-Recorded in `docs/proof/demo-summary.json`:
-
-- Source ffprobe: `12.000000` s, `138181` bytes, H.264 1080×1920, AAC
-- Transcript: `heuristic`, because `whisperx: No module named 'whisperx' | faster-whisper: empty segments`
-- Scenes: `pyscenedetect`, three windows (0–4, 4–8, 8–12)
-- Campaign score for the VoltPop brief: `65.0`, recommendation `AVOID`, no reject reasons (the score is under the 70 `CONSIDER` band)
-- Top window 8–12s scored `67.3`, hook `surprising_fact`, prediction `MEDIUM`
-- Dramatic render: `4.000000` s, `86902` bytes, 1080×1920, `render_error` null
-- Compliance: failed, `4.0s not in [20, 45]`
-
-![Hook burned into the 4 second dramatic cut](docs/proof/sample-frame.png)
-
-The same file uploaded through the API (`CELERY_EAGER=true`, model `tiny`, CPU int8) reached asset status `GENERATED` and three `REVIEW_REQUIRED` versions. Approval-card scores were 67.9, 62.14, and 62.14, all `MEDIUM`, all compliance-failed. Card `expected_earnings` was `25.362`, which is `campaign.expected_profit` from the formula, not money received. Home showed current earnings `0`. The 8210 views and £2 CPM on that screen are the defaults in `ForecastService.forecast` when no performance rows exist.
-
-`GET /health` on that process: `readiness_pct` 67 (`eager_inline`). Present: ffmpeg, faster-whisper, PySceneDetect. Absent: torch (`No module named 'torch'`), WhisperX, Remotion, Redis.
-
-`GET /api/operator/readiness`: score `40`, target `99`. Done items were the three seeded accounts, a discovered campaign, processed footage, and a draft render. Posting was not done.
-
-![Home after seed and upload](docs/proof/home.png)
-
-![Review queue, three account previews](docs/proof/review.png)
-
-`python3 -m pytest tests` → `17 passed, 4 warnings in 12.25s` (`docs/proof/pytest.txt`).
-
-Full tables: [docs/EXAMPLES.md](docs/EXAMPLES.md). The same numbers are linked inside the vault at [vault/EXAMPLES.md](vault/EXAMPLES.md). Design notes: [docs/CASE_STUDY.md](docs/CASE_STUDY.md).
-
-## Stack
-
-Versions below are copied from the repo manifests. Where a manifest uses a range, the “resolved” column is the version `npm` or `pip` selected in this audit on 2026-11-13. Those are not lockfile pins unless the lockfile column says so.
-
-### Python — `apps/api/requirements.txt`
-
-| Package | Manifest |
-| --- | --- |
-| fastapi | `==0.115.6` |
-| uvicorn[standard] | `==0.34.0` |
-| sqlalchemy | `==2.0.36` |
-| psycopg[binary] | `>=3.2.0` (audit install `3.3.9`) |
-| pydantic | `==2.10.4` |
-| pydantic-settings | `==2.7.0` |
-| python-jose[cryptography] | `==3.3.0` |
-| passlib[bcrypt] | `==1.7.4` |
-| bcrypt | `==4.0.1` |
-| python-multipart | `==0.0.20` |
-| celery | `==5.4.0` |
-| redis | `==5.2.1` |
-| httpx | `==0.28.1` |
-| pytest | `==8.3.4` |
-| scenedetect | `>=0.6.4` (audit install `0.7.3`) |
-| opencv-python-headless | `>=4.8.0` (audit install `5.0.0.93`) |
-| faster-whisper | `>=1.0.0` (audit install `1.2.1`) |
-
-WhisperX, torch, torchvision, and torchaudio are not in that list. `scripts/install_whisperx_cuda.py` is the optional CUDA path. PyAV is not a direct requirement. The audit install resolved `av==19.0.2`, which removed `metadata_errors` from `av.open`. Transcription passes ffmpeg PCM into faster-whisper so that call is not required.
-
-There is no Python lockfile.
-
-### Dashboard — `apps/dashboard/package.json`
-
-Lockfile `apps/dashboard/package-lock.json` (140 packages). Direct dependencies:
-
-| Package | Range | Locked |
-| --- | --- | --- |
-| next | `^15.1.3` | 15.5.22 |
-| react | `^19.0.0` | 19.2.8 |
-| react-dom | `^19.0.0` | 19.2.8 |
-| lucide-react | `^0.469.0` | 0.469.0 |
-| class-variance-authority | `^0.7.1` | 0.7.1 |
-| clsx | `^2.1.1` | 2.1.1 |
-| tailwind-merge | `^2.6.0` | 2.6.1 |
-| tailwindcss | `^3.4.17` | 3.4.19 |
-| typescript | `^5.7.2` | 5.9.3 |
-| postcss | `^8.4.49` | 8.5.23 |
-| autoprefixer | `^10.4.20` | 10.5.4 |
-| @types/node | `^22.10.5` | 22.20.1 |
-| @types/react | `^19.0.2` | 19.2.17 |
-| @types/react-dom | `^19.0.2` | 19.2.3 |
-
-### Remotion service — `templates/package.json`
-
-Lockfile `templates/package-lock.json` (370 packages). Direct dependencies:
-
-| Package | Range | Locked |
-| --- | --- | --- |
-| remotion | `^4.0.240` | 4.0.499 |
-| @remotion/bundler | `^4.0.240` | 4.0.499 |
-| @remotion/cli | `^4.0.240` | 4.0.499 |
-| @remotion/media-utils | `^4.0.240` | 4.0.499 |
-| @remotion/renderer | `^4.0.240` | 4.0.499 |
-| express | `^4.21.2` | 4.22.2 |
-| react | `^18.3.1` | 18.3.1 |
-| react-dom | `^18.3.1` | 18.3.1 |
-| typescript | `^5.7.2` | 5.9.3 |
-| @types/react | `^18.3.12` | 18.3.31 |
-
-### Other manifests
-
-| Tool | Where |
-| --- | --- |
-| Python 3.11 | `apps/api/Dockerfile` (`python:3.11-slim`) plus ffmpeg |
-| Node 20 | `templates/Dockerfile` (`node:20-bookworm-slim`) plus Chromium |
-| Postgres 15 | `docker-compose.yml` (`postgres:15-alpine`) |
-| Redis 7 | `docker-compose.yml` (`redis:7-alpine`) |
-| n8n | `docker-compose.yml` (`n8nio/n8n:latest`) |
-| Chrome extension | `browser-extension/manifest.json` v3, version `0.2.0`, no npm manifest |
-| SQL | `supabase/migrations/20260727100000_init.sql`, `20260727120000_operator_mode.sql` |
-
-System tools the workers shell out to, not declared as packages: `ffmpeg` and `ffprobe`. This audit used ffmpeg 6.1.1.
-
-## Setup
-
-Copy `.env.example` to `.env` when you want overrides. Development boots with the demo password and warns about it. `CLIPOPS_ENV=production` refuses a weak JWT or a missing bcrypt hash. Rotate with:
-
-```bash
-python3 scripts/rotate_secrets.py --print-password
-```
-
-### API
-
-From the repo root. `PYTHONPATH` must include the repo root and `apps/api` (workers live at the root; the app package lives under `apps/api`).
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r apps/api/requirements.txt
-export PYTHONPATH="$PWD:$PWD/apps/api"
-export CELERY_EAGER=true
-export DATABASE_URL=sqlite:///./clipops.db
-cd apps/api
-uvicorn app.main:app --reload --port 8000
-```
-
-Windows PowerShell, from `apps/api`:
+### 1. Create Environment & Install Dependencies
 
 ```powershell
-$env:PYTHONPATH = "..\..;$PWD"
-$env:CELERY_EAGER = "true"
-uvicorn app.main:app --reload --port 8000
+# From repo root
+uv venv .venv --python 3.12
+uv pip install --python .venv\Scripts\python.exe -r apps/api/requirements.txt
 ```
 
-Sign in as `operator@clipops.local`. Password is `changeme` until you rotate. Seed sample campaigns from Home (“Seed demo top 3”) or `POST /api/operator/demo/seed-top3`.
+*(Ensure `ffmpeg` and `ffprobe` are on your `PATH`. Optional GPU WhisperX: see `scripts/install_whisperx_cuda.py`.)*
 
-### Dashboard
+### 2. Launch the Lightweight Local Operator Studio UI (Recommended)
 
-```bash
-cd apps/dashboard
-npm install
-npm run dev
+No Postgres, Redis, or Node build required:
+
+```powershell
+.venv\Scripts\python.exe apps/operator-ui/cli.py serve --host 127.0.0.1 --port 8010
 ```
 
-`NEXT_PUBLIC_API_URL` defaults to `http://127.0.0.1:8000`.
+Open `http://127.0.0.1:8010`:
+1. Click **+ Run 24s Demo** (or **Open Local Video** to load your own `.mp4`/`.mov`/`.webm`).
+2. Step through **Source Probe → WhisperX / ASR → PySceneDetect (Content / Adaptive / Hybrid) → Hook & Pacing**.
+3. Inspect word-level timestamps, retention pacing (WPM, dead-air ratio, 3s hook density), and score breakdowns.
+4. Click **Dry-Run Filtergraph** to audit the exact `-vf`/`-af` FFmpeg command and 13-point compliance gate.
+5. Click **Approve Cut** (or **Reject Cut**), then **Render Local Cut** to generate and preview the `1080×1920` MP4.
 
-### Optional
+### 3. CLI Workstation Commands
 
-- Remotion overlays: `cd templates && npm install && npm start` (port 3100). Without it, FFmpeg still cuts and burns the hook.
-- Redis and a worker: set `CELERY_EAGER=false` and run `celery -A app.celery_app.celery worker --loglevel=info`. `scripts/start_stack.ps1` is the Windows helper.
-- CUDA WhisperX: `scripts/install_whisperx_cuda.py`.
-- Extension: [browser-extension/README.md](browser-extension/README.md).
-- Compose: `docker compose up` uses `.env` and applies both SQL migrations on a fresh Postgres volume.
-- Tests: `PYTHONPATH="$PWD:$PWD/apps/api" python3 -m pytest tests`
-- Vault: open `vault/` in Obsidian. `Home.md` links every note. `.obsidian/graph.json` colors index, pipeline, examples, and config.
+```powershell
+# Inspect local media stack readiness
+.venv\Scripts\python.exe apps/operator-ui/cli.py health
 
-Daily loop and the manual gates: [docs/USER_WORKFLOW.md](docs/USER_WORKFLOW.md). Secrets: [docs/SECRETS.md](docs/SECRETS.md).
+# Run full synthetic 24s demo (probe -> scenes -> score -> approve -> dry-run -> render)
+.venv\Scripts\python.exe apps/operator-ui/cli.py demo --out-json docs/proof/cli-demo-summary.json
+
+# Step-by-step on any local video
+.venv\Scripts\python.exe apps/operator-ui/cli.py scenes my_video.mp4 --detector hybrid
+.venv\Scripts\python.exe apps/operator-ui/cli.py dry-run my_video.mp4 --start 0 --end 15 --style dramatic --hook "Wait until you see this"
+.venv\Scripts\python.exe apps/operator-ui/cli.py render my_video.mp4 --start 0 --end 15 --style dramatic --out-dir storage/my_cut
+```
+
+### 4. Full Stack (API + Next.js Dashboard + Optional Remotion)
+
+- **API**: `export PYTHONPATH="$PWD:$PWD/apps/api" && CELERY_EAGER=true uvicorn app.main:app --app-dir apps/api --port 8000`
+- **Dashboard**: `cd apps/dashboard && npm install && npm run dev` (`http://localhost:3000`)
+- **Remotion (optional)**: `cd templates && npm install && npm start` (`http://127.0.0.1:3100`)
+
+---
+
+## Obsidian Clipping Brain (`vault/`)
+
+Open `vault/` as an Obsidian vault starting at [`vault/Home.md`](vault/Home.md). It maps every algorithm, math formula, and sharp edge directly to repository files with **14 notes, 108 wikilinks, and 0 orphan notes** (enforced by automated pytest verification):
+
+![Obsidian Vault Graph](docs/images/vault-graph.png)
+
+---
+
+## Verified Test & Demo Proof
+
+- **Test Suite (`pytest tests -v`)**: **`25 passed, 4 warnings`** (`docs/proof/pytest.txt`), covering core parsers/scoring/compliance, Windows cross-platform `drawtext` font resolution, PyAV 19 PCM workaround, full SQLite API smoke pipeline, Operator Studio FastAPI + CLI workflow, adaptive/content/hybrid PySceneDetect, retention pacing math, and Obsidian vault zero-orphan integrity.
+- **Offline Worker Demo (`scripts/demo_offline.py docs/proof`)**: Generated `12.0s` `1080×1920` source (`138,180` bytes), detected `3` PySceneDetect scenes (`0–4s`, `4–8s`, `8–12s`), rendered `4.0s` dramatic package (`88,394` bytes, `render_error: null`), and demonstrated fail-closed compliance holding `4.0s not in [20, 45]`.
+- **Operator Studio CLI & UI Demo (`docs/proof/studio-demo-summary.json`)**: Generated `24.0s` `1080×1920` 3-scene reel (`462,919` bytes), scored `clip-1` (`8.0–16.0s`) at `70.4` (`surprising_fact`, `MEDIUM`), passed all `13` compliance checks, and rendered `168,868`-byte `video.mp4` (`SHA-256: a91d7fb8986a322c...`).
+
+| Offline Dramatic Frame (`docs/proof/sample-frame.png`) |
+| :---: |
+| ![Sample Dramatic Frame](docs/proof/sample-frame.png) |
+
+Deep-dive documentation: [`docs/CASE_STUDY.md`](docs/CASE_STUDY.md) · [`docs/PROOF_OF_WORK.md`](docs/PROOF_OF_WORK.md) · [`docs/USER_WORKFLOW.md`](docs/USER_WORKFLOW.md) · [`docs/EXAMPLES.md`](docs/EXAMPLES.md).

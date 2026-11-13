@@ -3,58 +3,39 @@ tags:
   - examples
 ---
 
-# Examples
+# Verified Pipeline Examples
 
-Same runs as `docs/EXAMPLES.md`, linked into the vault. [[Ingest]] [[Transcription]] [[Scoring]] [[Hooks]] [[Editing]] [[Export]]
+Linked from [[Home]], [[Ingest]], [[Transcription]], [[SceneDetection]], [[Scoring]], [[RetentionPacing]], [[Hooks]], [[Editing]], [[Remotion]], [[Export]], [[OperatorUI]], [[Config]], [[Models]].
 
-## Offline command
+All values below were captured from actual runs on this repository (no GPU, no WhisperX, no Remotion server running).
 
-```bash
-python3 scripts/demo_offline.py docs/proof
-```
+## 1. Operator Studio Demo (`24s` Multi-Scene Reel)
 
-No API key, GPU, Redis, or Remotion. The script writes `docs/proof/demo-summary.json`.
+Captured via `scripts/capture_operator_ui.py` (`docs/proof/studio-demo-summary.json`):
 
-Source ffprobe: 12.000000 seconds, 138181 bytes, H.264 1080×1920, AAC.
+- **Source Probe**: `source_demo.mp4` (`24.0s`, `1080×1920` @ `30.0 fps`, `h264`/`aac`, `462,919` bytes)
+- **Scene Detection (`pyscenedetect`, `content`)**: 3 scenes detected (`0.0–8.0s`, `8.0–16.0s`, `16.0–24.0s`, `cut_count: 2`)
+- **Transcription**: `engine: heuristic` (`fallback_reason: whisperx: No module named 'whisperx' | faster-whisper: empty segments`), with `demo_script_overlay: true` and word-level timestamps across 3 segments
+- **Top Candidate (`clip-1`, `8.0–16.0s`)**:
+  - `total_score`: `70.4` (`MEDIUM`), `hook_type`: `surprising_fact`, `style`: `dramatic`
+  - `retention_pacing`: `44` words, `wpm: 330.0` (`FAST_ENERGETIC`), `dead_air_ratio: 0.1` (`0.8s`), `hook_window_words_3s: 6`
+- **Dry-Run Filtergraph**: resolved `C:/Windows/Fonts/arial.ttf`, `scale=iw*1.12:ih*1.12,crop=1080:1920`, `loudnorm=I=-16:TP=-1.5:LRA=11`
+- **Human Approval & Render**: operator approved `clip-1` (`compliance_preview.passed: true`), local FFmpeg wrote `168,868`-byte `video.mp4` (`1080×1920`, SHA-256 `a91d7fb8986a322c...`)
 
-| Stage | Recorded result |
-| --- | --- |
-| Transcript engine | `heuristic` |
-| Fallback | `whisperx: No module named 'whisperx' \| faster-whisper: empty segments` |
-| Scenes | `pyscenedetect`, windows 0–4, 4–8, 8–12 |
-| Campaign | VoltPop Summer Push, CPM 8.5, score 65.0, recommendation `AVOID`, no reject reasons |
-| Top clip | 8–12s, total 67.3, hook `surprising_fact`, prediction `MEDIUM` |
-| Render | dramatic, 4.000000s, 86902 bytes, 1080×1920, `render_error` null |
-| Compliance | `passed: false`, duration detail `4.0s not in [20, 45]` |
+![Operator Studio UI](../docs/images/operator-ui.png)
 
-![Burned-in dramatic hook from that render](../docs/proof/sample-frame.png)
+## 2. Offline Worker Script (`scripts/demo_offline.py docs/proof`)
 
-Tests: `17 passed, 4 warnings in 12.25s` in `docs/proof/pytest.txt`.
+Recorded in `docs/proof/demo-summary.json`:
 
-## Local API
+- **Source**: `12.000000s`, `138,180` bytes, `1080×1920` H.264/AAC
+- **PySceneDetect**: 3 cuts (`0–4s`, `4–8s`, `8–12s`)
+- **Brief Score (VoltPop Summer Push)**: `65.0`, recommendation `AVOID`, `reject_reasons: []` (below `70` threshold)
+- **Top Clip (`8–12s`)**: `67.3` (`surprising_fact`, `MEDIUM`)
+- **Dramatic Render**: `4.0s`, `88,394` bytes (`render_error: null`), compliance held on `4.0s not in [20, 45]`
 
-Health: `readiness_pct` 67, `eager_inline`. Present: ffmpeg, faster-whisper, PySceneDetect. Absent: torch, WhisperX, Remotion, Redis.
+![Sample Dramatic Frame](../docs/proof/sample-frame.png)
 
-Seed scores from `POST /api/operator/demo/seed-top3`: LearnHub 66.7, ReactCo 65.5, VoltPop 64.6, all eligible. `Exhausted Fake Engage` rejected for 95% budget use, geography, and fake engagement.
+## 3. Test Suite (`docs/proof/pytest.txt`)
 
-Upload of the same file: asset status `GENERATED`, same heuristic fallback string. Three `REVIEW_REQUIRED` versions:
-
-- commentary, score 67.9, “Okay but can we talk about this?”
-- dramatic, score 62.14, “This hit different: …”
-- educational, score 62.14, “3 things to notice in this clip”
-
-Card `expected_earnings` was 25.362 (`campaign.expected_profit`). Home current earnings were 0. The 8210 views and £2 CPM on Home are `ForecastService` defaults, not measured views.
-
-Go-live score from `GET /api/operator/readiness`: 40, target 99. Four checklist items were done (accounts, discovery, processed footage, draft render). Posting was not.
-
-After the commentary `drawbox` fix, reprocess wrote:
-
-- commentary `video.mp4` 86633 bytes (it had been 0 bytes, ffmpeg exit 234)
-- dramatic `video.mp4` 87386 bytes
-- educational `video.mp4` 82060 bytes
-
-![Home](../docs/proof/home.png)
-
-![Review](../docs/proof/review.png)
-
-[[Home]] [[Config]] [[Models]]
+- `.venv/Scripts/python.exe -m pytest tests -v` → **`25 passed, 4 warnings in 29.52s`** (includes `tests/test_core.py`, `tests/test_smoke_pipeline.py`, and `tests/test_studio_and_vault.py`).

@@ -3,39 +3,22 @@ tags:
   - pipeline
 ---
 
-# Transcription
+# Transcription & WhisperX Forced Alignment
 
-After [[Ingest]], `process_asset` calls `transcribe_video`, then [[Scoring]] uses the segments. Model names are in [[Models]]. The engine string from a real silent clip is in [[EXAMPLES]].
+Upstream: [[Ingest]] · Downstream: [[SceneDetection]], [[Scoring]], [[RetentionPacing]] · Configuration: [[Config]], [[Models]]
 
-The worker tries WhisperX, then faster-whisper, then a heuristic transcript. Empty segments count as a failure of that engine, so a tone with no speech still produces segments the ranker can score.
+Implemented in `workers/transcription/transcribe.py` (`transcribe_video`).
 
-```239:258:workers/transcription/transcribe.py
-    for name, fn in (
-        (
-            "whisperx",
-            lambda: _via_whisperx(
-                video_path, model, device, compute_type, hf_token, enable_diarization
-            ),
-        ),
-        ("faster-whisper", lambda: _via_faster_whisper(video_path, model, device, compute_type)),
-    ):
-        try:
-            payload = fn()
-            if payload.get("segments"):
-                Path(output_json).write_text(json.dumps(payload, indent=2), encoding="utf-8")
-                return payload
-            errors.append(f"{name}: empty segments")
-        except Exception as exc:
-            errors.append(f"{name}: {exc}")
+## Fallback Chain
 
-    payload = _heuristic_transcript(video_path, duration)
-    payload["fallback_reason"] = " | ".join(errors) or "no engine"
-```
+1. **WhisperX (`_via_whisperx`)** — loads Silero VAD (`vad_method="silero"` to avoid Windows `pyannote`/`k2` breakage), transcribes batches, then runs **phoneme-level forced alignment** via `whisperx.load_align_model` and `whisperx.align(..., return_char_alignments=False)` to produce exact word-level `[start, end]` timestamps (`word_segments`).
+2. **faster-whisper (`_via_faster_whisper`)** — extracts 16 kHz mono WAV via FFmpeg (`_ffmpeg_wav`), decodes to contiguous `float32` PCM (`_wav_to_float32`), and passes the NumPy array directly into `WhisperModel.transcribe(..., word_timestamps=True, vad_filter=True)`. Passing PCM avoids `faster-whisper` 1.2 calling `av.open(..., metadata_errors="ignore")`, which PyAV 19 removed.
+3. **Heuristic fallback (`_heuristic_transcript`)** — if WhisperX is absent or an audio track is silent/pure-tone (empty ASR segments), produces deterministic timed segments and word timestamps across the probed duration and records `fallback_reason`.
 
-faster-whisper 1.2 decodes file paths with `av.open(..., metadata_errors="ignore")`. PyAV 19 removed that keyword. The worker extracts 16 kHz mono PCM with ffmpeg and passes a float32 array instead, which skips that `av.open` call (`_wav_to_float32` in the same file).
+## Why Word Timestamps Matter Downstream
 
-WhisperX diarization runs only when `HF_TOKEN` is set. This audit did not set one. See [[Config]].
+- [[RetentionPacing]] uses `word_segments` to measure spoken coverage vs dead air (`spoken_sec / duration_sec`) and 3-second hook word density.
+- [[Remotion]] and [[Editing]] align hook overlays and caption cadence to segment boundaries.
+- [[OperatorUI]] renders interactive word chips `[start] word` in the Transcript Inspector.
 
-Scene windows are a separate step, still before ranking: PySceneDetect `ContentDetector(threshold=27.0)`, or fixed 8 second windows if that import fails (`workers/scene_detection/detect.py`).
-
-Next: [[Scoring]].
+See [[EXAMPLES]] for real engine diagnostics recorded on CPU (`int8`).

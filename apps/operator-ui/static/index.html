@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ClipOps Studio — Local Clipping Workstation</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/logo.png" alt="ClipOps Logo" class="logo" />
+      <div>
+        <div class="brand-title">ClipOps <span class="badge-studio">STUDIO</span></div>
+        <div class="brand-sub">Ethical Short-Form Clipping Workstation · Human Approval &amp; Manual Publish</div>
+      </div>
+    </div>
+
+    <div class="topbar-controls">
+      <div id="engine-pills" class="engine-pills"></div>
+      <div class="session-actions">
+        <button id="btn-demo" class="btn btn-primary">+ Run 24s Demo</button>
+        <button id="btn-open-modal" class="btn btn-ghost">Open Local Video</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="stepper-bar">
+    <div class="stepper" id="stepper">
+      <div class="step" data-step="probe">
+        <span class="step-num">1</span>
+        <div>
+          <div class="step-name">Source Probe</div>
+          <div class="step-meta" id="meta-probe">Waiting</div>
+        </div>
+      </div>
+      <div class="step" data-step="transcribe">
+        <span class="step-num">2</span>
+        <div>
+          <div class="step-name">WhisperX / ASR</div>
+          <div class="step-meta" id="meta-transcribe">Waiting</div>
+        </div>
+        <button class="btn-step" id="btn-step-transcribe" title="Run transcription step">Run</button>
+      </div>
+      <div class="step" data-step="scenes">
+        <span class="step-num">3</span>
+        <div>
+          <div class="step-name">PySceneDetect</div>
+          <div class="step-meta" id="meta-scenes">Waiting</div>
+        </div>
+        <select id="detector-select" class="mini-select" title="Scene detector">
+          <option value="hybrid">Hybrid</option>
+          <option value="content">Content</option>
+          <option value="adaptive">Adaptive</option>
+        </select>
+        <button class="btn-step" id="btn-step-scenes" title="Run scene detection step">Run</button>
+      </div>
+      <div class="step" data-step="score">
+        <span class="step-num">4</span>
+        <div>
+          <div class="step-name">Hook &amp; Pacing</div>
+          <div class="step-meta" id="meta-score">Waiting</div>
+        </div>
+        <button class="btn-step" id="btn-step-score" title="Score hooks and retention">Run</button>
+      </div>
+      <div class="step" data-step="render">
+        <span class="step-num">5</span>
+        <div>
+          <div class="step-name">FFmpeg Render</div>
+          <div class="step-meta" id="meta-render">Waiting</div>
+        </div>
+      </div>
+    </div>
+    <div id="status-banner" class="status-banner hidden"></div>
+  </section>
+
+  <main class="workspace">
+    <!-- Left Rail: Sessions & Candidate Clips -->
+    <aside class="panel rail">
+      <div class="panel-head">
+        <h2>Sessions</h2>
+        <select id="session-select" class="select"></select>
+      </div>
+      <div id="probe-card" class="probe-card"></div>
+
+      <div class="panel-head mt-12">
+        <h2>Candidate Cuts</h2>
+        <span id="clip-count" class="pill">0 clips</span>
+      </div>
+      <div id="clip-list" class="clip-list"></div>
+    </aside>
+
+    <!-- Center Stage: Video Preview + Timeline + Cut Controls -->
+    <section class="panel stage">
+      <div class="panel-head">
+        <div class="preview-tabs">
+          <button class="tab-btn active" data-preview="source">Source Footage</button>
+          <button class="tab-btn" data-preview="rendered">Rendered 9:16 Cut</button>
+        </div>
+        <span id="active-clip-badge" class="pill pill-cyan">No clip selected</span>
+      </div>
+
+      <div class="video-frame">
+        <video id="video-player" controls playsinline></video>
+        <div id="video-empty" class="video-empty">
+          Click <strong>+ Run 24s Demo</strong> or open a local video to begin clipping.
+        </div>
+      </div>
+
+      <div class="timeline-wrap">
+        <div class="timeline-head">
+          <span>Detected Scene Boundaries</span>
+          <span id="timeline-duration" class="mono">0.0s</span>
+        </div>
+        <div id="scene-timeline" class="scene-timeline"></div>
+      </div>
+
+      <div class="cut-editor">
+        <div class="field-grid">
+          <label>
+            <span>Start (sec)</span>
+            <input id="inp-start" type="number" step="0.1" min="0" />
+          </label>
+          <label>
+            <span>End (sec)</span>
+            <input id="inp-end" type="number" step="0.1" min="0.5" />
+          </label>
+          <label>
+            <span>Editorial Style</span>
+            <select id="inp-style">
+              <option value="dramatic">Dramatic (1.12x)</option>
+              <option value="educational">Educational (1.00x)</option>
+              <option value="commentary">Commentary (1.06x)</option>
+            </select>
+          </label>
+          <label>
+            <span>Duration Band</span>
+            <select id="inp-band">
+              <option value="15-25">15–25s</option>
+              <option value="25-40">25–40s</option>
+              <option value="40-60">40–60s</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="full-field">
+          <span>Hook Overlay Text (Burned via FFmpeg drawtext / Remotion)</span>
+          <input id="inp-hook" type="text" maxlength="90" placeholder="Wait until you see this..." />
+        </label>
+
+        <div class="action-bar">
+          <button id="btn-approve" class="btn btn-success">Approve Cut</button>
+          <button id="btn-reject" class="btn btn-danger">Reject Cut</button>
+          <button id="btn-dry-run" class="btn btn-ghost">Dry-Run Filtergraph</button>
+          <button id="btn-render" class="btn btn-primary">Render Local Cut</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Inspector: Transcript / Hook & Pacing / Filtergraph & Compliance -->
+    <aside class="panel inspector">
+      <div class="inspector-tabs">
+        <button class="itab active" data-itab="transcript">Transcript &amp; Words</button>
+        <button class="itab" data-itab="scoring">Hooks &amp; Pacing</button>
+        <button class="itab" data-itab="filtergraph">Filtergraph &amp; Gate</button>
+      </div>
+
+      <div id="tab-transcript" class="itab-body active"></div>
+      <div id="tab-scoring" class="itab-body"></div>
+      <div id="tab-filtergraph" class="itab-body"></div>
+    </aside>
+  </main>
+
+  <!-- Modal for opening a local video path -->
+  <div id="open-modal" class="modal hidden">
+    <div class="modal-card">
+      <h3>Open Local Video File</h3>
+      <p class="muted">Provide an absolute path to a local MP4/MOV/WEBM file for offline analysis.</p>
+      <label class="full-field">
+        <span>Video File Path</span>
+        <input id="modal-video-path" type="text" placeholder="C:\path\to\source.mp4" />
+      </label>
+      <label class="full-field">
+        <span>Project / Brief Label</span>
+        <input id="modal-campaign" type="text" value="Creator Showcase" />
+      </label>
+      <div class="action-bar">
+        <button id="btn-modal-cancel" class="btn btn-ghost">Cancel</button>
+        <button id="btn-modal-open" class="btn btn-primary">Open &amp; Probe</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

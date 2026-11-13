@@ -3,23 +3,23 @@ tags:
   - pipeline
 ---
 
-# Export and posting
+# Export, Compliance Gate & Manual Publish
 
-[[Editing]] writes `video.mp4`, `caption.txt`, `cover.jpg`, and `render-meta.json` under `storage/exports/{campaign}/account-{slot}`. [[Config]] decides eager versus queued execution. The operator still posts.
+Upstream: [[Editing]], [[Remotion]] · Interactive Gate: [[OperatorUI]] · Back to [[Home]]
 
-Before and after the render, `run_compliance_check` records hashtags, mentions, disclosure, duration, aspect ratio, forbidden phrases, duplicate export hash, and logo or CTA when required. An unverified logo (`has_logo is None` while `requires_logo` is true) fails the check. The test `test_compliance_unverified_logo_fails_when_required` locks that.
+Implemented in `packages/compliance_checker/checker.py` (`run_compliance_check`) and `packages/shared_types/constants.py` (`ALLOWED_TRANSITIONS`).
 
-Clip status only moves along `ALLOWED_TRANSITIONS` in `packages/shared_types/constants.py`: `REVIEW_REQUIRED` to `APPROVED`, `EXPORTED` to `MANUALLY_POSTED`, `PAYOUT_READY` to `PAID`. There is no transition that posts or submits by itself.
+## Ethical Automation Boundary
 
-The review UI loads `GET /api/versions/{id}/approval-card`. `expected_earnings` on that card is `campaign.expected_profit` from the scoring formula, not cash received. In the local session that field was 25.362 while Home reported current earnings 0.
+ClipOps is an editing and curation workstation — **not** an automated posting bot. `GET /health` reports `automation_boundary: human_approval_manual_posting` (and `human_approval_manual_publish` in [[OperatorUI]]). There is no state transition in `ALLOWED_TRANSITIONS` that posts to social platforms or submits claims autonomously:
 
-Manual gates, from the product copy and the approve handler:
+- `REVIEW_REQUIRED` → `APPROVED` (or `REJECTED`)
+- `APPROVED` → `EXPORTED`
+- `EXPORTED` → `MANUALLY_POSTED` (only after the creator pastes their own published URL)
+- `PAYOUT_READY` → `PAID`
 
-1. Approve the campaign, then click Join on Content Rewards.
-2. Approve the clip in Review.
-3. Download the package, post on TikTok, paste the URL, mark posted.
-4. Submit on Content Rewards, then confirm cash-out.
+## 12-Point Compliance Gate (`run_compliance_check`)
 
-`GET /api/operator/readiness` on this machine, after the sample upload and before any of those human clicks, returned score 40 against target 99. The done items were the three seeded accounts, one discovered campaign, footage processed, and a draft render. CUDA, Remotion, rotated secrets, an approved export, a TikTok URL, a submission, and logged views were not done.
+Before export, ClipOps checks: required hashtags, `@mentions`, disclosure text (e.g. `Paid partnership`), disclosure placement, `[min_duration_sec, max_duration_sec]` duration bounds, `9:16` aspect ratio, forbidden words/claims, external music flags, SHA-256 duplicate export hash (`assert_versions_not_identical` in `packages/posting_queue/router.py`), logo verification (fail-closed when `requires_logo=True` and `has_logo is None`), CTA presence, and deadline checks.
 
-Back to [[Home]], or the raw outputs in [[EXAMPLES]].
+See [[EXAMPLES]] for observed compliance pass/fail outputs.

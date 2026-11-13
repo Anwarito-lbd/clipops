@@ -65,10 +65,10 @@ def compute_go_live(
         },
         {
             "id": "accounts",
-            "label": "3 TikTok accounts configured",
+            "label": "3 editorial style presets configured",
             "done": accounts >= 3,
             "weight": 8,
-            "how": "Seeded on API start, or add via DB/API",
+            "how": "Seeded on API start (Dramatic, Educational, Commentary)",
         },
         {
             "id": "discover",

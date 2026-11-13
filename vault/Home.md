@@ -3,25 +3,29 @@ tags:
   - index
 ---
 
-# ClipOps clipping brain
+# ClipOps Clipping Brain
 
-This vault is a map of the clipping pipeline in this repository. Every note links to a real module. Numbers in [[EXAMPLES]] come from commands and HTTP calls run against this tree, not from a target deck.
+This Obsidian vault is an interconnected technical map of **ClipOps**, an ethical short-form video clipping & editing workstation. Every note links directly to real modules in this repository, and all benchmark numbers in [[EXAMPLES]] come from observed local runs.
 
-ClipOps helps one operator turn a Content Rewards brief and a source video into a few different 9:16 packages. Join, TikTok post, Content Rewards submit, and cash-out stay manual. The API states that boundary as `automation_boundary: human_approval_manual_posting` on `GET /health`.
+ClipOps stops strictly at human approval and manual export: `automation_boundary: human_approval_manual_publish` (no auto-posting, no bot farming, no platform spam).
 
-## Pipeline
+## Pipeline Stages
 
-1. [[Ingest]] — extension scan or upload, then a campaign row and a source file
-2. [[Transcription]] — WhisperX, then faster-whisper, then a heuristic transcript
-3. [[Scoring]] — campaign score, then clip rank
-4. [[Hooks]] — hook words and per-account caption copy
-5. [[Editing]] — FFmpeg 9:16 cut, optional Remotion overlay
-6. [[Export]] — compliance, review, and the manual post
+1. [[Ingest]] — source video upload, filename sanitization, brief parsing (`apps/api/app/routers/pipeline.py`)
+2. [[Transcription]] — WhisperX forced-alignment word timestamps, Silero VAD, `faster-whisper` PCM fallback (`workers/transcription/transcribe.py`)
+3. [[SceneDetection]] — PySceneDetect `ContentDetector` & `AdaptiveDetector` cut boundaries (`workers/scene_detection/detect.py`)
+4. [[Scoring]] — deterministic campaign & clip candidate ranking (`packages/services/clip_ranking.py`)
+5. [[Hooks]] — hook taxonomy, opening-line weighting, and editorial style copy (`workers/clip_ranking/hooks.py`)
+6. [[RetentionPacing]] — WPM speaking rate, 3-second hook density, and dead-air penalty math (`packages/services/clip_ranking.py`)
+7. [[Editing]] — FFmpeg 9:16 filtergraphs, cross-platform `fontfile` resolution, EBU R128 loudness (`workers/video_rendering/render.py`)
+8. [[Remotion]] — optional React/Remotion 4.0 caption compositing service (`templates/server.js`)
+9. [[Export]] — 12-point compliance gate, SHA-256 duplicate prevention, and manual publish workflow (`packages/compliance_checker/checker.py`)
 
-## Reference
+## Workstation & Operations
 
-- [[Config]] — settings, eager Celery, storage
-- [[Models]] — ASR model names, account styles, database rows
-- [[EXAMPLES]] — the offline demo and the local API session
+- [[OperatorUI]] — lightweight local FastAPI Studio UI & CLI for step-by-step inspection and dry-run renders (`apps/operator-ui/server.py`, `apps/operator-ui/cli.py`)
+- [[Config]] — environment configuration, eager Celery mode, and production secret audit (`apps/api/app/config.py`)
+- [[Models]] — ASR checkpoints, editorial styles (`dramatic`, `educational`, `commentary`), and SQLAlchemy schemas (`apps/api/app/db.py`)
+- [[EXAMPLES]] — verified CLI, offline demo, Operator Studio, and pytest outputs (`docs/PROOF_OF_WORK.md`)
 
-Open this folder as an Obsidian vault and start here. The graph colors are index, pipeline, examples, and config.
+Open `vault/` in Obsidian with Graph View enabled. Every note has incoming and outgoing wikilinks (**zero orphan notes**).

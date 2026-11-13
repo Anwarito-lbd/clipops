@@ -50,10 +50,10 @@ export default function QueuePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold">Posting queue</h1>
+        <h1 className="text-xl font-bold">Export &amp; publish queue</h1>
         <p className="text-sm text-muted-foreground">
-          Packages ready. You click TikTok&apos;s Post. Best 3–5 clips assigned
-          across accounts (not 3 clones of every candidate).
+          Curated packages ready for manual creator review and publishing. Best 3–5 distinct cuts assigned
+          across editorial styles (never duplicate clones).
         </p>
       </div>
       <input

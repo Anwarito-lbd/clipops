@@ -1,25 +1,30 @@
-# Case study: keeping the last click human
+# Case Study: Keeping the Last Click Human in an AI Short-Form Video Workstation
 
-I built ClipOps for a single operator who already has a Content Rewards login and a few TikTok accounts. The job is to turn a brief and a long source into a handful of different vertical cuts, with the disclosure and hashtags in the caption, and to stop before anything that spends the account: Join, Post, Submit, cash-out.
+ClipOps is an ethical short-form video clipping & editing workstation built for a single creator or editor. Given a creative brief and a long-form source video, ClipOps transcribes speech with word-level timestamps, detects scene cut boundaries, scores hooks and retention pacing, renders up to three distinct `9:16` editorial packages (`dramatic`, `educational`, `commentary`) with compliance disclosures baked in, and **stops strictly before publishing**. Approval, posting, submission, and payout confirmation remain human clicks. `GET /health` reports `automation_boundary: human_approval_manual_posting` (and the local Operator Studio UI reports `human_approval_manual_publish`).
 
-## What I refused to automate
+## What ClipOps Refuses to Automate
 
-Those four actions are not missing features. `ALLOWED_TRANSITIONS` has no edge that posts. The extension’s manifest says it never auto-posts or auto-submits. Approving a discovered campaign returns next steps whose second line is “Click Join yourself — ClipOps does not auto-join.” `GET /health` reports `automation_boundary: human_approval_manual_posting`. The sidebar label “~85–90% automated” is copy in `apps/dashboard/components/sidebar.tsx`. I have not measured that percentage.
+Publishing actions are intentionally absent from the state machine:
+- `ALLOWED_TRANSITIONS` in `packages/shared_types/constants.py` has no transition that auto-posts or auto-submits (`EXPORTED -> MANUALLY_POSTED` requires the operator to paste their own published URL).
+- `browser-extension/manifest.json` operates strictly as a read-only brief/asset helper on an already logged-in tab — never auto-clicking Join, Submit, or Withdraw.
+- Approving a brief returns explicit next steps reminding the operator to join manually.
+- Rather than cloning one clip across accounts, `process_asset` and `StudioService` assign top-ranked windows round-robin across three editorial styles (`dramatic`, `educational`, `commentary`) with distinct zooms, caption layouts, and hook templates (`assert_versions_not_identical` enforces unique SHA-256 export hashes).
 
-## How a clip gets chosen
+## How Clips Are Scored Without an LLM
 
-I did not put an LLM in the ranker. A campaign score is a weighted sum of budget remaining, CPM, audience, footage, simplicity, viral potential, and competition (`SCORE_WEIGHTS`, which sum to 100). Hard rejects are explicit: budget utilisation at or above 0.90, fake engagement, missing rights, a geography miss. Soft labels are separate. Under 70 the recommendation is `AVOID` even when nothing was rejected. That showed up on the VoltPop sample: score 65.0, recommendation `AVOID`, empty `reject_reasons`.
+ClipOps avoids opaque, slow, or expensive LLM calls in the scoring loop:
 
-Inside a video, scenes come from PySceneDetect when it imports, otherwise from 8 second windows. Text overlapping each window is scored with small regexes for a hook, conflict, emotion, and payoff. The blend in `ClipRankingService` weights hook and payoff at 0.18 each. At least 80 is `HIGH`, at least 60 is `MEDIUM`, otherwise `LOW`. I keep up to 20 candidates and render a handful, then assign them round-robin across accounts so three styles are not three exports of the same cut.
+1. **Brief Scoring (`CampaignScoringService`)**: Weighted sum across `SCORE_WEIGHTS` (`remaining_budget` 20, `audience_match` 20, `cpm` 15, `footage_quality` 15, `viral_potential` 15, `requirement_simplicity` 10, `competition` 5). Explicit hard-reject flags (budget utilisation $\ge 0.90$, fake engagement, missing rights, geography mismatch) force `is_recommended = False`. Eligible briefs scoring under `70` are labeled `AVOID` (as observed on the `65.0` VoltPop brief).
+2. **Scene Cut Detection (`workers/scene_detection/detect.py`)**: PySceneDetect runs `AdaptiveDetector(adaptive_threshold=3.0, min_scene_len=15)` and/or `ContentDetector(threshold=27.0)` (with `hybrid` fallback and `8.0s` fixed-window fallback if OpenCV/PySceneDetect fails).
+3. **Hook & Retention Pacing (`packages/services/clip_ranking.py`)**: Overlapping transcript segments are evaluated with deterministic regexes (`hook`, `curiosity`, `conflict`, `emotion`, `payoff`, `clarity`, `fit`), weighted (`0.18` hook + `0.18` payoff + `0.12`×4 + `0.10` fit + `0.06` duration) minus a dead-air penalty. `compute_retention_pacing` tracks speaking rate (`[125, 185]` WPM optimal), spoken coverage ratio from word timestamps, and 3-second hook word density.
 
-## What fails closed
+## Engineering Sharp Edges Found & Fixed
 
-Compliance treats “I could not see the logo” as a failure when the brief requires one (`has_logo is None`). Duration is checked against the brief, not against the duration band name. A 4 second scene rendered cleanly and then failed `4.0s not in [20, 45]`. I would rather hold a clip in `REVIEW_REQUIRED` than export a package the brief does not allow.
+- **PyAV 19 + `faster-whisper` 1.2 decoding crash**: `faster-whisper` calls `av.open(..., metadata_errors="ignore")`, which PyAV 19 removed. `workers/transcription/transcribe.py` extracts 16 kHz mono WAV via FFmpeg and feeds a contiguous `float32` PCM array directly to `WhisperModel.transcribe(..., word_timestamps=True)`, skipping `av.open` completely.
+- **FFmpeg `drawbox` `w`/`h` self-reference (exit 234)**: Inside `drawbox`, `w` and `h` refer to the box itself, not the frame. Switching to `iw` and `ih` fixed the 0-byte `commentary` render.
+- **Windows FFmpeg `drawtext` crash (`0xC0000005` / `3221225477`)**: On Windows FFmpeg builds lacking Fontconfig config files, invoking `drawtext` without an explicit `fontfile` crashes with an access violation. Adding `_resolve_fontfile()` + `_escape_filter_path()` (`fontfile='C\:/Windows/Fonts/arial.ttf'`) inside `build_filtergraph()` made all three editorial styles render cleanly on both Windows and Linux.
+- **Fail-closed compliance gates**: `run_compliance_check` treats unverified logos (`has_logo is None` when `requires_logo=True`) and out-of-band durations (e.g., `4.0s not in [20, 45]`) as compliance holds in `REVIEW_REQUIRED` rather than silently exporting non-compliant cuts.
 
-Speech is the other place I expected the machine to be missing. The order is WhisperX, then faster-whisper, then five canned sentences spread across the real duration. On this Linux box WhisperX was not installed. faster-whisper 1.2 crashed on PyAV 19 because `av.open` no longer takes `metadata_errors`. I feed it 16 kHz PCM from ffmpeg instead, so a missing keyword is not a dead pipeline. A pure tone still has no words. The engine returns empty segments, the heuristic fills in, and the asset records that string. Ranking still runs. The operator can see `transcript_engine=heuristic` on the asset.
+## Lightweight Local Operator Studio + Obsidian Brain
 
-The commentary style had a similar sharp edge. `drawbox`’s `w` and `h` are the box, not the frame. FFmpeg exited 234 and left a 0-byte file. `iw` and `ih` fixed it. The same upload, reprocessed, produced an 86,633-byte commentary MP4 next to the dramatic and educational files that had already rendered.
-
-## What I actually ran
-
-`pytest tests`: 17 passed in 12.25 seconds. The offline script produced the 12 second source, three PySceneDetect windows, the 65.0 campaign score, and a 4 second 1080×1920 dramatic cut of 86,902 bytes. The API, with eager Celery and no Remotion, reported stack readiness 67 and go-live score 40 out of a target of 99. Home showed £0 earned. The 8210 views and £2 planning CPM on that screen are the defaults in `ForecastService` when the performance table is empty. I did not post, submit, or cash out, so those checklist items stayed open on purpose.
+To make every stage inspectable without standing up Postgres, Redis, or Next.js, ClipOps includes `apps/operator-ui/` (FastAPI dark-mode Studio + `cli.py`) paired with a zero-orphan 14-note Obsidian Knowledge Graph (`vault/`). Operators can inspect WhisperX/ASR word timestamps, PySceneDetect cuts, retention pacing math, dry-run FFmpeg `-vf`/`-af` filtergraphs, approve/reject cuts, and trigger local renders step-by-step.

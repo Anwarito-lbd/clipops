@@ -3,48 +3,27 @@ tags:
   - pipeline
 ---
 
-# Hook detection
+# Hook Detection & Editorial Copy
 
-[[Scoring]] already counts hook words. This note is the classifier and the caption writer that run after a segment is selected. The rendered line is burned in by [[Editing]].
+Upstream: [[Scoring]], [[RetentionPacing]] · Downstream: [[Editing]], [[Remotion]]
 
-```7:22:workers/clip_ranking/hooks.py
-PATTERNS = [
-    ("question", re.compile(r"\b(why|how|what|who|when|where|can we|did you)\b|\?", re.I)),
-    ("surprising_fact", re.compile(r"\b(secret|nobody|surprising|actually|truth|fact)\b", re.I)),
-    ("controversy", re.compile(r"\b(wrong|vs|versus|hate|controversial|debate|but)\b", re.I)),
-    ("drama", re.compile(r"\b(wait|shocking|insane|crazy|hit different)\b", re.I)),
-    ("payoff", re.compile(r"\b(so|therefore|result|finally|that'?s why)\b", re.I)),
-]
+Implemented in `workers/clip_ranking/hooks.py` (`classify_hook`), `workers/clip_ranking/rank.py` (`_score_text`), and `workers/caption_generation/generate.py` (`generate_account_copy`).
 
+## Hook Regex Taxonomy
 
-def classify_hook(text: str) -> str:
-    t = text or ""
-    for name, rx in PATTERNS:
-        if rx.search(t):
-            return name
-    return "generic"
-```
+`classify_hook(text)` evaluates five ordered compiled patterns — the first matching pattern classifies the opening hook:
 
-The first matching pattern wins. On the offline demo, the 8–12s window contained “surprising” and was classified `surprising_fact`. The earlier windows contained “what” and were classified `question`.
+1. `question`: `\b(why|how|what|who|when|where|can we|did you)\b|\?`
+2. `surprising_fact`: `\b(secret|nobody|surprising|actually|truth|fact)\b`
+3. `controversy`: `\b(wrong|vs|versus|hate|controversial|debate|but)\b`
+4. `drama`: `\b(wait|shocking|insane|crazy|hit different)\b`
+5. `payoff`: `\b(so|therefore|result|finally|that'?s why)\b`
+6. Fallback: `generic`
 
-Selected clips are assigned round-robin across active TikTok accounts. Each account style gets a different hook template from `generate_account_copy`. They are not three copies of one edit.
+## Opening-Line Weighting
 
-```192:204:apps/api/app/tasks.py
-        # Assign best clips to accounts round-robin — NOT 3 variants of every candidate
-        for idx, cand in enumerate(selected):
-            account = accounts[idx % len(accounts)]
-            hook_type = classify_hook(cand.transcript_excerpt or "")
-            copy = generate_account_copy(
-                style=account.style or "dramatic",
-                campaign_name=campaign.name,
-                excerpt=cand.transcript_excerpt or "",
-                hashtags=list((live_req.required_hashtags if live_req else []) or []),
-                tags=list((live_req.required_tags if live_req else []) or []),
-                disclosure=(live_req.required_disclosure if live_req else None),
-                hook_variant=(idx % 3) + 1,
-            )
-```
+In `workers/clip_ranking/rank.py`, `_score_text` isolates the first sentence (`opening = t.strip().split(".")[0]`) and assigns `strong_opening = 90.0` when `HOOK_WORDS` matches inside the opening sentence (vs `60.0` otherwise, `20.0` if empty). [[RetentionPacing]] weights `hook_score` at `0.18` in the composite blend.
 
-The local API session produced three `REVIEW_REQUIRED` versions: commentary “Okay but can we talk about this?”, dramatic “This hit different: …”, and educational “3 things to notice in this clip”. Full text is in [[EXAMPLES]].
+## Editorial Style Presets (No Duplicate Clones)
 
-Next: [[Editing]].
+Top-ranked clips are assigned round-robin across three editorial style presets (`dramatic`, `educational`, `commentary`) via `generate_account_copy` so each exported package uses distinct pacing, hook framing, and caption copy rather than cloning one cut. See [[Models]] and [[OperatorUI]].
