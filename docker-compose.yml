@@ -10,6 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./supabase/migrations/20260727100000_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./supabase/migrations/20260727120000_operator_mode.sql:/docker-entrypoint-initdb.d/02_operator.sql:ro
 
   redis:
     image: redis:7-alpine

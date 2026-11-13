@@ -9,6 +9,63 @@ from workers.clip_ranking.rank import rank_segments
 from workers.clip_ranking.hooks import classify_hook
 
 
+def compute_retention_pacing(
+    text: str,
+    duration_sec: float,
+    *,
+    word_segments: list[dict[str, Any]] | None = None,
+    start_sec: float = 0.0,
+    end_sec: float | None = None,
+) -> dict[str, Any]:
+    """Compute deterministic short-form retention pacing metrics for a candidate window."""
+    dur = max(0.5, float(duration_sec))
+    words_list = (text or "").split()
+    word_count = len(words_list)
+    wpm = round((word_count / dur) * 60.0, 1)
+
+    # Estimate spoken coverage vs dead air using word_segments if available, else 0.35s/word
+    spoken_sec = 0.0
+    hook_words_3s = 0
+    window_end = end_sec if end_sec is not None else start_sec + dur
+    if word_segments:
+        for w in word_segments:
+            ws = float(w.get("start", 0.0))
+            we = float(w.get("end", ws + 0.3))
+            if we >= start_sec and ws <= window_end:
+                overlap = max(0.0, min(we, window_end) - max(ws, start_sec))
+                spoken_sec += overlap
+                if ws < start_sec + 3.0:
+                    hook_words_3s += 1
+        spoken_sec = min(dur, spoken_sec)
+    else:
+        spoken_sec = min(dur, word_count * 0.35)
+        hook_words_3s = min(word_count, max(1, round((word_count / dur) * 3.0))) if word_count else 0
+
+    dead_air_sec = round(max(0.0, dur - spoken_sec), 2)
+    dead_air_ratio = round(dead_air_sec / dur, 3)
+
+    if 125.0 <= wpm <= 185.0:
+        pacing_label = "OPTIMAL_CADENCE"
+    elif wpm > 185.0:
+        pacing_label = "FAST_ENERGETIC"
+    elif wpm >= 75.0:
+        pacing_label = "MODERATE"
+    else:
+        pacing_label = "SPARSE_LOW_SPEECH"
+
+    return {
+        "word_count": word_count,
+        "duration_sec": round(dur, 2),
+        "wpm": wpm,
+        "ideal_wpm_range": [125, 185],
+        "spoken_sec": round(spoken_sec, 2),
+        "dead_air_sec": dead_air_sec,
+        "dead_air_ratio": dead_air_ratio,
+        "hook_window_words_3s": hook_words_3s,
+        "pacing_label": pacing_label,
+    }
+
+
 @dataclass
 class ClipRankReport:
     clip_id: str | None
@@ -43,6 +100,7 @@ class ClipRankingService:
         preferred_hooks: list[str] | None = None,
     ) -> dict[str, Any]:
         raw = rank_segments(transcript, scenes, campaign_name=campaign_name)
+        word_segments = transcript.get("word_segments") or []
         reports: list[dict[str, Any]] = []
         for i, seg in enumerate(raw[:keep]):
             scores = seg.get("scores") or {}
@@ -114,10 +172,18 @@ class ClipRankingService:
                     f"words={words}",
                 ],
             )
+            pacing = compute_retention_pacing(
+                seg.get("text") or "",
+                duration,
+                word_segments=word_segments,
+                start_sec=float(seg["start_sec"]),
+                end_sec=float(seg["end_sec"]),
+            )
             enriched = {
                 **seg,
                 "duration_band": band,
                 "hook_type": hook_type,
+                "retention_pacing": pacing,
                 "rank_report": report.to_dict(),
                 "total_score": total,
             }

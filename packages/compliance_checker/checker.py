@@ -107,11 +107,12 @@ def run_compliance_check(
         disclosure_detail,
     )
 
+    dur_ok = min_duration_sec <= duration_sec <= max_duration_sec
     add(
         "duration",
         "Correct video length",
-        min_duration_sec <= duration_sec <= max_duration_sec,
-        f"{duration_sec}s not in [{min_duration_sec}, {max_duration_sec}]",
+        dur_ok,
+        f"{duration_sec}s {'in' if dur_ok else 'not in'} [{min_duration_sec}, {max_duration_sec}]",
     )
 
     add(
@@ -135,7 +136,7 @@ def run_compliance_check(
         "external_music",
         "No copyrighted external music",
         not has_external_music,
-        "Flagged external music — use campaign-approved audio only",
+        "Flagged external music — use approved audio only" if has_external_music else "clean audio",
     )
 
     dup = bool(export_hash and export_hash in existing_hashes)
@@ -143,7 +144,7 @@ def run_compliance_check(
         "duplicate_export",
         "No duplicated export",
         not dup,
-        "Identical asset hash already exported — meaningfully change each account version",
+        "Identical asset hash already exported — make each editorial cut distinct" if dup else "unique SHA-256 hash",
     )
 
     add(

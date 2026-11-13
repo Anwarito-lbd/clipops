@@ -1,0 +1,178 @@
+{
+  "session_id": "demo-d6c927ac",
+  "probe": {
+    "exists": true,
+    "filename": "source_demo.mp4",
+    "bytes": 462919,
+    "duration_sec": 24.0,
+    "width": 1080,
+    "height": 1920,
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "fps": 30.0
+  },
+  "scenes_engine": "pyscenedetect",
+  "detector": "content",
+  "scene_count": 3,
+  "transcript_engine": "heuristic",
+  "top_clip": {
+    "clip_id": "clip-1",
+    "rank": 1,
+    "selected_for_batch": true,
+    "start_sec": 8.0,
+    "end_sec": 16.0,
+    "duration_sec": 8.0,
+    "duration_band": "15-25",
+    "style": "dramatic",
+    "hook_type": "surprising_fact",
+    "hook_text": "Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...",
+    "caption": "Paid partnership\n\nWait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...\n\n#CreatorStudio\n\n#CreatorShowcase",
+    "transcript_excerpt": "Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payoff \u2014 preview every cut, verify compliance, then publish manually.",
+    "total_score": 70.4,
+    "rank_report": {
+      "clip_id": "cand-1",
+      "score": 70.4,
+      "hook_score": 90.0,
+      "emotion_score": 30.0,
+      "payoff_score": 80.0,
+      "campaign_fit": 80.0,
+      "curiosity_score": 85.0,
+      "conflict_score": 35.0,
+      "clarity_score": 70.0,
+      "duration_score": 90.0,
+      "dead_air_penalty": 0.0,
+      "predicted_performance": "MEDIUM",
+      "hook_type": "surprising_fact",
+      "explanations": [
+        "hook_type=surprising_fact",
+        "duration_band=15-25",
+        "words=44"
+      ]
+    },
+    "retention_pacing": {
+      "word_count": 44,
+      "duration_sec": 8.0,
+      "wpm": 330.0,
+      "ideal_wpm_range": [
+        125,
+        185
+      ],
+      "spoken_sec": 7.2,
+      "dead_air_sec": 0.8,
+      "dead_air_ratio": 0.1,
+      "hook_window_words_3s": 6,
+      "pacing_label": "FAST_ENERGETIC"
+    },
+    "decision": "APPROVED",
+    "decision_notes": "CLI verified demo",
+    "compliance": {
+      "passed": true,
+      "checks": [
+        {
+          "key": "campaign_name",
+          "label": "Correct campaign name",
+          "passed": true,
+          "detail": "got='Creator Showcase' expected='Creator Showcase'"
+        },
+        {
+          "key": "hashtags",
+          "label": "Required hashtags",
+          "passed": true,
+          "detail": "missing=[]"
+        },
+        {
+          "key": "account_tags",
+          "label": "Required account tags",
+          "passed": true,
+          "detail": "missing=[]"
+        },
+        {
+          "key": "disclosure",
+          "label": "Required disclosure at beginning",
+          "passed": true,
+          "detail": "found in caption"
+        },
+        {
+          "key": "duration",
+          "label": "Correct video length",
+          "passed": true,
+          "detail": "8.0s in [5, 60]"
+        },
+        {
+          "key": "aspect_ratio",
+          "label": "Correct aspect ratio",
+          "passed": true,
+          "detail": "got=9:16 expected=9:16"
+        },
+        {
+          "key": "forbidden",
+          "label": "No forbidden words or claims",
+          "passed": true,
+          "detail": "words=[] claims=[]"
+        },
+        {
+          "key": "external_music",
+          "label": "No copyrighted external music",
+          "passed": true,
+          "detail": "clean audio"
+        },
+        {
+          "key": "duplicate_export",
+          "label": "No duplicated export",
+          "passed": true,
+          "detail": "unique SHA-256 hash"
+        },
+        {
+          "key": "misleading_caption",
+          "label": "No misleading captions",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "key": "logo",
+          "label": "Campaign logo present when required",
+          "passed": true,
+          "detail": "not required"
+        },
+        {
+          "key": "cta",
+          "label": "Campaign CTA present when required",
+          "passed": true,
+          "detail": "not required"
+        },
+        {
+          "key": "deadline",
+          "label": "Correct posting deadline",
+          "passed": true,
+          "detail": ""
+        }
+      ]
+    }
+  },
+  "dry_run_vf": "trim=start=8.0:duration=8.0,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
+  "render": {
+    "video_path": "C:\\Users\\issao\\Downloads\\portfolio\\agy-work\\clipops\\storage\\operator_studio\\demo-d6c927ac\\exports\\clip-1\\dramatic\\video.mp4",
+    "caption_path": "C:\\Users\\issao\\Downloads\\portfolio\\agy-work\\clipops\\storage\\operator_studio\\demo-d6c927ac\\exports\\clip-1\\dramatic\\caption.txt",
+    "cover_path": "C:\\Users\\issao\\Downloads\\portfolio\\agy-work\\clipops\\storage\\operator_studio\\demo-d6c927ac\\exports\\clip-1\\dramatic\\cover.jpg",
+    "duration_sec": 8.0,
+    "package_dir": "C:\\Users\\issao\\Downloads\\portfolio\\agy-work\\clipops\\storage\\operator_studio\\demo-d6c927ac\\exports\\clip-1\\dramatic",
+    "ok": true,
+    "style": "dramatic",
+    "duration_band": "15-25",
+    "sha256": "a91d7fb8986a322c29550fe16d60cc218673ef7a693cc35b2aa0ae2689c6ef79",
+    "probe": {
+      "exists": true,
+      "filename": "video.mp4",
+      "bytes": 168868,
+      "duration_sec": 8.0,
+      "width": 1080,
+      "height": 1920,
+      "video_codec": "h264",
+      "audio_codec": "aac",
+      "fps": 30.0
+    },
+    "video_url": "/api/studio/media/demo-d6c927ac/exports/clip-1/dramatic/video.mp4",
+    "cover_url": "/api/studio/media/demo-d6c927ac/exports/clip-1/dramatic/cover.jpg",
+    "rendered_at": "2026-11-13T21:01:34.093394+00:00"
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "go_live_score": 40,
+  "go_live_target": 99,
+  "go_live_items": [
+    {
+      "id": "cuda_asr",
+      "label": "GPU ASR (CUDA + WhisperX/faster-whisper)",
+      "done": false
+    },
+    {
+      "id": "ffmpeg_remotion",
+      "label": "FFmpeg + Remotion render service",
+      "done": false
+    },
+    {
+      "id": "secrets",
+      "label": "Rotated secrets (bcrypt hash + strong JWT)",
+      "done": false
+    },
+    {
+      "id": "accounts",
+      "label": "3 TikTok accounts configured",
+      "done": true
+    },
+    {
+      "id": "discover",
+      "label": "At least one CR campaign discovered/scanned",
+      "done": true
+    },
+    {
+      "id": "joined_campaign",
+      "label": "Campaign joined + footage processed",
+      "done": true
+    },
+    {
+      "id": "draft_preview",
+      "label": "Draft render exists for preview",
+      "done": true
+    },
+    {
+      "id": "exported",
+      "label": "At least one clip approved/exported",
+      "done": false
+    },
+    {
+      "id": "posted",
+      "label": "At least one TikTok URL marked posted",
+      "done": false
+    },
+    {
+      "id": "submitted",
+      "label": "At least one CR submission marked",
+      "done": false
+    },
+    {
+      "id": "metrics",
+      "label": "Views logged (closes learning loop)",
+      "done": false
+    }
+  ],
+  "home_waiting": 3,
+  "home_produced": 3,
+  "campaigns": [
+    {
+      "name": "ReactCo Commentary Drop",
+      "operator_status": "top3",
+      "score": 65.5
+    },
+    {
+      "name": "VoltPop Summer Push",
+      "operator_status": "top3",
+      "score": 64.6
+    }
+  ],
+  "cards": [
+    {
+      "style": "commentary",
+      "status": "REVIEW_REQUIRED",
+      "duration_band": "15-25",
+      "hook_text": "Okay but can we talk about this?",
+      "ai_score": 67.9,
+      "predicted_performance": "MEDIUM",
+      "compliance_passed": false,
+      "expected_earnings": 25.362,
+      "preview_url": "/api/media/exports/63123ad5-4935-4abb-9b50-3e52c144d237/account-1/video.mp4",
+      "account": "TikTok 3 \u2014 Commentary"
+    },
+    {
+      "style": "dramatic",
+      "status": "REVIEW_REQUIRED",
+      "duration_band": "15-25",
+      "hook_text": "This hit different: Wait until you see this. Here is what nobody tells you.",
+      "ai_score": 62.14,
+      "predicted_performance": "MEDIUM",
+      "compliance_passed": false,
+      "expected_earnings": 25.362,
+      "preview_url": "/api/media/exports/63123ad5-4935-4abb-9b50-3e52c144d237/account-2/video.mp4",
+      "account": "TikTok 1 \u2014 Dramatic"
+    },
+    {
+      "style": "educational",
+      "status": "REVIEW_REQUIRED",
+      "duration_band": "25-40",
+      "hook_text": "3 things to notice in this clip",
+      "ai_score": 62.14,
+      "predicted_performance": "MEDIUM",
+      "compliance_passed": false,
+      "expected_earnings": 25.362,
+      "preview_url": "/api/media/exports/63123ad5-4935-4abb-9b50-3e52c144d237/account-3/video.mp4",
+      "account": "TikTok 2 \u2014 Educational"
+    }
+  ]
+}

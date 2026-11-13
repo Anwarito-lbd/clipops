@@ -1,4 +1,4 @@
-"""Posting queue — route approved renders to three TikTok accounts."""
+"""Export queue — route approved renders across three editorial style channels."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from typing import Any
 
 
 ACCOUNT_SLOTS = {
-    1: {"style": "dramatic", "label": "TikTok 1 — Dramatic"},
-    2: {"style": "educational", "label": "TikTok 2 — Educational"},
-    3: {"style": "commentary", "label": "TikTok 3 — Commentary"},
+    1: {"style": "dramatic", "label": "Channel 1 — Dramatic Cut"},
+    2: {"style": "educational", "label": "Channel 2 — Educational Cut"},
+    3: {"style": "commentary", "label": "Channel 3 — Commentary Cut"},
 }
 
 

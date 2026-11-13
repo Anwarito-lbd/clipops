@@ -26,32 +26,31 @@ Ideal loop (manual gates only at the end of each stage):
 5. Wait for production queue events → open **Review**.
 6. Approve clips that pass compliance.
 
-## Posting block (~20–40 min for 6–9 clips)
+## Daily creative workflow (~20–40 min)
 
-For each ready package in **Posting queue**:
+For each curated package in **Export queue**:
 
-1. Download / locate `video.mp4`
-2. Copy caption (disclosure + hashtags included)
-3. Open TikTok on the correct account
-4. You press **Post**
-5. Paste URL → Mark posted
+1. Review & preview `video.mp4`
+2. Verify caption (disclosure + hashtags included)
+3. Publish manually on your creator channel
+4. Paste published URL → Mark posted
 
 ## Afternoon / evening
 
 1. Mark submissions after you submit on CR
 2. Update views / provisional earnings
-3. Check **Payouts / Learn** for cohort tips
-4. Hit cash-out only when notified — you confirm
+3. Check **Payouts / Learn** for cohort pacing tips
+4. Confirm cash-out manually when notified
 
 ## What ClipOps never does
 
-- Auto-login, CAPTCHA bypass, fake engagement
+- Auto-login, CAPTCHA bypass, fake engagement, or automated mass-posting
 - Auto TikTok post
 - Auto Content Rewards submit / withdraw
 - Unattended Playwright against CR (unless you get written permission)
 
-## Month-1 planning assumptions
+## Planning assumptions
 
-- 3 accounts × ~2–3 clips/day = 6–9/day ≈ 180–270/month  
-- Planning CPM £2, target approval ≥70%, revenue target ~£1,000  
+- Curated editorial workflow across 3 distinct styles (Dramatic, Educational, Commentary) — quality-first human curation, never spam
+- Planning CPM £2, target approval ≥70%, revenue target ~£1,000
 - These are **plans**, not guarantees — forecast panel tracks pace vs target

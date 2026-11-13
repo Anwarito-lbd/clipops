@@ -1,0 +1,231 @@
+{
+  "source": {
+    "path": "docs\\proof\\work\\sample-source.mp4",
+    "bytes": 138180,
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "codec_type": "video",
+          "width": 1080,
+          "height": 1920
+        },
+        {
+          "codec_name": "aac",
+          "codec_type": "audio"
+        }
+      ],
+      "format": {
+        "duration": "12.000000",
+        "size": "138180"
+      }
+    }
+  },
+  "transcript": {
+    "engine": "heuristic",
+    "fallback_reason": "whisperx: No module named 'whisperx' | faster-whisper: empty segments",
+    "segment_count": 5,
+    "first_text": "Wait until you see this."
+  },
+  "scenes": {
+    "engine": "pyscenedetect",
+    "count": 3,
+    "windows": [
+      {
+        "scene_index": 0,
+        "start_sec": 0.0,
+        "end_sec": 4.0,
+        "duration_sec": 4.0,
+        "detector": "content"
+      },
+      {
+        "scene_index": 1,
+        "start_sec": 4.0,
+        "end_sec": 8.0,
+        "duration_sec": 4.0,
+        "detector": "content"
+      },
+      {
+        "scene_index": 2,
+        "start_sec": 8.0,
+        "end_sec": 12.0,
+        "duration_sec": 4.0,
+        "detector": "content"
+      }
+    ]
+  },
+  "campaign": {
+    "name": "VoltPop Summer Push",
+    "cpm": 8.5,
+    "hashtags": [
+      "#VoltPop",
+      "#ContentRewards"
+    ],
+    "tags": [
+      "@voltpop"
+    ],
+    "duration": [
+      20,
+      45
+    ],
+    "score": 65.0,
+    "recommendation": "AVOID",
+    "reject_reasons": []
+  },
+  "ranking": {
+    "candidate_count": 3,
+    "select_n": 3,
+    "selected": [
+      {
+        "start_sec": 8.0,
+        "end_sec": 12.0,
+        "total_score": 67.3,
+        "hook_type": "surprising_fact",
+        "predicted_performance": "MEDIUM",
+        "text": "The surprising part is next. That changes everything. Here is the payoff."
+      },
+      {
+        "start_sec": 0.0,
+        "end_sec": 4.0,
+        "total_score": 60.1,
+        "hook_type": "question",
+        "predicted_performance": "MEDIUM",
+        "text": "Wait until you see this. Here is what nobody tells you."
+      },
+      {
+        "start_sec": 4.0,
+        "end_sec": 8.0,
+        "total_score": 60.1,
+        "hook_type": "question",
+        "predicted_performance": "MEDIUM",
+        "text": "Here is what nobody tells you. The surprising part is next."
+      }
+    ]
+  },
+  "copy": {
+    "hook": "Wait for it \u2014 The surprising part is next. That changes everything. Here is the payoff.",
+    "caption": "Paid partnership\n\nWait for it \u2014 The surprising part is next. That changes everything. Here is the payoff.\n\n@voltpop\n\n#VoltPop\n\n#ContentRewards",
+    "context_intro": ""
+  },
+  "render": {
+    "ok": true,
+    "duration_sec": 4.0,
+    "video_bytes": 88394,
+    "probe": {
+      "programs": [],
+      "stream_groups": [],
+      "streams": [
+        {
+          "codec_name": "h264",
+          "codec_type": "video",
+          "width": 1080,
+          "height": 1920
+        },
+        {
+          "codec_name": "aac",
+          "codec_type": "audio"
+        }
+      ],
+      "format": {
+        "duration": "4.000000",
+        "size": "88394"
+      }
+    },
+    "meta": {
+      "style": "dramatic",
+      "duration_band": "15-25",
+      "hook_text": "Wait for it \u2014 The surprising part is next. That changes everything. Here is the payoff.",
+      "duration_sec": 4.0,
+      "burn_captions": true,
+      "caption_engine": "ffmpeg_drawtext",
+      "remotion_template": "templates/dramatic",
+      "render_error": null
+    }
+  },
+  "compliance": {
+    "passed": false,
+    "checks": [
+      {
+        "key": "campaign_name",
+        "label": "Correct campaign name",
+        "passed": true,
+        "detail": "got='VoltPop Summer Push' expected='VoltPop Summer Push'"
+      },
+      {
+        "key": "hashtags",
+        "label": "Required hashtags",
+        "passed": true,
+        "detail": "missing=[]"
+      },
+      {
+        "key": "account_tags",
+        "label": "Required account tags",
+        "passed": true,
+        "detail": "missing=[]"
+      },
+      {
+        "key": "disclosure",
+        "label": "Required disclosure at beginning",
+        "passed": true,
+        "detail": "found in caption"
+      },
+      {
+        "key": "duration",
+        "label": "Correct video length",
+        "passed": false,
+        "detail": "4.0s not in [20, 45]"
+      },
+      {
+        "key": "aspect_ratio",
+        "label": "Correct aspect ratio",
+        "passed": true,
+        "detail": "got=9:16 expected=9:16"
+      },
+      {
+        "key": "forbidden",
+        "label": "No forbidden words or claims",
+        "passed": true,
+        "detail": "words=[] claims=[]"
+      },
+      {
+        "key": "external_music",
+        "label": "No copyrighted external music",
+        "passed": true,
+        "detail": "clean audio"
+      },
+      {
+        "key": "duplicate_export",
+        "label": "No duplicated export",
+        "passed": true,
+        "detail": "unique SHA-256 hash"
+      },
+      {
+        "key": "misleading_caption",
+        "label": "No misleading captions",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "key": "logo",
+        "label": "Campaign logo present when required",
+        "passed": true,
+        "detail": "not required"
+      },
+      {
+        "key": "cta",
+        "label": "Campaign CTA present when required",
+        "passed": true,
+        "detail": "not required"
+      },
+      {
+        "key": "deadline",
+        "label": "Correct posting deadline",
+        "passed": true,
+        "detail": ""
+      }
+    ]
+  },
+  "frame": "docs\\proof\\sample-frame.png"
+}

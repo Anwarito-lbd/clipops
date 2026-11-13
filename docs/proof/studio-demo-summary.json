@@ -1,0 +1,705 @@
+{
+  "session_id": "demo-5ebd799b",
+  "title": "Creator Studio Demo (24s Multi-Scene)",
+  "campaign_name": "Creator Showcase",
+  "is_synthetic_demo": true,
+  "source_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\source_demo.mp4",
+  "source_media_url": "/api/studio/media/demo-5ebd799b/source_demo.mp4",
+  "probe": {
+    "exists": true,
+    "filename": "source_demo.mp4",
+    "bytes": 462919,
+    "duration_sec": 24.0,
+    "width": 1080,
+    "height": 1920,
+    "video_codec": "h264",
+    "audio_codec": "aac",
+    "fps": 30.0
+  },
+  "steps": {
+    "probe": true,
+    "transcribe": true,
+    "scenes": true,
+    "score": true,
+    "render": true
+  },
+  "transcript": {
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 8.0,
+        "text": "Wait until you see this workflow mistake most creators miss in their first 3 seconds.",
+        "speaker": "SPEAKER_0"
+      },
+      {
+        "start": 8.0,
+        "end": 16.0,
+        "text": "Here is the surprising fact: tight scene cuts and clean loudness pacing change retention.",
+        "speaker": "SPEAKER_0"
+      },
+      {
+        "start": 16.0,
+        "end": 24.0,
+        "text": "So finally here is the payoff \u2014 preview every cut, verify compliance, then publish manually.",
+        "speaker": "SPEAKER_0"
+      }
+    ],
+    "word_segments": [
+      {
+        "word": "Wait",
+        "start": 0.0,
+        "end": 0.48
+      },
+      {
+        "word": "until",
+        "start": 0.533,
+        "end": 1.013
+      },
+      {
+        "word": "you",
+        "start": 1.067,
+        "end": 1.547
+      },
+      {
+        "word": "see",
+        "start": 1.6,
+        "end": 2.08
+      },
+      {
+        "word": "this",
+        "start": 2.133,
+        "end": 2.613
+      },
+      {
+        "word": "workflow",
+        "start": 2.667,
+        "end": 3.147
+      },
+      {
+        "word": "mistake",
+        "start": 3.2,
+        "end": 3.68
+      },
+      {
+        "word": "most",
+        "start": 3.733,
+        "end": 4.213
+      },
+      {
+        "word": "creators",
+        "start": 4.267,
+        "end": 4.747
+      },
+      {
+        "word": "miss",
+        "start": 4.8,
+        "end": 5.28
+      },
+      {
+        "word": "in",
+        "start": 5.333,
+        "end": 5.813
+      },
+      {
+        "word": "their",
+        "start": 5.867,
+        "end": 6.347
+      },
+      {
+        "word": "first",
+        "start": 6.4,
+        "end": 6.88
+      },
+      {
+        "word": "3",
+        "start": 6.933,
+        "end": 7.413
+      },
+      {
+        "word": "seconds.",
+        "start": 7.467,
+        "end": 7.947
+      },
+      {
+        "word": "Here",
+        "start": 8.0,
+        "end": 8.514
+      },
+      {
+        "word": "is",
+        "start": 8.571,
+        "end": 9.086
+      },
+      {
+        "word": "the",
+        "start": 9.143,
+        "end": 9.657
+      },
+      {
+        "word": "surprising",
+        "start": 9.714,
+        "end": 10.229
+      },
+      {
+        "word": "fact:",
+        "start": 10.286,
+        "end": 10.8
+      },
+      {
+        "word": "tight",
+        "start": 10.857,
+        "end": 11.371
+      },
+      {
+        "word": "scene",
+        "start": 11.429,
+        "end": 11.943
+      },
+      {
+        "word": "cuts",
+        "start": 12.0,
+        "end": 12.514
+      },
+      {
+        "word": "and",
+        "start": 12.571,
+        "end": 13.086
+      },
+      {
+        "word": "clean",
+        "start": 13.143,
+        "end": 13.657
+      },
+      {
+        "word": "loudness",
+        "start": 13.714,
+        "end": 14.229
+      },
+      {
+        "word": "pacing",
+        "start": 14.286,
+        "end": 14.8
+      },
+      {
+        "word": "change",
+        "start": 14.857,
+        "end": 15.371
+      },
+      {
+        "word": "retention.",
+        "start": 15.429,
+        "end": 15.943
+      },
+      {
+        "word": "So",
+        "start": 16.0,
+        "end": 16.48
+      },
+      {
+        "word": "finally",
+        "start": 16.533,
+        "end": 17.013
+      },
+      {
+        "word": "here",
+        "start": 17.067,
+        "end": 17.547
+      },
+      {
+        "word": "is",
+        "start": 17.6,
+        "end": 18.08
+      },
+      {
+        "word": "the",
+        "start": 18.133,
+        "end": 18.613
+      },
+      {
+        "word": "payoff",
+        "start": 18.667,
+        "end": 19.147
+      },
+      {
+        "word": "\u2014",
+        "start": 19.2,
+        "end": 19.68
+      },
+      {
+        "word": "preview",
+        "start": 19.733,
+        "end": 20.213
+      },
+      {
+        "word": "every",
+        "start": 20.267,
+        "end": 20.747
+      },
+      {
+        "word": "cut,",
+        "start": 20.8,
+        "end": 21.28
+      },
+      {
+        "word": "verify",
+        "start": 21.333,
+        "end": 21.813
+      },
+      {
+        "word": "compliance,",
+        "start": 21.867,
+        "end": 22.347
+      },
+      {
+        "word": "then",
+        "start": 22.4,
+        "end": 22.88
+      },
+      {
+        "word": "publish",
+        "start": 22.933,
+        "end": 23.413
+      },
+      {
+        "word": "manually.",
+        "start": 23.467,
+        "end": 23.947
+      }
+    ],
+    "language": "en",
+    "engine": "heuristic",
+    "fallback_reason": "whisperx: No module named 'whisperx' | faster-whisper: empty segments",
+    "demo_script_overlay": true
+  },
+  "scenes": {
+    "scenes": [
+      {
+        "scene_index": 0,
+        "start_sec": 0.0,
+        "end_sec": 8.0,
+        "duration_sec": 8.0,
+        "detector": "content"
+      },
+      {
+        "scene_index": 1,
+        "start_sec": 8.0,
+        "end_sec": 16.0,
+        "duration_sec": 8.0,
+        "detector": "content"
+      },
+      {
+        "scene_index": 2,
+        "start_sec": 16.0,
+        "end_sec": 24.0,
+        "duration_sec": 8.0,
+        "detector": "content"
+      }
+    ],
+    "engine": "pyscenedetect",
+    "detector": "content",
+    "cut_count": 2
+  },
+  "clips": [
+    {
+      "clip_id": "clip-1",
+      "rank": 1,
+      "selected_for_batch": true,
+      "start_sec": 8.0,
+      "end_sec": 16.0,
+      "duration_sec": 8.0,
+      "duration_band": "15-25",
+      "style": "dramatic",
+      "hook_type": "surprising_fact",
+      "hook_text": "Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...",
+      "caption": "Paid partnership\n\nWait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...\n\n#CreatorStudio\n\n#CreatorShowcase",
+      "transcript_excerpt": "Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payoff \u2014 preview every cut, verify compliance, then publish manually.",
+      "total_score": 70.4,
+      "rank_report": {
+        "clip_id": "cand-1",
+        "score": 70.4,
+        "hook_score": 90.0,
+        "emotion_score": 30.0,
+        "payoff_score": 80.0,
+        "campaign_fit": 80.0,
+        "curiosity_score": 85.0,
+        "conflict_score": 35.0,
+        "clarity_score": 70.0,
+        "duration_score": 90.0,
+        "dead_air_penalty": 0.0,
+        "predicted_performance": "MEDIUM",
+        "hook_type": "surprising_fact",
+        "explanations": [
+          "hook_type=surprising_fact",
+          "duration_band=15-25",
+          "words=44"
+        ]
+      },
+      "retention_pacing": {
+        "word_count": 44,
+        "duration_sec": 8.0,
+        "wpm": 330.0,
+        "ideal_wpm_range": [
+          125,
+          185
+        ],
+        "spoken_sec": 7.2,
+        "dead_air_sec": 0.8,
+        "dead_air_ratio": 0.1,
+        "hook_window_words_3s": 6,
+        "pacing_label": "FAST_ENERGETIC"
+      },
+      "decision": "APPROVED",
+      "decision_notes": "",
+      "compliance": {
+        "passed": true,
+        "checks": [
+          {
+            "key": "campaign_name",
+            "label": "Correct campaign name",
+            "passed": true,
+            "detail": "got='Creator Showcase' expected='Creator Showcase'"
+          },
+          {
+            "key": "hashtags",
+            "label": "Required hashtags",
+            "passed": true,
+            "detail": "missing=[]"
+          },
+          {
+            "key": "account_tags",
+            "label": "Required account tags",
+            "passed": true,
+            "detail": "missing=[]"
+          },
+          {
+            "key": "disclosure",
+            "label": "Required disclosure at beginning",
+            "passed": true,
+            "detail": "found in caption"
+          },
+          {
+            "key": "duration",
+            "label": "Correct video length",
+            "passed": true,
+            "detail": "8.0s in [5, 60]"
+          },
+          {
+            "key": "aspect_ratio",
+            "label": "Correct aspect ratio",
+            "passed": true,
+            "detail": "got=9:16 expected=9:16"
+          },
+          {
+            "key": "forbidden",
+            "label": "No forbidden words or claims",
+            "passed": true,
+            "detail": "words=[] claims=[]"
+          },
+          {
+            "key": "external_music",
+            "label": "No copyrighted external music",
+            "passed": true,
+            "detail": "clean audio"
+          },
+          {
+            "key": "duplicate_export",
+            "label": "No duplicated export",
+            "passed": true,
+            "detail": "unique SHA-256 hash"
+          },
+          {
+            "key": "misleading_caption",
+            "label": "No misleading captions",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "key": "logo",
+            "label": "Campaign logo present when required",
+            "passed": true,
+            "detail": "not required"
+          },
+          {
+            "key": "cta",
+            "label": "Campaign CTA present when required",
+            "passed": true,
+            "detail": "not required"
+          },
+          {
+            "key": "deadline",
+            "label": "Correct posting deadline",
+            "passed": true,
+            "detail": ""
+          }
+        ]
+      }
+    },
+    {
+      "clip_id": "clip-2",
+      "rank": 2,
+      "selected_for_batch": true,
+      "start_sec": 16.0,
+      "end_sec": 24.0,
+      "duration_sec": 8.0,
+      "duration_band": "15-25",
+      "style": "educational",
+      "hook_type": "surprising_fact",
+      "hook_text": "Quick breakdown: Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payo...",
+      "caption": "Paid partnership\n\nQuick breakdown: Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payo...\n\nHere is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payo...\n\n#CreatorStudio\n\n#CreatorShowcase",
+      "transcript_excerpt": "Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payoff \u2014 preview every cut, verify compliance, then publish manually.",
+      "total_score": 67.9,
+      "rank_report": {
+        "clip_id": "cand-2",
+        "score": 67.9,
+        "hook_score": 90.0,
+        "emotion_score": 30.0,
+        "payoff_score": 80.0,
+        "campaign_fit": 55.0,
+        "curiosity_score": 85.0,
+        "conflict_score": 35.0,
+        "clarity_score": 70.0,
+        "duration_score": 90.0,
+        "dead_air_penalty": 0.0,
+        "predicted_performance": "MEDIUM",
+        "hook_type": "surprising_fact",
+        "explanations": [
+          "hook_type=surprising_fact",
+          "duration_band=15-25",
+          "words=29"
+        ]
+      },
+      "retention_pacing": {
+        "word_count": 29,
+        "duration_sec": 8.0,
+        "wpm": 217.5,
+        "ideal_wpm_range": [
+          125,
+          185
+        ],
+        "spoken_sec": 7.2,
+        "dead_air_sec": 0.8,
+        "dead_air_ratio": 0.1,
+        "hook_window_words_3s": 6,
+        "pacing_label": "FAST_ENERGETIC"
+      },
+      "decision": "PENDING",
+      "decision_notes": ""
+    },
+    {
+      "clip_id": "clip-3",
+      "rank": 3,
+      "selected_for_batch": true,
+      "start_sec": 0.0,
+      "end_sec": 8.0,
+      "duration_sec": 8.0,
+      "duration_band": "15-25",
+      "style": "commentary",
+      "hook_type": "surprising_fact",
+      "hook_text": "Comment if you noticed this too",
+      "caption": "Paid partnership\n\nComment if you noticed this too\n\nThoughts below.\n\n#CreatorStudio\n\n#CreatorShowcase",
+      "transcript_excerpt": "Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: tight scene cuts and clean loudness pacing change retention.",
+      "total_score": 63.2,
+      "rank_report": {
+        "clip_id": "cand-3",
+        "score": 63.2,
+        "hook_score": 90.0,
+        "emotion_score": 30.0,
+        "payoff_score": 40.0,
+        "campaign_fit": 80.0,
+        "curiosity_score": 85.0,
+        "conflict_score": 35.0,
+        "clarity_score": 70.0,
+        "duration_score": 90.0,
+        "dead_air_penalty": 0.0,
+        "predicted_performance": "MEDIUM",
+        "hook_type": "surprising_fact",
+        "explanations": [
+          "hook_type=surprising_fact",
+          "duration_band=15-25",
+          "words=29"
+        ]
+      },
+      "retention_pacing": {
+        "word_count": 29,
+        "duration_sec": 8.0,
+        "wpm": 217.5,
+        "ideal_wpm_range": [
+          125,
+          185
+        ],
+        "spoken_sec": 7.2,
+        "dead_air_sec": 0.8,
+        "dead_air_ratio": 0.1,
+        "hook_window_words_3s": 6,
+        "pacing_label": "FAST_ENERGETIC"
+      },
+      "decision": "PENDING",
+      "decision_notes": ""
+    }
+  ],
+  "renders": {
+    "clip-1": {
+      "video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\video.mp4",
+      "caption_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\caption.txt",
+      "cover_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\cover.jpg",
+      "duration_sec": 8.0,
+      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic",
+      "ok": true,
+      "style": "dramatic",
+      "duration_band": "15-25",
+      "sha256": "a91d7fb8986a322c29550fe16d60cc218673ef7a693cc35b2aa0ae2689c6ef79",
+      "probe": {
+        "exists": true,
+        "filename": "video.mp4",
+        "bytes": 168868,
+        "duration_sec": 8.0,
+        "width": 1080,
+        "height": 1920,
+        "video_codec": "h264",
+        "audio_codec": "aac",
+        "fps": 30.0
+      },
+      "video_url": "/api/studio/media/demo-5ebd799b/exports/clip-1/dramatic/video.mp4",
+      "cover_url": "/api/studio/media/demo-5ebd799b/exports/clip-1/dramatic/cover.jpg",
+      "rendered_at": "2026-11-13T21:00:25.611381+00:00"
+    }
+  },
+  "dry_runs": {
+    "clip-1": {
+      "mode": "dry_run",
+      "clip_id": "clip-1",
+      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic",
+      "target_video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\video.mp4",
+      "burn_captions": true,
+      "ffmpeg": {
+        "style": "dramatic",
+        "duration_band": "15-25",
+        "duration_sec": 8.0,
+        "zoom": "1.12",
+        "fontfile": "C:/Windows/Fonts/arial.ttf",
+        "vf": "trim=start=8.0:duration=8.0,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
+        "af": "atrim=start=8.0:duration=8.0,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11",
+        "command": [
+          "ffmpeg",
+          "-y",
+          "-i",
+          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\source_demo.mp4",
+          "-vf",
+          "trim=start=8.0:duration=8.0,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
+          "-af",
+          "atrim=start=8.0:duration=8.0,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11",
+          "-c:v",
+          "libx264",
+          "-preset",
+          "fast",
+          "-crf",
+          "20",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "128k",
+          "-movflags",
+          "+faststart",
+          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\base_cut.mp4"
+        ]
+      },
+      "command_preview": "ffmpeg -y -i C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\source_demo.mp4 -vf \"trim=start=8.0:duration=8.0,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16\" -af \"atrim=start=8.0:duration=8.0,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11\" -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 128k -movflags +faststart C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\base_cut.mp4",
+      "remotion_payload": {
+        "endpoint": "http://127.0.0.1:3100/render (optional)",
+        "composition": "Dramatic",
+        "props": {
+          "style": "dramatic",
+          "hookText": "Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...",
+          "caption": "Paid partnership\n\nWait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...\n\n#CreatorStudio\n\n#CreatorShowcase",
+          "inputVideo": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\base_cut.mp4",
+          "outputPath": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\video_remotion.mp4"
+        }
+      },
+      "compliance_preview": {
+        "passed": true,
+        "checks": [
+          {
+            "key": "campaign_name",
+            "label": "Correct campaign name",
+            "passed": true,
+            "detail": "got='Creator Showcase' expected='Creator Showcase'"
+          },
+          {
+            "key": "hashtags",
+            "label": "Required hashtags",
+            "passed": true,
+            "detail": "missing=[]"
+          },
+          {
+            "key": "account_tags",
+            "label": "Required account tags",
+            "passed": true,
+            "detail": "missing=[]"
+          },
+          {
+            "key": "disclosure",
+            "label": "Required disclosure at beginning",
+            "passed": true,
+            "detail": "found in caption"
+          },
+          {
+            "key": "duration",
+            "label": "Correct video length",
+            "passed": true,
+            "detail": "8.0s in [5, 60]"
+          },
+          {
+            "key": "aspect_ratio",
+            "label": "Correct aspect ratio",
+            "passed": true,
+            "detail": "got=9:16 expected=9:16"
+          },
+          {
+            "key": "forbidden",
+            "label": "No forbidden words or claims",
+            "passed": true,
+            "detail": "words=[] claims=[]"
+          },
+          {
+            "key": "external_music",
+            "label": "No copyrighted external music",
+            "passed": true,
+            "detail": "clean audio"
+          },
+          {
+            "key": "duplicate_export",
+            "label": "No duplicated export",
+            "passed": true,
+            "detail": "unique SHA-256 hash"
+          },
+          {
+            "key": "misleading_caption",
+            "label": "No misleading captions",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "key": "logo",
+            "label": "Campaign logo present when required",
+            "passed": true,
+            "detail": "not required"
+          },
+          {
+            "key": "cta",
+            "label": "Campaign CTA present when required",
+            "passed": true,
+            "detail": "not required"
+          },
+          {
+            "key": "deadline",
+            "label": "Correct posting deadline",
+            "passed": true,
+            "detail": ""
+          }
+        ]
+      }
+    }
+  },
+  "created_at": "2026-11-13T21:00:11.908872+00:00",
+  "updated_at": "2026-11-13T21:00:25.611381+00:00"
+}

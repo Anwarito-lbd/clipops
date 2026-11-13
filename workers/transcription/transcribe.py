@@ -148,6 +148,27 @@ def _via_whisperx(
     }
 
 
+def _wav_to_float32(wav_path: str):
+    """16 kHz mono PCM as float32. Avoids PyAV's av.open(metadata_errors=...), removed in PyAV 19."""
+    import wave
+
+    import numpy as np
+
+    with wave.open(wav_path, "rb") as wf:
+        channels = wf.getnchannels()
+        width = wf.getsampwidth()
+        rate = wf.getframerate()
+        frames = wf.readframes(wf.getnframes())
+    if width != 2:
+        raise ValueError(f"expected 16-bit wav, got sample width {width}")
+    if rate != 16000:
+        raise ValueError(f"expected 16000 Hz wav, got {rate}")
+    audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+    if channels > 1:
+        audio = audio.reshape(-1, channels).mean(axis=1)
+    return np.ascontiguousarray(audio, dtype=np.float32)
+
+
 def _via_faster_whisper(video_path: str, model: str, device: str, compute_type: str) -> dict:
     from faster_whisper import WhisperModel  # type: ignore
 
@@ -159,11 +180,15 @@ def _via_faster_whisper(video_path: str, model: str, device: str, compute_type: 
     except Exception:
         wm = WhisperModel(name, device="cpu", compute_type="int8")
 
-    # Prefer wav extract for consistent decoding on Windows
+    # Prefer wav extract for consistent decoding on Windows.
+    # Pass samples, not a path: faster-whisper 1.2 decodes paths with
+    # av.open(..., metadata_errors="ignore"), which PyAV 19 removed.
     wav = _ffmpeg_wav(video_path)
-    source = wav or video_path
+    if not wav:
+        raise RuntimeError("ffmpeg wav extract failed")
     try:
-        segments_iter, info = wm.transcribe(source, word_timestamps=True, vad_filter=True)
+        audio = _wav_to_float32(wav)
+        segments_iter, info = wm.transcribe(audio, word_timestamps=True, vad_filter=True)
         segments = []
         words = []
         for seg in segments_iter:
