@@ -36,6 +36,12 @@ class DemoSessionRequest(BaseModel):
     auto_run: bool = True
 
 
+class ExampleSessionRequest(BaseModel):
+    title: str = "16:9 Spoken Podcast Example (David + Zira)"
+    campaign_name: str = "Creator Retention Podcast"
+    auto_run: bool = True
+
+
 class OpenVideoRequest(BaseModel):
     video_path: str
     title: str | None = None
@@ -125,6 +131,20 @@ def create_demo_session(body: DemoSessionRequest) -> dict[str, Any]:
             campaign_name=body.campaign_name,
             auto_run=body.auto_run,
         )
+    except Exception as exc:
+        raise HTTPException(500, str(exc)) from exc
+
+
+@app.post("/api/studio/sessions/example")
+def create_example_session(body: ExampleSessionRequest) -> dict[str, Any]:
+    try:
+        return get_service().create_example_session(
+            title=body.title,
+            campaign_name=body.campaign_name,
+            auto_run=body.auto_run,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(500, str(exc)) from exc
 

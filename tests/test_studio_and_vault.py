@@ -195,3 +195,34 @@ def test_obsidian_vault_zero_orphans_and_valid_links():
     # Verify graph.json is valid JSON
     graph_cfg = json.loads((vault_dir / ".obsidian" / "graph.json").read_text(encoding="utf-8"))
     assert "colorGroups" in graph_cfg
+
+
+def test_studio_podcast_example_and_nle_ui(tmp_path, monkeypatch):
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    example_mp4 = ROOT / "examples" / "sample_podcast_clip" / "source_podcast_16x9.mp4"
+    if not example_mp4.exists():
+        pytest.skip("sample_podcast_clip/source_podcast_16x9.mp4 not present")
+
+    monkeypatch.setenv("CLIPOPS_STUDIO_WORKSPACE", str(tmp_path / "studio_ws_ex"))
+    monkeypatch.setenv("REMOTION_URL", "")
+    from server import app  # noqa: E402
+
+    client = TestClient(app)
+
+    r_html = client.get("/")
+    assert r_html.status_code == 200
+    for token in ("safezone-overlay", "wave-hook-track", "cut-span-track", "btn-example"):
+        assert token in r_html.text
+
+    r_ex = client.post("/api/studio/sessions/example", json={"auto_run": True})
+    assert r_ex.status_code == 200
+    sess = r_ex.json()
+    assert sess["probe"]["width"] == 1280
+    assert sess["probe"]["height"] == 720
+    assert len(sess["probe"]["waveform"]) == 72
+    assert sess["steps"]["transcribe"] is True
+    assert sess["steps"]["scenes"] is True
+    assert sess["steps"]["score"] is True
+    assert len(sess["scenes"]["scenes"]) >= 2
+    assert len(sess["clips"]) >= 1

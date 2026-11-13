@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import array
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -114,7 +116,56 @@ def probe_media(video_path: str) -> dict[str, Any]:
                 info["audio_codec"] = stream.get("codec_name")
     except Exception:
         pass
+    info["waveform"] = compute_audio_waveform(video_path, bins=72) if info["exists"] else []
     return info
+
+
+def compute_audio_waveform(video_path: str, bins: int = 72) -> list[float]:
+    """Compute normalized [0.05..1.0] RMS audio envelope bins via FFmpeg PCM pipe."""
+    if not shutil.which("ffmpeg") or bins <= 0:
+        return [0.25] * max(1, bins)
+    try:
+        proc = subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-i",
+                video_path,
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "4000",
+                "-f",
+                "s16le",
+                "pipe:1",
+            ],
+            capture_output=True,
+            check=False,
+        )
+        raw = proc.stdout
+        if proc.returncode != 0 or len(raw) < 4:
+            return [0.25] * bins
+        samples = array.array("h")
+        even_len = len(raw) - (len(raw) % 2)
+        samples.frombytes(raw[:even_len])
+        if not samples:
+            return [0.25] * bins
+        step = max(1, len(samples) // bins)
+        rms_vals: list[float] = []
+        for idx in range(bins):
+            start = idx * step
+            chunk = samples[start : start + step] if idx < bins - 1 else samples[start:]
+            if not chunk:
+                rms_vals.append(0.0)
+                continue
+            energy = sum(float(s) * float(s) for s in chunk) / len(chunk)
+            rms_vals.append(math.sqrt(energy))
+        peak = max(rms_vals) or 1.0
+        return [round(max(0.06, min(1.0, val / peak)), 3) for val in rms_vals]
+    except Exception:
+        return [0.25] * bins
 
 
 def synthesize_demo_video(dest_mp4: Path, duration_per_scene: int = 8) -> Path:
@@ -280,6 +331,35 @@ class StudioService:
             self.step_transcribe(session_id, model="tiny", device="cpu", compute_type="int8")
             self.step_detect_scenes(session_id, detector="content")
             session = self.step_score_hooks(session_id, campaign_name=campaign_name)
+        return session
+
+    def create_example_session(
+        self,
+        *,
+        title: str = "16:9 Spoken Podcast Example (David + Zira)",
+        campaign_name: str = "Creator Retention Podcast",
+        auto_run: bool = True,
+    ) -> dict[str, Any]:
+        """Load the committed 3-scene 16:9 spoken podcast example and run real analysis."""
+        example_mp4 = ROOT / "examples" / "sample_podcast_clip" / "source_podcast_16x9.mp4"
+        if not example_mp4.exists():
+            raise FileNotFoundError(
+                f"Podcast example video missing at {example_mp4}. Run scripts/build_podcast_example.py first."
+            )
+        session = self.open_video_session(
+            str(example_mp4),
+            title=title,
+            campaign_name=campaign_name,
+        )
+        sid = session["session_id"]
+        if auto_run:
+            self.step_transcribe(sid, model="tiny", device="cpu", compute_type="int8")
+            self.step_detect_scenes(sid, detector="hybrid")
+            session = self.step_score_hooks(
+                sid,
+                campaign_name=campaign_name,
+                preferred_length_band="15-25",
+            )
         return session
 
     def open_video_session(

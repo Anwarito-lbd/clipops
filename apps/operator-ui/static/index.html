@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ClipOps Studio — Local Clipping Workstation</title>
+  <title>ClipOps Studio — Precision NLE Clipping Workstation</title>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -11,15 +11,19 @@
     <div class="brand">
       <img src="/logo.png" alt="ClipOps Logo" class="logo" />
       <div>
-        <div class="brand-title">ClipOps <span class="badge-studio">STUDIO</span></div>
-        <div class="brand-sub">Ethical Short-Form Clipping Workstation · Human Approval &amp; Manual Publish</div>
+        <div class="brand-title">
+          ClipOps Studio
+          <span class="badge-studio">NLE WORKSTATION</span>
+        </div>
+        <div class="brand-sub">Human-in-the-Loop Short-Form Editing · Local ASR, Scene Cuts &amp; FFmpeg Filtergraphs</div>
       </div>
     </div>
 
     <div class="topbar-controls">
       <div id="engine-pills" class="engine-pills"></div>
       <div class="session-actions">
-        <button id="btn-demo" class="btn btn-primary">+ Run 24s Demo</button>
+        <button id="btn-example" class="btn btn-accent">Load 16:9 Podcast Example</button>
+        <button id="btn-demo" class="btn btn-ghost">+ 24s Demo</button>
         <button id="btn-open-modal" class="btn btn-ghost">Open Local Video</button>
       </div>
     </div>
@@ -29,14 +33,14 @@
     <div class="stepper" id="stepper">
       <div class="step" data-step="probe">
         <span class="step-num">1</span>
-        <div>
+        <div class="step-info">
           <div class="step-name">Source Probe</div>
           <div class="step-meta" id="meta-probe">Waiting</div>
         </div>
       </div>
       <div class="step" data-step="transcribe">
         <span class="step-num">2</span>
-        <div>
+        <div class="step-info">
           <div class="step-name">WhisperX / ASR</div>
           <div class="step-meta" id="meta-transcribe">Waiting</div>
         </div>
@@ -44,7 +48,7 @@
       </div>
       <div class="step" data-step="scenes">
         <span class="step-num">3</span>
-        <div>
+        <div class="step-info">
           <div class="step-name">PySceneDetect</div>
           <div class="step-meta" id="meta-scenes">Waiting</div>
         </div>
@@ -57,7 +61,7 @@
       </div>
       <div class="step" data-step="score">
         <span class="step-num">4</span>
-        <div>
+        <div class="step-info">
           <div class="step-name">Hook &amp; Pacing</div>
           <div class="step-meta" id="meta-score">Waiting</div>
         </div>
@@ -65,7 +69,7 @@
       </div>
       <div class="step" data-step="render">
         <span class="step-num">5</span>
-        <div>
+        <div class="step-info">
           <div class="step-name">FFmpeg Render</div>
           <div class="step-meta" id="meta-render">Waiting</div>
         </div>
@@ -75,58 +79,113 @@
   </section>
 
   <main class="workspace">
-    <!-- Left Rail: Sessions & Candidate Clips -->
+    <!-- Left Rail: Project Bin & Candidate Cuts -->
     <aside class="panel rail">
       <div class="panel-head">
-        <h2>Sessions</h2>
+        <h2>Project Bin</h2>
         <select id="session-select" class="select"></select>
       </div>
       <div id="probe-card" class="probe-card"></div>
 
       <div class="panel-head mt-12">
-        <h2>Candidate Cuts</h2>
-        <span id="clip-count" class="pill">0 clips</span>
+        <h2>Ranked Cuts</h2>
+        <span id="clip-count" class="pill">0 cuts</span>
       </div>
       <div id="clip-list" class="clip-list"></div>
     </aside>
 
-    <!-- Center Stage: Video Preview + Timeline + Cut Controls -->
+    <!-- Center Stage: Program Monitor + Transport + Multi-Track Timeline + Cut Controls -->
     <section class="panel stage">
-      <div class="panel-head">
+      <div class="monitor-bar">
         <div class="preview-tabs">
-          <button class="tab-btn active" data-preview="source">Source Footage</button>
-          <button class="tab-btn" data-preview="rendered">Rendered 9:16 Cut</button>
+          <button class="tab-btn active" data-preview="source">16:9 Source Feed</button>
+          <button class="tab-btn" data-preview="rendered">9:16 Rendered Cut</button>
         </div>
-        <span id="active-clip-badge" class="pill pill-cyan">No clip selected</span>
+        <div class="monitor-tools">
+          <button id="btn-safezone" class="btn-toggle active" title="Toggle 9:16 vertical crop & UI safe-zone guides">
+            9:16 Safe Guides: ON
+          </button>
+          <span id="timecode-hud" class="timecode-hud">00:00.00 / 00:00.00</span>
+          <span id="active-clip-badge" class="pill pill-cyan">No cut selected</span>
+        </div>
       </div>
 
-      <div class="video-frame">
-        <video id="video-player" controls playsinline></video>
+      <div class="video-frame" id="video-frame">
+        <video id="video-player" playsinline preload="metadata"></video>
+        <!-- Precision NLE Crop & Platform Safe-Zone Overlay -->
+        <div id="safezone-overlay" class="safezone-overlay">
+          <div id="crop-guide-box" class="crop-guide-box">
+            <div class="crop-label">9:16 CROP FRAME</div>
+            <div class="safe-top-band">TITLE / HOOK ZONE</div>
+            <div class="safe-right-rail">UI RAIL</div>
+            <div class="safe-bottom-band">CAPTIONS SAFE MARGIN</div>
+          </div>
+        </div>
         <div id="video-empty" class="video-empty">
-          Click <strong>+ Run 24s Demo</strong> or open a local video to begin clipping.
+          Click <strong>Load 16:9 Podcast Example</strong> or <strong>+ 24s Demo</strong> to open a session.
         </div>
       </div>
 
+      <!-- NLE Transport Controls -->
+      <div class="transport-bar">
+        <div class="transport-left">
+          <button id="btn-play" class="btn-transport primary" title="Play / Pause (Space)">Play</button>
+          <button id="btn-back" class="btn-transport" title="Step -1.5s (J)">-1.5s [J]</button>
+          <button id="btn-fwd" class="btn-transport" title="Step +1.5s (L)">+1.5s [L]</button>
+          <button id="btn-jump-cut" class="btn-transport" title="Seek to active cut start">Cue Cut</button>
+          <button id="btn-set-in" class="btn-transport" title="Set cut In point to playhead">Mark In [</button>
+          <button id="btn-set-out" class="btn-transport" title="Set cut Out point to playhead">Mark Out ]</button>
+        </div>
+        <div class="transport-right">
+          <label class="rate-wrap">
+            <span>Speed</span>
+            <select id="playback-rate" class="mini-select">
+              <option value="1">1.0x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+            </select>
+          </label>
+          <span class="shortcut-hint">Space Play · A Approve · R Reject · D Dry-Run</span>
+        </div>
+      </div>
+
+      <!-- Multi-Track NLE Timeline -->
       <div class="timeline-wrap">
         <div class="timeline-head">
-          <span>Detected Scene Boundaries</span>
+          <span class="timeline-title">Multi-Track Sequence · V1 Scenes / A1 Audio &amp; Hook Curve / T1 Cut Span</span>
           <span id="timeline-duration" class="mono">0.0s</span>
         </div>
-        <div id="scene-timeline" class="scene-timeline"></div>
+        <div id="nle-timeline" class="nle-timeline">
+          <div id="timeline-ruler" class="timeline-ruler"></div>
+          <div class="track-row">
+            <div class="track-tag">V1 SCENES</div>
+            <div id="scene-timeline" class="scene-timeline track-lane"></div>
+          </div>
+          <div class="track-row">
+            <div class="track-tag">A1 HOOK / WAVE</div>
+            <div id="wave-hook-track" class="wave-hook-track track-lane"></div>
+          </div>
+          <div class="track-row">
+            <div class="track-tag">T1 CUT SPAN</div>
+            <div id="cut-span-track" class="cut-span-track track-lane"></div>
+          </div>
+          <div id="playhead-line" class="playhead-line" style="left: 0%"></div>
+        </div>
       </div>
 
+      <!-- Cut Parameters & Approval Gate -->
       <div class="cut-editor">
         <div class="field-grid">
           <label>
-            <span>Start (sec)</span>
+            <span>In (sec)</span>
             <input id="inp-start" type="number" step="0.1" min="0" />
           </label>
           <label>
-            <span>End (sec)</span>
+            <span>Out (sec)</span>
             <input id="inp-end" type="number" step="0.1" min="0.5" />
           </label>
           <label>
-            <span>Editorial Style</span>
+            <span>Render Style</span>
             <select id="inp-style">
               <option value="dramatic">Dramatic (1.12x)</option>
               <option value="educational">Educational (1.00x)</option>
@@ -134,7 +193,7 @@
             </select>
           </label>
           <label>
-            <span>Duration Band</span>
+            <span>Target Band</span>
             <select id="inp-band">
               <option value="15-25">15–25s</option>
               <option value="25-40">25–40s</option>
@@ -144,20 +203,20 @@
         </div>
 
         <label class="full-field">
-          <span>Hook Overlay Text (Burned via FFmpeg drawtext / Remotion)</span>
-          <input id="inp-hook" type="text" maxlength="90" placeholder="Wait until you see this..." />
+          <span>Hook Overlay Text (FFmpeg drawtext / Remotion)</span>
+          <input id="inp-hook" type="text" maxlength="90" placeholder="Enter concise hook line..." />
         </label>
 
         <div class="action-bar">
-          <button id="btn-approve" class="btn btn-success">Approve Cut</button>
-          <button id="btn-reject" class="btn btn-danger">Reject Cut</button>
-          <button id="btn-dry-run" class="btn btn-ghost">Dry-Run Filtergraph</button>
-          <button id="btn-render" class="btn btn-primary">Render Local Cut</button>
+          <button id="btn-approve" class="btn btn-success">Approve Cut [A]</button>
+          <button id="btn-reject" class="btn btn-danger">Reject Cut [R]</button>
+          <button id="btn-dry-run" class="btn btn-ghost">Dry-Run Filtergraph [D]</button>
+          <button id="btn-render" class="btn btn-primary">Render 9:16 MP4</button>
         </div>
       </div>
     </section>
 
-    <!-- Right Inspector: Transcript / Hook & Pacing / Filtergraph & Compliance -->
+    <!-- Right Inspector: Live Word Transcript / Hooks & Pacing / Filtergraph & Gate -->
     <aside class="panel inspector">
       <div class="inspector-tabs">
         <button class="itab active" data-itab="transcript">Transcript &amp; Words</button>
@@ -175,18 +234,18 @@
   <div id="open-modal" class="modal hidden">
     <div class="modal-card">
       <h3>Open Local Video File</h3>
-      <p class="muted">Provide an absolute path to a local MP4/MOV/WEBM file for offline analysis.</p>
+      <p class="muted">Provide an absolute path to a local MP4, MOV, or WEBM file for offline analysis.</p>
       <label class="full-field">
         <span>Video File Path</span>
-        <input id="modal-video-path" type="text" placeholder="C:\path\to\source.mp4" />
+        <input id="modal-video-path" type="text" placeholder="C:\Videos\podcast_episode.mp4" />
       </label>
-      <label class="full-field">
-        <span>Project / Brief Label</span>
+      <label class="full-field mt-8">
+        <span>Campaign / Project Name</span>
         <input id="modal-campaign" type="text" value="Creator Showcase" />
       </label>
-      <div class="action-bar">
+      <div class="action-bar mt-12">
         <button id="btn-modal-cancel" class="btn btn-ghost">Cancel</button>
-        <button id="btn-modal-open" class="btn btn-primary">Open &amp; Probe</button>
+        <button id="btn-modal-open" class="btn btn-primary">Open Session</button>
       </div>
     </div>
   </div>
