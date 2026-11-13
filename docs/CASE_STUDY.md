@@ -25,6 +25,11 @@ ClipOps avoids opaque, slow, or expensive LLM calls in the scoring loop:
 - **Windows FFmpeg `drawtext` crash (`0xC0000005` / `3221225477`)**: On Windows FFmpeg builds lacking Fontconfig config files, invoking `drawtext` without an explicit `fontfile` crashes with an access violation. Adding `_resolve_fontfile()` + `_escape_filter_path()` (`fontfile='C\:/Windows/Fonts/arial.ttf'`) inside `build_filtergraph()` made all three editorial styles render cleanly on both Windows and Linux.
 - **Fail-closed compliance gates**: `run_compliance_check` treats unverified logos (`has_logo is None` when `requires_logo=True`) and out-of-band durations (e.g., `4.0s not in [20, 45]`) as compliance holds in `REVIEW_REQUIRED` rather than silently exporting non-compliant cuts.
 
-## Lightweight Local Operator Studio + Obsidian Brain
+## Lightweight Local NLE Operator Studio + Real 16:9→9:16 Podcast Example + Obsidian Brain
 
-To make every stage inspectable without standing up Postgres, Redis, or Next.js, ClipOps includes `apps/operator-ui/` (FastAPI dark-mode Studio + `cli.py`) paired with a zero-orphan 14-note Obsidian Knowledge Graph (`vault/`). Operators can inspect WhisperX/ASR word timestamps, PySceneDetect cuts, retention pacing math, dry-run FFmpeg `-vf`/`-af` filtergraphs, approve/reject cuts, and trigger local renders step-by-step.
+To make every stage inspectable without standing up Postgres, Redis, or Next.js, ClipOps pairs `apps/operator-ui/` (FastAPI dark-mode NLE Studio + `cli.py`) with a zero-orphan 14-note Obsidian Knowledge Graph (`vault/`). Applying UI craft guidance from `anthropics/skills@frontend-design` (discovered via `npx skills add https://github.com/vercel-labs/skills --skill find-skills`), the Operator Studio provides:
+- A multi-track NLE sequence (`V1 SCENES`, `A1 HOOK / WAVE` combining FFmpeg 72-bin PCM waveforms with an SVG hook-score curve, and `T1 CUT SPAN`),
+- A toggleable `9:16` crop & platform safe-zone overlay over `16:9` feeds (`TITLE / HOOK ZONE`, `UI RAIL`, `CAPTIONS SAFE MARGIN`),
+- Live word-level transcript highlighting synced to `video.timeupdate` with click-to-seek,
+- Transport controls + NLE keyboard shortcuts (`Space`, `J`/`K`/`L`, `A`, `R`, `D`), and
+- One-click **Load 16:9 Podcast Example** (`examples/sample_podcast_clip/source_podcast_16x9.mp4`), which executes `faster-whisper` (`4` segments, `83` word timestamps), `PySceneDetect` (`3` scenes), `ClipRankingService` (`total_score=66.1`, `hook_score=90.0`), and FFmpeg `1080×1920` vertical export (`docs/proof/example-rendered-clip.mp4`).

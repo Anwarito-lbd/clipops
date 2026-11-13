@@ -83,24 +83,33 @@ def main() -> int:
             page.goto("http://127.0.0.1:8017/", wait_until="networkidle")
             page.wait_for_timeout(800)
 
-            # Step 1: Run 24s Demo (synthesizes 3-scene video, transcribes, detects cuts, ranks hooks)
-            page.click("#btn-demo")
-            page.wait_for_selector(".clip-card", timeout=90000)
+            # Step 1: Load the real 3-scene 16:9 Spoken Podcast Example (faster-whisper + PySceneDetect + Hook scoring)
+            page.click("#btn-example")
+            page.wait_for_selector(".clip-card", timeout=120000)
             page.wait_for_timeout(1200)
 
-            # Step 2: Inspect Hooks & Retention Pacing tab
+            # Step 2: Click a word chip in Transcript & Words to seek inside Scene 2 and show live word highlight
+            word_chips = page.locator("#tab-transcript .word-chip")
+            if word_chips.count() > 25:
+                word_chips.nth(25).click()
+            page.wait_for_timeout(1000)
+
+            # Capture primary desktop NLE workspace screenshot (16:9 feed + 9:16 safe guides + V1/A1/T1 timeline + live words)
+            page.screenshot(path=str(OUT_DIR / "operator-ui.png"), full_page=False)
+
+            # Step 3: Inspect Hooks & Retention Pacing tab
             page.click('[data-itab="scoring"]')
             page.wait_for_timeout(1200)
 
-            # Step 3: Trigger Dry-Run Filtergraph & inspect command
+            # Step 4: Trigger Dry-Run Filtergraph & inspect FFmpeg + Remotion payload
             page.click("#btn-dry-run")
             page.wait_for_timeout(1200)
 
-            # Step 4: Approve top cut
+            # Step 5: Approve top cut (human gate)
             page.click("#btn-approve")
             page.wait_for_timeout(1000)
 
-            # Step 5: Render Local 9:16 Cut & preview
+            # Step 6: Render Local 9:16 Cut & preview rendered vertical MP4
             page.click("#btn-render")
             page.wait_for_function(
                 "() => document.querySelector('#meta-render')?.textContent?.includes('rendered')",
@@ -108,8 +117,8 @@ def main() -> int:
             )
             page.wait_for_timeout(1400)
 
-            # Capture desktop full UI screenshot (on Hooks & Pacing or Filtergraph view)
-            page.screenshot(path=str(OUT_DIR / "operator-ui.png"), full_page=False)
+            # Capture secondary desktop screenshot showing Rendered 9:16 Cut + Filtergraph & Gate
+            page.screenshot(path=str(OUT_DIR / "operator-ui-rendered.png"), full_page=False)
 
             # Mobile 390x844 screenshot in separate clean context without disturbing recorded video
             mob_ctx = browser.new_context(viewport={"width": 390, "height": 844})

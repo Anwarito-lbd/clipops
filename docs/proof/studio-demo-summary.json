@@ -1,20 +1,94 @@
 {
-  "session_id": "demo-5ebd799b",
-  "title": "Creator Studio Demo (24s Multi-Scene)",
-  "campaign_name": "Creator Showcase",
-  "is_synthetic_demo": true,
-  "source_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\source_demo.mp4",
-  "source_media_url": "/api/studio/media/demo-5ebd799b/source_demo.mp4",
+  "session_id": "clip-89d2d99a",
+  "title": "16:9 Spoken Podcast Example (David + Zira)",
+  "campaign_name": "Creator Retention Podcast",
+  "is_synthetic_demo": false,
+  "source_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\source.mp4",
+  "source_media_url": "/api/studio/media/clip-89d2d99a/source.mp4",
   "probe": {
     "exists": true,
-    "filename": "source_demo.mp4",
-    "bytes": 462919,
-    "duration_sec": 24.0,
-    "width": 1080,
-    "height": 1920,
+    "filename": "source.mp4",
+    "bytes": 355881,
+    "duration_sec": 30.487,
+    "width": 1280,
+    "height": 720,
     "video_codec": "h264",
     "audio_codec": "aac",
-    "fps": 30.0
+    "fps": 30.0,
+    "waveform": [
+      0.681,
+      0.764,
+      0.637,
+      1.0,
+      0.778,
+      0.691,
+      0.464,
+      0.29,
+      0.787,
+      0.726,
+      0.621,
+      0.732,
+      0.707,
+      0.5,
+      0.547,
+      0.791,
+      0.822,
+      0.609,
+      0.815,
+      0.359,
+      0.06,
+      0.06,
+      0.561,
+      0.266,
+      0.631,
+      0.887,
+      0.687,
+      0.513,
+      0.06,
+      0.441,
+      0.717,
+      0.798,
+      0.736,
+      0.617,
+      0.329,
+      0.731,
+      0.929,
+      0.567,
+      0.569,
+      0.357,
+      0.714,
+      0.755,
+      0.764,
+      0.218,
+      0.858,
+      0.758,
+      0.643,
+      0.788,
+      0.497,
+      0.06,
+      0.06,
+      0.248,
+      0.72,
+      0.648,
+      0.802,
+      0.773,
+      0.104,
+      0.81,
+      0.631,
+      0.62,
+      0.258,
+      0.745,
+      0.785,
+      0.06,
+      0.826,
+      0.874,
+      0.6,
+      0.75,
+      0.885,
+      0.338,
+      0.06,
+      0.06
+    ]
   },
   "steps": {
     "probe": true,
@@ -27,276 +101,476 @@
     "segments": [
       {
         "start": 0.0,
-        "end": 8.0,
-        "text": "Wait until you see this workflow mistake most creators miss in their first 3 seconds.",
+        "end": 8.36,
+        "text": "Most creators spend three hours recording a great episode, and then they lose 80% of viewers in the first two seconds because nobody frames the tension upfront.",
         "speaker": "SPEAKER_0"
       },
       {
-        "start": 8.0,
-        "end": 16.0,
-        "text": "Here is the surprising fact: tight scene cuts and clean loudness pacing change retention.",
+        "start": 9.64,
+        "end": 12.18,
+        "text": "Wait, here is the secret nobody talks about.",
         "speaker": "SPEAKER_0"
       },
       {
-        "start": 16.0,
-        "end": 24.0,
-        "text": "So finally here is the payoff \u2014 preview every cut, verify compliance, then publish manually.",
+        "start": 12.8,
+        "end": 20.92,
+        "text": "Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export.",
+        "speaker": "SPEAKER_0"
+      },
+      {
+        "start": 21.64,
+        "end": 29.42,
+        "text": "That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
         "speaker": "SPEAKER_0"
       }
     ],
     "word_segments": [
       {
-        "word": "Wait",
+        "word": " Most",
         "start": 0.0,
-        "end": 0.48
+        "end": 0.46
       },
       {
-        "word": "until",
-        "start": 0.533,
-        "end": 1.013
+        "word": " creators",
+        "start": 0.46,
+        "end": 0.84
       },
       {
-        "word": "you",
-        "start": 1.067,
-        "end": 1.547
+        "word": " spend",
+        "start": 0.84,
+        "end": 1.16
       },
       {
-        "word": "see",
-        "start": 1.6,
-        "end": 2.08
+        "word": " three",
+        "start": 1.16,
+        "end": 1.48
       },
       {
-        "word": "this",
-        "start": 2.133,
-        "end": 2.613
+        "word": " hours",
+        "start": 1.48,
+        "end": 1.7
       },
       {
-        "word": "workflow",
-        "start": 2.667,
-        "end": 3.147
+        "word": " recording",
+        "start": 1.7,
+        "end": 2.06
       },
       {
-        "word": "mistake",
-        "start": 3.2,
-        "end": 3.68
+        "word": " a",
+        "start": 2.06,
+        "end": 2.3
       },
       {
-        "word": "most",
-        "start": 3.733,
-        "end": 4.213
+        "word": " great",
+        "start": 2.3,
+        "end": 2.52
       },
       {
-        "word": "creators",
-        "start": 4.267,
-        "end": 4.747
+        "word": " episode,",
+        "start": 2.52,
+        "end": 2.96
       },
       {
-        "word": "miss",
-        "start": 4.8,
-        "end": 5.28
+        "word": " and",
+        "start": 3.46,
+        "end": 3.5
       },
       {
-        "word": "in",
-        "start": 5.333,
-        "end": 5.813
+        "word": " then",
+        "start": 3.5,
+        "end": 3.72
       },
       {
-        "word": "their",
-        "start": 5.867,
-        "end": 6.347
+        "word": " they",
+        "start": 3.72,
+        "end": 3.82
       },
       {
-        "word": "first",
-        "start": 6.4,
+        "word": " lose",
+        "start": 3.82,
+        "end": 4.02
+      },
+      {
+        "word": " 80",
+        "start": 4.02,
+        "end": 4.32
+      },
+      {
+        "word": "%",
+        "start": 4.32,
+        "end": 4.66
+      },
+      {
+        "word": " of",
+        "start": 4.66,
+        "end": 4.88
+      },
+      {
+        "word": " viewers",
+        "start": 4.88,
+        "end": 5.1
+      },
+      {
+        "word": " in",
+        "start": 5.1,
+        "end": 5.34
+      },
+      {
+        "word": " the",
+        "start": 5.34,
+        "end": 5.44
+      },
+      {
+        "word": " first",
+        "start": 5.44,
+        "end": 5.66
+      },
+      {
+        "word": " two",
+        "start": 5.66,
+        "end": 5.9
+      },
+      {
+        "word": " seconds",
+        "start": 5.9,
+        "end": 6.2
+      },
+      {
+        "word": " because",
+        "start": 6.2,
+        "end": 6.56
+      },
+      {
+        "word": " nobody",
+        "start": 6.56,
         "end": 6.88
       },
       {
-        "word": "3",
-        "start": 6.933,
-        "end": 7.413
+        "word": " frames",
+        "start": 6.88,
+        "end": 7.24
       },
       {
-        "word": "seconds.",
-        "start": 7.467,
-        "end": 7.947
+        "word": " the",
+        "start": 7.24,
+        "end": 7.46
       },
       {
-        "word": "Here",
-        "start": 8.0,
-        "end": 8.514
+        "word": " tension",
+        "start": 7.46,
+        "end": 7.72
       },
       {
-        "word": "is",
-        "start": 8.571,
-        "end": 9.086
+        "word": " upfront.",
+        "start": 7.72,
+        "end": 8.36
       },
       {
-        "word": "the",
-        "start": 9.143,
-        "end": 9.657
+        "word": " Wait,",
+        "start": 9.64,
+        "end": 9.68
       },
       {
-        "word": "surprising",
-        "start": 9.714,
-        "end": 10.229
+        "word": " here",
+        "start": 9.98,
+        "end": 10.3
       },
       {
-        "word": "fact:",
-        "start": 10.286,
-        "end": 10.8
+        "word": " is",
+        "start": 10.3,
+        "end": 10.5
       },
       {
-        "word": "tight",
-        "start": 10.857,
-        "end": 11.371
+        "word": " the",
+        "start": 10.5,
+        "end": 10.64
       },
       {
-        "word": "scene",
-        "start": 11.429,
-        "end": 11.943
+        "word": " secret",
+        "start": 10.64,
+        "end": 10.9
       },
       {
-        "word": "cuts",
-        "start": 12.0,
-        "end": 12.514
+        "word": " nobody",
+        "start": 10.9,
+        "end": 11.24
       },
       {
-        "word": "and",
-        "start": 12.571,
-        "end": 13.086
+        "word": " talks",
+        "start": 11.24,
+        "end": 11.56
       },
       {
-        "word": "clean",
-        "start": 13.143,
-        "end": 13.657
+        "word": " about.",
+        "start": 11.56,
+        "end": 12.18
       },
       {
-        "word": "loudness",
-        "start": 13.714,
-        "end": 14.229
+        "word": " Instead",
+        "start": 12.8,
+        "end": 12.96
       },
       {
-        "word": "pacing",
-        "start": 14.286,
-        "end": 14.8
+        "word": " of",
+        "start": 12.96,
+        "end": 13.18
       },
       {
-        "word": "change",
-        "start": 14.857,
-        "end": 15.371
+        "word": " starting",
+        "start": 13.18,
+        "end": 13.42
       },
       {
-        "word": "retention.",
-        "start": 15.429,
-        "end": 15.943
+        "word": " with",
+        "start": 13.42,
+        "end": 13.72
       },
       {
-        "word": "So",
-        "start": 16.0,
-        "end": 16.48
+        "word": " polite",
+        "start": 13.72,
+        "end": 13.94
       },
       {
-        "word": "finally",
-        "start": 16.533,
-        "end": 17.013
+        "word": " introductions,",
+        "start": 13.94,
+        "end": 14.46
       },
       {
-        "word": "here",
-        "start": 17.067,
-        "end": 17.547
+        "word": " open",
+        "start": 15.1,
+        "end": 15.26
       },
       {
-        "word": "is",
-        "start": 17.6,
-        "end": 18.08
+        "word": " right",
+        "start": 15.26,
+        "end": 15.48
       },
       {
-        "word": "the",
-        "start": 18.133,
-        "end": 18.613
+        "word": " on",
+        "start": 15.48,
+        "end": 15.72
       },
       {
-        "word": "payoff",
-        "start": 18.667,
-        "end": 19.147
+        "word": " the",
+        "start": 15.72,
+        "end": 15.82
       },
       {
-        "word": "\u2014",
-        "start": 19.2,
-        "end": 19.68
+        "word": " sharpest",
+        "start": 15.82,
+        "end": 16.16
       },
       {
-        "word": "preview",
-        "start": 19.733,
-        "end": 20.213
+        "word": " claim,",
+        "start": 16.16,
+        "end": 16.52
       },
       {
-        "word": "every",
-        "start": 20.267,
-        "end": 20.747
+        "word": " cut",
+        "start": 16.96,
+        "end": 17.1
       },
       {
-        "word": "cut,",
-        "start": 20.8,
-        "end": 21.28
+        "word": " dead",
+        "start": 17.1,
+        "end": 17.28
       },
       {
-        "word": "verify",
-        "start": 21.333,
-        "end": 21.813
+        "word": " air",
+        "start": 17.28,
+        "end": 17.52
       },
       {
-        "word": "compliance,",
-        "start": 21.867,
-        "end": 22.347
+        "word": " every",
+        "start": 17.52,
+        "end": 17.76
       },
       {
-        "word": "then",
-        "start": 22.4,
-        "end": 22.88
+        "word": " four",
+        "start": 17.76,
+        "end": 18.0
       },
       {
-        "word": "publish",
-        "start": 22.933,
-        "end": 23.413
+        "word": " seconds,",
+        "start": 18.0,
+        "end": 18.42
       },
       {
-        "word": "manually.",
-        "start": 23.467,
-        "end": 23.947
+        "word": " and",
+        "start": 18.84,
+        "end": 18.98
+      },
+      {
+        "word": " verify",
+        "start": 18.98,
+        "end": 19.28
+      },
+      {
+        "word": " every",
+        "start": 19.28,
+        "end": 19.64
+      },
+      {
+        "word": " caption",
+        "start": 19.64,
+        "end": 19.96
+      },
+      {
+        "word": " before",
+        "start": 19.96,
+        "end": 20.26
+      },
+      {
+        "word": " you",
+        "start": 20.26,
+        "end": 20.48
+      },
+      {
+        "word": " export.",
+        "start": 20.48,
+        "end": 20.92
+      },
+      {
+        "word": " That",
+        "start": 21.64,
+        "end": 22.16
+      },
+      {
+        "word": " is",
+        "start": 22.16,
+        "end": 22.32
+      },
+      {
+        "word": " the",
+        "start": 22.32,
+        "end": 22.52
+      },
+      {
+        "word": " exact",
+        "start": 22.52,
+        "end": 22.76
+      },
+      {
+        "word": " clip",
+        "start": 22.76,
+        "end": 23.02
+      },
+      {
+        "word": "-offs",
+        "start": 23.02,
+        "end": 23.26
+      },
+      {
+        "word": " workflow,",
+        "start": 23.26,
+        "end": 23.76
+      },
+      {
+        "word": " word",
+        "start": 24.24,
+        "end": 24.4
+      },
+      {
+        "word": "-level",
+        "start": 24.4,
+        "end": 24.66
+      },
+      {
+        "word": " timestamps,",
+        "start": 24.66,
+        "end": 25.38
+      },
+      {
+        "word": " clean",
+        "start": 25.84,
+        "end": 26.06
+      },
+      {
+        "word": "-seen",
+        "start": 26.06,
+        "end": 26.3
+      },
+      {
+        "word": " boundaries,",
+        "start": 26.3,
+        "end": 26.66
+      },
+      {
+        "word": " and",
+        "start": 27.2,
+        "end": 27.36
+      },
+      {
+        "word": " one",
+        "start": 27.36,
+        "end": 27.5
+      },
+      {
+        "word": " human",
+        "start": 27.5,
+        "end": 27.78
+      },
+      {
+        "word": " approval",
+        "start": 27.78,
+        "end": 28.14
+      },
+      {
+        "word": " gate",
+        "start": 28.14,
+        "end": 28.4
+      },
+      {
+        "word": " before",
+        "start": 28.4,
+        "end": 28.7
+      },
+      {
+        "word": " the",
+        "start": 28.7,
+        "end": 28.86
+      },
+      {
+        "word": " vertical",
+        "start": 28.86,
+        "end": 29.12
+      },
+      {
+        "word": " render.",
+        "start": 29.12,
+        "end": 29.42
       }
     ],
     "language": "en",
-    "engine": "heuristic",
-    "fallback_reason": "whisperx: No module named 'whisperx' | faster-whisper: empty segments",
-    "demo_script_overlay": true
+    "engine": "faster-whisper",
+    "diarized": false
   },
   "scenes": {
     "scenes": [
       {
         "scene_index": 0,
         "start_sec": 0.0,
-        "end_sec": 8.0,
-        "duration_sec": 8.0,
-        "detector": "content"
+        "end_sec": 9.233,
+        "duration_sec": 9.233,
+        "detector": "adaptive"
       },
       {
         "scene_index": 1,
-        "start_sec": 8.0,
-        "end_sec": 16.0,
-        "duration_sec": 8.0,
-        "detector": "content"
+        "start_sec": 9.233,
+        "end_sec": 21.767,
+        "duration_sec": 12.534,
+        "detector": "adaptive"
       },
       {
         "scene_index": 2,
-        "start_sec": 16.0,
-        "end_sec": 24.0,
-        "duration_sec": 8.0,
-        "detector": "content"
+        "start_sec": 21.767,
+        "end_sec": 30.367,
+        "duration_sec": 8.6,
+        "detector": "adaptive"
       }
     ],
     "engine": "pyscenedetect",
-    "detector": "content",
+    "detector": "adaptive",
     "cut_count": 2
   },
   "clips": [
@@ -304,25 +578,25 @@
       "clip_id": "clip-1",
       "rank": 1,
       "selected_for_batch": true,
-      "start_sec": 8.0,
-      "end_sec": 16.0,
-      "duration_sec": 8.0,
+      "start_sec": 9.233,
+      "end_sec": 21.767,
+      "duration_sec": 12.534,
       "duration_band": "15-25",
       "style": "dramatic",
       "hook_type": "surprising_fact",
-      "hook_text": "Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...",
-      "caption": "Paid partnership\n\nWait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...\n\n#CreatorStudio\n\n#CreatorShowcase",
-      "transcript_excerpt": "Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payoff \u2014 preview every cut, verify compliance, then publish manually.",
-      "total_score": 70.4,
+      "hook_text": "Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...",
+      "caption": "Paid partnership\n\nWait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...\n\n#CreatorStudio\n\n#CreatorRetentionPodcast",
+      "transcript_excerpt": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+      "total_score": 66.1,
       "rank_report": {
         "clip_id": "cand-1",
-        "score": 70.4,
+        "score": 66.1,
         "hook_score": 90.0,
         "emotion_score": 30.0,
-        "payoff_score": 80.0,
-        "campaign_fit": 80.0,
+        "payoff_score": 40.0,
+        "campaign_fit": 55.0,
         "curiosity_score": 85.0,
-        "conflict_score": 35.0,
+        "conflict_score": 80.0,
         "clarity_score": 70.0,
         "duration_score": 90.0,
         "dead_air_penalty": 0.0,
@@ -331,21 +605,21 @@
         "explanations": [
           "hook_type=surprising_fact",
           "duration_band=15-25",
-          "words=44"
+          "words=52"
         ]
       },
       "retention_pacing": {
-        "word_count": 44,
-        "duration_sec": 8.0,
-        "wpm": 330.0,
+        "word_count": 52,
+        "duration_sec": 12.53,
+        "wpm": 248.9,
         "ideal_wpm_range": [
           125,
           185
         ],
-        "spoken_sec": 7.2,
-        "dead_air_sec": 0.8,
-        "dead_air_ratio": 0.1,
-        "hook_window_words_3s": 6,
+        "spoken_sec": 8.99,
+        "dead_air_sec": 3.55,
+        "dead_air_ratio": 0.283,
+        "hook_window_words_3s": 8,
         "pacing_label": "FAST_ENERGETIC"
       },
       "decision": "APPROVED",
@@ -357,7 +631,7 @@
             "key": "campaign_name",
             "label": "Correct campaign name",
             "passed": true,
-            "detail": "got='Creator Showcase' expected='Creator Showcase'"
+            "detail": "got='Creator Retention Podcast' expected='Creator Retention Podcast'"
           },
           {
             "key": "hashtags",
@@ -381,7 +655,7 @@
             "key": "duration",
             "label": "Correct video length",
             "passed": true,
-            "detail": "8.0s in [5, 60]"
+            "detail": "12.534s in [5, 60]"
           },
           {
             "key": "aspect_ratio",
@@ -438,69 +712,18 @@
       "clip_id": "clip-2",
       "rank": 2,
       "selected_for_batch": true,
-      "start_sec": 16.0,
-      "end_sec": 24.0,
-      "duration_sec": 8.0,
+      "start_sec": 0.0,
+      "end_sec": 9.233,
+      "duration_sec": 9.233,
       "duration_band": "15-25",
       "style": "educational",
       "hook_type": "surprising_fact",
-      "hook_text": "Quick breakdown: Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payo...",
-      "caption": "Paid partnership\n\nQuick breakdown: Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payo...\n\nHere is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payo...\n\n#CreatorStudio\n\n#CreatorShowcase",
-      "transcript_excerpt": "Here is the surprising fact: tight scene cuts and clean loudness pacing change retention. So finally here is the payoff \u2014 preview every cut, verify compliance, then publish manually.",
-      "total_score": 67.9,
-      "rank_report": {
-        "clip_id": "cand-2",
-        "score": 67.9,
-        "hook_score": 90.0,
-        "emotion_score": 30.0,
-        "payoff_score": 80.0,
-        "campaign_fit": 55.0,
-        "curiosity_score": 85.0,
-        "conflict_score": 35.0,
-        "clarity_score": 70.0,
-        "duration_score": 90.0,
-        "dead_air_penalty": 0.0,
-        "predicted_performance": "MEDIUM",
-        "hook_type": "surprising_fact",
-        "explanations": [
-          "hook_type=surprising_fact",
-          "duration_band=15-25",
-          "words=29"
-        ]
-      },
-      "retention_pacing": {
-        "word_count": 29,
-        "duration_sec": 8.0,
-        "wpm": 217.5,
-        "ideal_wpm_range": [
-          125,
-          185
-        ],
-        "spoken_sec": 7.2,
-        "dead_air_sec": 0.8,
-        "dead_air_ratio": 0.1,
-        "hook_window_words_3s": 6,
-        "pacing_label": "FAST_ENERGETIC"
-      },
-      "decision": "PENDING",
-      "decision_notes": ""
-    },
-    {
-      "clip_id": "clip-3",
-      "rank": 3,
-      "selected_for_batch": true,
-      "start_sec": 0.0,
-      "end_sec": 8.0,
-      "duration_sec": 8.0,
-      "duration_band": "15-25",
-      "style": "commentary",
-      "hook_type": "surprising_fact",
-      "hook_text": "Comment if you noticed this too",
-      "caption": "Paid partnership\n\nComment if you noticed this too\n\nThoughts below.\n\n#CreatorStudio\n\n#CreatorShowcase",
-      "transcript_excerpt": "Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: tight scene cuts and clean loudness pacing change retention.",
+      "hook_text": "Quick breakdown: Most creators spend three hours recording a great episode, and then they lose 80% of viewers in the first two seconds...",
+      "caption": "Paid partnership\n\nQuick breakdown: Most creators spend three hours recording a great episode, and then they lose 80% of viewers in the first two seconds...\n\nMost creators spend three hours recording a great episode, and then they lose 80% of viewers in the first two seconds...\n\n#CreatorStudio\n\n#CreatorRetentionPodcast",
+      "transcript_excerpt": "Most creators spend three hours recording a great episode, and then they lose 80% of viewers in the first two seconds because nobody frames the tension upfront.",
       "total_score": 63.2,
       "rank_report": {
-        "clip_id": "cand-3",
+        "clip_id": "cand-2",
         "score": 63.2,
         "hook_score": 90.0,
         "emotion_score": 30.0,
@@ -516,22 +739,73 @@
         "explanations": [
           "hook_type=surprising_fact",
           "duration_band=15-25",
-          "words=29"
+          "words=27"
         ]
       },
       "retention_pacing": {
-        "word_count": 29,
-        "duration_sec": 8.0,
-        "wpm": 217.5,
+        "word_count": 27,
+        "duration_sec": 9.23,
+        "wpm": 175.5,
         "ideal_wpm_range": [
           125,
           185
         ],
-        "spoken_sec": 7.2,
-        "dead_air_sec": 0.8,
-        "dead_air_ratio": 0.1,
-        "hook_window_words_3s": 6,
-        "pacing_label": "FAST_ENERGETIC"
+        "spoken_sec": 7.86,
+        "dead_air_sec": 1.37,
+        "dead_air_ratio": 0.148,
+        "hook_window_words_3s": 9,
+        "pacing_label": "OPTIMAL_CADENCE"
+      },
+      "decision": "PENDING",
+      "decision_notes": ""
+    },
+    {
+      "clip_id": "clip-3",
+      "rank": 3,
+      "selected_for_batch": true,
+      "start_sec": 21.767,
+      "end_sec": 30.367,
+      "duration_sec": 8.6,
+      "duration_band": "15-25",
+      "style": "commentary",
+      "hook_type": "generic",
+      "hook_text": "Comment if you noticed this too",
+      "caption": "Paid partnership\n\nComment if you noticed this too\n\nThoughts below.\n\n#CreatorStudio\n\n#CreatorRetentionPodcast",
+      "transcript_excerpt": "That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+      "total_score": 49.9,
+      "rank_report": {
+        "clip_id": "cand-3",
+        "score": 49.9,
+        "hook_score": 60.0,
+        "emotion_score": 30.0,
+        "payoff_score": 40.0,
+        "campaign_fit": 55.0,
+        "curiosity_score": 40.0,
+        "conflict_score": 35.0,
+        "clarity_score": 70.0,
+        "duration_score": 90.0,
+        "dead_air_penalty": 0.0,
+        "predicted_performance": "LOW",
+        "hook_type": "generic",
+        "explanations": [
+          "hook_type=generic",
+          "duration_band=15-25",
+          "words=19"
+        ]
+      },
+      "retention_pacing": {
+        "word_count": 19,
+        "duration_sec": 8.6,
+        "wpm": 132.6,
+        "ideal_wpm_range": [
+          125,
+          185
+        ],
+        "spoken_sec": 6.17,
+        "dead_air_sec": 2.43,
+        "dead_air_ratio": 0.283,
+        "hook_window_words_3s": 10,
+        "pacing_label": "OPTIMAL_CADENCE"
       },
       "decision": "PENDING",
       "decision_notes": ""
@@ -539,55 +813,129 @@
   ],
   "renders": {
     "clip-1": {
-      "video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\video.mp4",
-      "caption_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\caption.txt",
-      "cover_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\cover.jpg",
-      "duration_sec": 8.0,
-      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic",
+      "video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\video.mp4",
+      "caption_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\caption.txt",
+      "cover_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\cover.jpg",
+      "duration_sec": 12.534,
+      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic",
       "ok": true,
       "style": "dramatic",
       "duration_band": "15-25",
-      "sha256": "a91d7fb8986a322c29550fe16d60cc218673ef7a693cc35b2aa0ae2689c6ef79",
+      "sha256": "4b31e16de0f335d70ed0251c8498c9eb44e70870e58a1831dd94c0469093d61e",
       "probe": {
         "exists": true,
         "filename": "video.mp4",
-        "bytes": 168868,
-        "duration_sec": 8.0,
+        "bytes": 321240,
+        "duration_sec": 12.567,
         "width": 1080,
         "height": 1920,
         "video_codec": "h264",
         "audio_codec": "aac",
-        "fps": 30.0
+        "fps": 30.0,
+        "waveform": [
+          0.06,
+          0.682,
+          0.367,
+          0.06,
+          0.06,
+          0.948,
+          0.552,
+          0.438,
+          1.0,
+          0.894,
+          0.796,
+          0.682,
+          0.599,
+          0.549,
+          0.426,
+          0.06,
+          0.06,
+          0.06,
+          0.06,
+          0.713,
+          0.733,
+          0.705,
+          0.52,
+          0.74,
+          0.6,
+          0.685,
+          0.475,
+          0.722,
+          0.67,
+          0.408,
+          0.3,
+          0.06,
+          0.06,
+          0.628,
+          0.991,
+          0.606,
+          0.787,
+          0.525,
+          0.426,
+          0.211,
+          0.703,
+          0.25,
+          0.06,
+          0.06,
+          0.591,
+          0.757,
+          0.656,
+          0.666,
+          0.665,
+          0.798,
+          0.54,
+          0.495,
+          0.06,
+          0.06,
+          0.401,
+          0.905,
+          0.574,
+          0.595,
+          0.796,
+          0.546,
+          0.315,
+          0.642,
+          0.627,
+          0.77,
+          0.404,
+          0.462,
+          0.094,
+          0.06,
+          0.06,
+          0.06,
+          0.06,
+          0.06
+        ]
       },
-      "video_url": "/api/studio/media/demo-5ebd799b/exports/clip-1/dramatic/video.mp4",
-      "cover_url": "/api/studio/media/demo-5ebd799b/exports/clip-1/dramatic/cover.jpg",
-      "rendered_at": "2026-11-13T21:00:25.611381+00:00"
+      "video_url": "/api/studio/media/clip-89d2d99a/exports/clip-1/dramatic/video.mp4",
+      "cover_url": "/api/studio/media/clip-89d2d99a/exports/clip-1/dramatic/cover.jpg",
+      "rendered_at": "2026-11-13T21:27:56.496335+00:00"
     }
   },
   "dry_runs": {
     "clip-1": {
       "mode": "dry_run",
       "clip_id": "clip-1",
-      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic",
-      "target_video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\video.mp4",
+      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic",
+      "target_video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\video.mp4",
       "burn_captions": true,
       "ffmpeg": {
         "style": "dramatic",
         "duration_band": "15-25",
-        "duration_sec": 8.0,
+        "duration_sec": 12.534,
         "zoom": "1.12",
         "fontfile": "C:/Windows/Fonts/arial.ttf",
-        "vf": "trim=start=8.0:duration=8.0,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
-        "af": "atrim=start=8.0:duration=8.0,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11",
+        "vf": "trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
+        "af": "atrim=start=9.233:duration=12.533999999999999,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11",
         "command": [
           "ffmpeg",
           "-y",
           "-i",
-          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\source_demo.mp4",
+          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\source.mp4",
           "-vf",
-          "trim=start=8.0:duration=8.0,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
+          "trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
           "-af",
-          "atrim=start=8.0:duration=8.0,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11",
+          "atrim=start=9.233:duration=12.533999999999999,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11",
           "-c:v",
           "libx264",
           "-preset",
@@ -600,19 +948,19 @@
           "128k",
           "-movflags",
           "+faststart",
-          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\base_cut.mp4"
+          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\base_cut.mp4"
         ]
       },
-      "command_preview": "ffmpeg -y -i C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\source_demo.mp4 -vf \"trim=start=8.0:duration=8.0,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16\" -af \"atrim=start=8.0:duration=8.0,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11\" -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 128k -movflags +faststart C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\base_cut.mp4",
+      "command_preview": "ffmpeg -y -i C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\source.mp4 -vf \"trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16\" -af \"atrim=start=9.233:duration=12.533999999999999,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11\" -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 128k -movflags +faststart C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\base_cut.mp4",
       "remotion_payload": {
         "endpoint": "http://127.0.0.1:3100/render (optional)",
         "composition": "Dramatic",
         "props": {
           "style": "dramatic",
-          "hookText": "Wait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...",
-          "caption": "Paid partnership\n\nWait for it \u2014 Wait until you see this workflow mistake most creators miss in their first 3 seconds. Here is the surprising fact: ti...\n\n#CreatorStudio\n\n#CreatorShowcase",
-          "inputVideo": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\base_cut.mp4",
-          "outputPath": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpe3ahdcpz\\studio_ws\\demo-5ebd799b\\exports\\clip-1\\dramatic\\video_remotion.mp4"
+          "hookText": "Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...",
+          "caption": "Paid partnership\n\nWait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...\n\n#CreatorStudio\n\n#CreatorRetentionPodcast",
+          "inputVideo": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\base_cut.mp4",
+          "outputPath": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\video_remotion.mp4"
         }
       },
       "compliance_preview": {
@@ -622,7 +970,7 @@
             "key": "campaign_name",
             "label": "Correct campaign name",
             "passed": true,
-            "detail": "got='Creator Showcase' expected='Creator Showcase'"
+            "detail": "got='Creator Retention Podcast' expected='Creator Retention Podcast'"
           },
           {
             "key": "hashtags",
@@ -646,7 +994,7 @@
             "key": "duration",
             "label": "Correct video length",
             "passed": true,
-            "detail": "8.0s in [5, 60]"
+            "detail": "12.534s in [5, 60]"
           },
           {
             "key": "aspect_ratio",
@@ -700,6 +1048,6 @@
       }
     }
   },
-  "created_at": "2026-11-13T21:00:11.908872+00:00",
-  "updated_at": "2026-11-13T21:00:25.611381+00:00"
+  "created_at": "2026-11-13T21:27:33.605496+00:00",
+  "updated_at": "2026-11-13T21:27:56.497338+00:00"
 }

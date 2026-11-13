@@ -8,6 +8,8 @@ storage/**
 !storage/.gitkeep
 *.mp4
 !docs/images/*.mp4
+!docs/proof/example-rendered-clip.mp4
+!examples/**/*.mp4
 docs/proof/work/
 .DS_Store
 apps/api/.venv/

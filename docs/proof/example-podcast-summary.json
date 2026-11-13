@@ -1,0 +1,314 @@
+{
+  "example_name": "Three-Scene Spoken Podcast Demo (16:9 -> 9:16)",
+  "source_video": {
+    "path": "examples/sample_podcast_clip/source_podcast_16x9.mp4",
+    "resolution": "1280x720",
+    "duration_sec": 30.487,
+    "size_bytes": 355881,
+    "sha256": "e96edbe343d2c8a7ef17cc47722e957052fdf73b61b3ef3490e2413917237922",
+    "scenes": [
+      {
+        "scene": 1,
+        "speaker": "HOST / DAVID",
+        "voice": "Microsoft David Desktop",
+        "chapter": "01 // SETUP",
+        "duration_sec": 9.241,
+        "script": "Most creators spend three hours recording a great episode, and then they lose eighty percent of viewers in the first two seconds because nobody frames the tension upfront."
+      },
+      {
+        "scene": 2,
+        "speaker": "GUEST / ZIRA",
+        "voice": "Microsoft Zira Desktop",
+        "chapter": "02 // REFRAME",
+        "duration_sec": 12.542,
+        "script": "Wait, here is the secret nobody talks about! Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export."
+      },
+      {
+        "scene": 3,
+        "speaker": "HOST / DAVID",
+        "voice": "Microsoft David Desktop",
+        "chapter": "03 // WORKFLOW",
+        "duration_sec": 8.613,
+        "script": "That is the exact ClipOps workflow: word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render."
+      }
+    ]
+  },
+  "pipeline_outputs": {
+    "transcript_engine": "faster-whisper",
+    "transcript_segments": 4,
+    "word_segments": 83,
+    "detected_scenes_engine": "pyscenedetect",
+    "detected_scenes": [
+      {
+        "scene_index": 0,
+        "start_sec": 0.0,
+        "end_sec": 9.233,
+        "duration_sec": 9.233,
+        "detector": "adaptive"
+      },
+      {
+        "scene_index": 1,
+        "start_sec": 9.233,
+        "end_sec": 21.767,
+        "duration_sec": 12.534,
+        "detector": "adaptive"
+      },
+      {
+        "scene_index": 2,
+        "start_sec": 21.767,
+        "end_sec": 30.367,
+        "duration_sec": 8.6,
+        "detector": "adaptive"
+      }
+    ],
+    "candidates": [
+      {
+        "start_sec": 9.233,
+        "end_sec": 21.767,
+        "text": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+        "scores": {
+          "strong_opening": 90.0,
+          "curiosity": 85.0,
+          "conflict_surprise": 80.0,
+          "emotional_reaction": 30.0,
+          "clear_payoff": 40.0,
+          "standalone_clarity": 70.0,
+          "campaign_relevance": 55.0
+        },
+        "total_score": 66.1,
+        "duration_band": "15-25",
+        "hook_type": "surprising_fact",
+        "retention_pacing": {
+          "word_count": 52,
+          "duration_sec": 12.53,
+          "wpm": 248.9,
+          "ideal_wpm_range": [
+            125,
+            185
+          ],
+          "spoken_sec": 8.99,
+          "dead_air_sec": 3.55,
+          "dead_air_ratio": 0.283,
+          "hook_window_words_3s": 8,
+          "pacing_label": "FAST_ENERGETIC"
+        },
+        "rank_report": {
+          "clip_id": "cand-1",
+          "score": 66.1,
+          "hook_score": 90.0,
+          "emotion_score": 30.0,
+          "payoff_score": 40.0,
+          "campaign_fit": 55.0,
+          "curiosity_score": 85.0,
+          "conflict_score": 80.0,
+          "clarity_score": 70.0,
+          "duration_score": 90.0,
+          "dead_air_penalty": 0.0,
+          "predicted_performance": "MEDIUM",
+          "hook_type": "surprising_fact",
+          "explanations": [
+            "hook_type=surprising_fact",
+            "duration_band=15-25",
+            "words=52"
+          ]
+        }
+      },
+      {
+        "start_sec": 0.0,
+        "end_sec": 9.233,
+        "text": "Most creators spend three hours recording a great episode, and then they lose 80% of viewers in the first two seconds because nobody frames the tension upfront.",
+        "scores": {
+          "strong_opening": 90.0,
+          "curiosity": 85.0,
+          "conflict_surprise": 35.0,
+          "emotional_reaction": 30.0,
+          "clear_payoff": 40.0,
+          "standalone_clarity": 70.0,
+          "campaign_relevance": 80.0
+        },
+        "total_score": 63.2,
+        "duration_band": "15-25",
+        "hook_type": "surprising_fact",
+        "retention_pacing": {
+          "word_count": 27,
+          "duration_sec": 9.23,
+          "wpm": 175.5,
+          "ideal_wpm_range": [
+            125,
+            185
+          ],
+          "spoken_sec": 7.86,
+          "dead_air_sec": 1.37,
+          "dead_air_ratio": 0.148,
+          "hook_window_words_3s": 9,
+          "pacing_label": "OPTIMAL_CADENCE"
+        },
+        "rank_report": {
+          "clip_id": "cand-2",
+          "score": 63.2,
+          "hook_score": 90.0,
+          "emotion_score": 30.0,
+          "payoff_score": 40.0,
+          "campaign_fit": 80.0,
+          "curiosity_score": 85.0,
+          "conflict_score": 35.0,
+          "clarity_score": 70.0,
+          "duration_score": 90.0,
+          "dead_air_penalty": 0.0,
+          "predicted_performance": "MEDIUM",
+          "hook_type": "surprising_fact",
+          "explanations": [
+            "hook_type=surprising_fact",
+            "duration_band=15-25",
+            "words=27"
+          ]
+        }
+      },
+      {
+        "start_sec": 21.767,
+        "end_sec": 30.367,
+        "text": "That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+        "scores": {
+          "strong_opening": 60.0,
+          "curiosity": 40.0,
+          "conflict_surprise": 35.0,
+          "emotional_reaction": 30.0,
+          "clear_payoff": 40.0,
+          "standalone_clarity": 70.0,
+          "campaign_relevance": 55.0
+        },
+        "total_score": 49.9,
+        "duration_band": "15-25",
+        "hook_type": "generic",
+        "retention_pacing": {
+          "word_count": 19,
+          "duration_sec": 8.6,
+          "wpm": 132.6,
+          "ideal_wpm_range": [
+            125,
+            185
+          ],
+          "spoken_sec": 6.17,
+          "dead_air_sec": 2.43,
+          "dead_air_ratio": 0.283,
+          "hook_window_words_3s": 10,
+          "pacing_label": "OPTIMAL_CADENCE"
+        },
+        "rank_report": {
+          "clip_id": "cand-3",
+          "score": 49.9,
+          "hook_score": 60.0,
+          "emotion_score": 30.0,
+          "payoff_score": 40.0,
+          "campaign_fit": 55.0,
+          "curiosity_score": 40.0,
+          "conflict_score": 35.0,
+          "clarity_score": 70.0,
+          "duration_score": 90.0,
+          "dead_air_penalty": 0.0,
+          "predicted_performance": "LOW",
+          "hook_type": "generic",
+          "explanations": [
+            "hook_type=generic",
+            "duration_band=15-25",
+            "words=19"
+          ]
+        }
+      }
+    ],
+    "selected_top_clip": {
+      "start_sec": 9.233,
+      "end_sec": 21.767,
+      "text": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+      "scores": {
+        "strong_opening": 90.0,
+        "curiosity": 85.0,
+        "conflict_surprise": 80.0,
+        "emotional_reaction": 30.0,
+        "clear_payoff": 40.0,
+        "standalone_clarity": 70.0,
+        "campaign_relevance": 55.0
+      },
+      "total_score": 66.1,
+      "duration_band": "15-25",
+      "hook_type": "surprising_fact",
+      "retention_pacing": {
+        "word_count": 52,
+        "duration_sec": 12.53,
+        "wpm": 248.9,
+        "ideal_wpm_range": [
+          125,
+          185
+        ],
+        "spoken_sec": 8.99,
+        "dead_air_sec": 3.55,
+        "dead_air_ratio": 0.283,
+        "hook_window_words_3s": 8,
+        "pacing_label": "FAST_ENERGETIC"
+      },
+      "rank_report": {
+        "clip_id": "cand-1",
+        "score": 66.1,
+        "hook_score": 90.0,
+        "emotion_score": 30.0,
+        "payoff_score": 40.0,
+        "campaign_fit": 55.0,
+        "curiosity_score": 85.0,
+        "conflict_score": 80.0,
+        "clarity_score": 70.0,
+        "duration_score": 90.0,
+        "dead_air_penalty": 0.0,
+        "predicted_performance": "MEDIUM",
+        "hook_type": "surprising_fact",
+        "explanations": [
+          "hook_type=surprising_fact",
+          "duration_band=15-25",
+          "words=52"
+        ]
+      },
+      "style": "commentary",
+      "hook_text": "Okay but can we talk about this?",
+      "caption": "ClipOps Studio Example\n\nOkay but can we talk about this?\n\nThoughts below.\n\n#PodcastClips\n\n#CreatorWorkflow"
+    },
+    "transcript_preview": [
+      {
+        "start": 0.0,
+        "end": 8.36,
+        "text": "Most creators spend three hours recording a great episode, and then they lose 80% of viewers in the first two seconds because nobody frames the tension upfront."
+      },
+      {
+        "start": 9.64,
+        "end": 12.18,
+        "text": "Wait, here is the secret nobody talks about."
+      },
+      {
+        "start": 12.8,
+        "end": 20.92,
+        "text": "Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export."
+      },
+      {
+        "start": 21.64,
+        "end": 29.42,
+        "text": "That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render."
+      }
+    ]
+  },
+  "rendered_output": {
+    "path": "docs/proof/example-rendered-clip.mp4",
+    "resolution": "1080x1920",
+    "duration_sec": 12.567,
+    "size_bytes": 316968,
+    "sha256": "bc7dae99b05072808dc53bbf980ba3a7bd20f45dba4669db3782e74cb36f3c5b",
+    "render_info": {
+      "video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_q_wfm5p4\\rendered_pkg\\video.mp4",
+      "caption_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_q_wfm5p4\\rendered_pkg\\caption.txt",
+      "cover_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_q_wfm5p4\\rendered_pkg\\cover.jpg",
+      "duration_sec": 12.534,
+      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_q_wfm5p4\\rendered_pkg",
+      "ok": true
+    },
+    "frame_strip": "docs/proof/example-frame-strip.png",
+    "gif_preview": "docs/proof/example-rendered-preview.gif",
+    "gif_size_bytes": 104620
+  }
+}
