@@ -114,8 +114,9 @@ def render_account_package(
                 f"x=60:y=h-280:box=0"
             )
         elif style == "commentary":
+            # drawbox's own w/h are the box size, so frame size must be iw/ih.
             draw = (
-                f",drawbox=x=(w-w*0.86)/2:y=(h-180)/2:w=w*0.86:h=160:color=black@0.65:t=fill,"
+                f",drawbox=x=(iw-iw*0.86)/2:y=(ih-180)/2:w=iw*0.86:h=160:color=black@0.65:t=fill,"
                 f"drawtext=text='{hook}':fontcolor={color}:fontsize=40:"
                 f"x=(w-text_w)/2:y=(h-text_h)/2"
             )

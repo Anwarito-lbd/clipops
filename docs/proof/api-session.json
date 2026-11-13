@@ -1,0 +1,201 @@
+{
+  "health_status": 200,
+  "health": {
+    "status": "ok",
+    "product": "ClipOps",
+    "phase": "1",
+    "automation_boundary": "human_approval_manual_posting",
+    "env": "development",
+    "security_ok": true,
+    "security_messages": [
+      "demo password in use \u2014 rotate before any shared deploy"
+    ],
+    "media": {
+      "torch": false,
+      "cuda": false,
+      "device_name": null,
+      "whisperx": false,
+      "faster_whisper": true,
+      "scenedetect": true,
+      "ffmpeg": true,
+      "redis": false,
+      "remotion": false,
+      "celery_eager": true,
+      "hf_token_set": false,
+      "diarization_ready": false,
+      "torch_error": "No module named 'torch'",
+      "readiness_pct": 67,
+      "mode": "eager_inline"
+    }
+  },
+  "login_status": 200,
+  "seed_status": 200,
+  "seeded_raw_type": "dict",
+  "seeded": {
+    "ingested": 4,
+    "top3": [
+      {
+        "id": "d702a9a6-b640-4596-9bc0-c8c1c6c08d40",
+        "name": "LearnHub Story Explainer",
+        "score": 66.7
+      },
+      {
+        "id": "77f2b118-a150-47f6-8404-c48daa3669f3",
+        "name": "ReactCo Commentary Drop",
+        "score": 65.5
+      },
+      {
+        "id": "5f0209b6-9832-4944-8188-dcb8f1c37c18",
+        "name": "VoltPop Summer Push",
+        "score": 64.6
+      }
+    ]
+  },
+  "approved": {
+    "discovered_id": "d702a9a6-b640-4596-9bc0-c8c1c6c08d40",
+    "campaign_id": "63123ad5-4935-4abb-9b50-3e52c144d237",
+    "operator_status": "approved",
+    "next_steps": [
+      "Open campaign in Content Rewards (your session)",
+      "Click Join yourself \u2014 ClipOps does not auto-join",
+      "Extension will extract brief + asset links after you open the page",
+      "Upload/collect assets \u2192 ClipOps generates clips automatically"
+    ],
+    "open_campaign_url": "https://www.contentrewards.com"
+  },
+  "home": {
+    "month_label": "NOVEMBER 2026",
+    "currency": "GBP",
+    "monthly_target": 1000.0,
+    "current_earnings": 0,
+    "progress_pct": 0.0,
+    "clips_waiting_approval": 3,
+    "campaign_names": [
+      "ReactCo Commentary Drop",
+      "VoltPop Summer Push"
+    ],
+    "forecast": {
+      "currency": "GBP",
+      "monthly_target": 1000.0,
+      "current_earnings": 0,
+      "progress_pct": 0.0,
+      "days_elapsed": 13,
+      "days_in_month": 30,
+      "monthly_run_rate": 0.0,
+      "projected_monthly_earnings": 0.0,
+      "clips_produced": 0,
+      "clips_posted": 0,
+      "clips_approved_est": 0,
+      "approval_rate": 0.7,
+      "avg_views_per_clip": 8210.0,
+      "planning_cpm": 2.0,
+      "required_clips_per_day": 5.5,
+      "required_views_per_clip": 8210.0,
+      "required_approval_rate": 0.7,
+      "on_track": true,
+      "notes": [
+        "Planning CPM GBP 2.00 (not a guarantee).",
+        "Est. revenue/approved clip \u2248 GBP 15.27 at 8210 views.",
+        "Capacity assumption 7.5 clips/day across 3 accounts."
+      ]
+    }
+  },
+  "go_live": {
+    "score": 18,
+    "target": 99,
+    "next": [
+      {
+        "id": "cuda_asr",
+        "label": "GPU ASR (CUDA + WhisperX/faster-whisper)",
+        "how": "Already installed via scripts/install_whisperx_cuda.py"
+      },
+      {
+        "id": "ffmpeg_remotion",
+        "label": "FFmpeg + Remotion render service",
+        "how": ".\\scripts\\start_remotion.ps1  (or start_stack.ps1)"
+      },
+      {
+        "id": "secrets",
+        "label": "Rotated secrets (bcrypt hash + strong JWT)",
+        "how": "python scripts/rotate_secrets.py --print-password"
+      }
+    ]
+  },
+  "discovered": [
+    {
+      "id": "d702a9a6-b640-4596-9bc0-c8c1c6c08d40",
+      "name": "LearnHub Story Explainer",
+      "opportunity_score": 66.7,
+      "is_eligible": true,
+      "operator_status": "top3",
+      "reject_reasons": []
+    },
+    {
+      "id": "77f2b118-a150-47f6-8404-c48daa3669f3",
+      "name": "ReactCo Commentary Drop",
+      "opportunity_score": 65.5,
+      "is_eligible": true,
+      "operator_status": "top3",
+      "reject_reasons": []
+    },
+    {
+      "id": "5f0209b6-9832-4944-8188-dcb8f1c37c18",
+      "name": "VoltPop Summer Push",
+      "opportunity_score": 64.6,
+      "is_eligible": true,
+      "operator_status": "top3",
+      "reject_reasons": []
+    },
+    {
+      "id": "ed02ed13-333c-4405-a2a0-616d752b2f89",
+      "name": "Exhausted Fake Engage",
+      "opportunity_score": 57.5,
+      "is_eligible": false,
+      "operator_status": "rejected",
+      "reject_reasons": [
+        "Campaign budget utilisation at 95% (>= 90% close threshold)",
+        "Required geography does not match your real audience",
+        "Campaign requires fake engagement",
+        "Required geography does not match your audience",
+        "Requires fake engagement",
+        "Budget nearly exhausted (95%)"
+      ]
+    }
+  ],
+  "approve_status": 200,
+  "upload_status": 200,
+  "asset": {
+    "id": "a13e1999-2e64-4628-b8bc-d3848efc9c0c",
+    "status": "GENERATED",
+    "error_message": "transcript_engine=heuristic; whisperx: No module named 'whisperx' | faster-whisper: empty segments",
+    "filename": "sample-source.mp4"
+  },
+  "versions": [
+    {
+      "style": "commentary",
+      "status": "REVIEW_REQUIRED",
+      "duration_band": "15-25",
+      "hook_text": "Okay but can we talk about this?"
+    },
+    {
+      "style": "dramatic",
+      "status": "REVIEW_REQUIRED",
+      "duration_band": "15-25",
+      "hook_text": "This hit different: Wait until you see this. Here is what nobody tells you."
+    },
+    {
+      "style": "educational",
+      "status": "REVIEW_REQUIRED",
+      "duration_band": "25-40",
+      "hook_text": "3 things to notice in this clip"
+    }
+  ],
+  "approval_card": {
+    "campaign": "LearnHub Story Explainer",
+    "account": "TikTok 3 \u2014 Commentary",
+    "ai_score": 67.9,
+    "predicted_performance": "MEDIUM",
+    "compliance_passed": false,
+    "preview_url": "/api/media/exports/63123ad5-4935-4abb-9b50-3e52c144d237/account-1/video.mp4"
+  }
+}

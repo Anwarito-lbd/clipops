@@ -253,3 +253,88 @@ def test_production_refuses_weak_jwt():
         operator_password="",
     )
     assert audit_settings(strong).ok is True
+
+
+def test_transcription_fallback_skips_removed_pyav_kwarg(tmp_path):
+    """faster-whisper 1.2 passes metadata_errors to av.open; PyAV 19 removed it.
+
+    The worker feeds ffmpeg PCM instead. A silent clip must not fail on that kwarg.
+    """
+    import wave
+
+    wav = tmp_path / "silence.wav"
+    with wave.open(str(wav), "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(16000)
+        wf.writeframes(b"\x00\x00" * 16000)
+
+    from workers.transcription.transcribe import transcribe_video
+
+    out = transcribe_video(
+        str(wav),
+        str(tmp_path / "transcript.json"),
+        model="tiny",
+        device="cpu",
+        compute_type="int8",
+        hf_token=None,
+        enable_diarization=False,
+    )
+    reason = out.get("fallback_reason") or ""
+    assert "metadata_errors" not in reason
+    assert out.get("engine") in {"whisperx", "faster-whisper", "heuristic"}
+    assert out.get("segments")
+
+
+def test_commentary_drawbox_renders(tmp_path):
+    """Commentary used drawbox w/h, which are the box size and fail to parse."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("ffmpeg"):
+        import pytest
+
+        pytest.skip("ffmpeg not installed")
+    source = tmp_path / "src.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=0x1e3a5f:s=1080x1920:d=2",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=2",
+            "-shortest",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            str(source),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    from workers.video_rendering.render import render_account_package
+
+    result = render_account_package(
+        source_video=str(source),
+        start_sec=0,
+        end_sec=2,
+        style="commentary",
+        duration_band="15-25",
+        caption="Paid partnership\n\nOkay but can we talk about this?",
+        hook_text="Okay but can we talk about this?",
+        package_dir=str(tmp_path / "pkg"),
+        remotion_url=None,
+        burn_captions=True,
+    )
+    video = Path(result["video_path"])
+    assert result["ok"] is True
+    assert video.stat().st_size > 0
+    assert not (tmp_path / "pkg" / "RENDER_ERROR.txt").exists()
