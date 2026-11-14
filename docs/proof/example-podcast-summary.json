@@ -3,21 +3,21 @@
   "source_video": {
     "path": "examples/sample_podcast_clip/source_podcast_16x9.mp4",
     "resolution": "1280x720",
-    "duration_sec": 30.487,
-    "size_bytes": 355881,
-    "sha256": "e96edbe343d2c8a7ef17cc47722e957052fdf73b61b3ef3490e2413917237922",
+    "duration_sec": 30.433,
+    "size_bytes": 1049461,
+    "sha256": "a77d73267cc73f384dbbba67068ad518cf030cfd3a91acd22574558f2603a3d1",
     "scenes": [
       {
         "scene": 1,
-        "speaker": "HOST / DAVID",
+        "speaker": "HOST // DAVID",
         "voice": "Microsoft David Desktop",
         "chapter": "01 // SETUP",
-        "duration_sec": 9.241,
+        "duration_sec": 9.233,
         "script": "Most creators spend three hours recording a great episode, and then they lose eighty percent of viewers in the first two seconds because nobody frames the tension upfront."
       },
       {
         "scene": 2,
-        "speaker": "GUEST / ZIRA",
+        "speaker": "GUEST // ZIRA",
         "voice": "Microsoft Zira Desktop",
         "chapter": "02 // REFRAME",
         "duration_sec": 12.542,
@@ -25,10 +25,10 @@
       },
       {
         "scene": 3,
-        "speaker": "HOST / DAVID",
+        "speaker": "STUDIO // WORKFLOW",
         "voice": "Microsoft David Desktop",
         "chapter": "03 // WORKFLOW",
-        "duration_sec": 8.613,
+        "duration_sec": 8.6,
         "script": "That is the exact ClipOps workflow: word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render."
       }
     ]
@@ -65,7 +65,7 @@
       {
         "start_sec": 9.233,
         "end_sec": 21.767,
-        "text": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+        "text": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render.",
         "scores": {
           "strong_opening": 90.0,
           "curiosity": 85.0,
@@ -79,16 +79,16 @@
         "duration_band": "15-25",
         "hook_type": "surprising_fact",
         "retention_pacing": {
-          "word_count": 52,
+          "word_count": 53,
           "duration_sec": 12.53,
-          "wpm": 248.9,
+          "wpm": 253.7,
           "ideal_wpm_range": [
             125,
             185
           ],
-          "spoken_sec": 8.99,
-          "dead_air_sec": 3.55,
-          "dead_air_ratio": 0.283,
+          "spoken_sec": 9.17,
+          "dead_air_sec": 3.37,
+          "dead_air_ratio": 0.269,
           "hook_window_words_3s": 8,
           "pacing_label": "FAST_ENERGETIC"
         },
@@ -109,7 +109,7 @@
           "explanations": [
             "hook_type=surprising_fact",
             "duration_band=15-25",
-            "words=52"
+            "words=53"
           ]
         }
       },
@@ -137,9 +137,9 @@
             125,
             185
           ],
-          "spoken_sec": 7.86,
-          "dead_air_sec": 1.37,
-          "dead_air_ratio": 0.148,
+          "spoken_sec": 7.84,
+          "dead_air_sec": 1.39,
+          "dead_air_ratio": 0.151,
           "hook_window_words_3s": 9,
           "pacing_label": "OPTIMAL_CADENCE"
         },
@@ -167,7 +167,7 @@
       {
         "start_sec": 21.767,
         "end_sec": 30.367,
-        "text": "That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+        "text": "That is the exact clip-offs workflow, word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render.",
         "scores": {
           "strong_opening": 60.0,
           "curiosity": 40.0,
@@ -181,16 +181,16 @@
         "duration_band": "15-25",
         "hook_type": "generic",
         "retention_pacing": {
-          "word_count": 19,
+          "word_count": 20,
           "duration_sec": 8.6,
-          "wpm": 132.6,
+          "wpm": 139.5,
           "ideal_wpm_range": [
             125,
             185
           ],
-          "spoken_sec": 6.17,
-          "dead_air_sec": 2.43,
-          "dead_air_ratio": 0.283,
+          "spoken_sec": 6.03,
+          "dead_air_sec": 2.57,
+          "dead_air_ratio": 0.299,
           "hook_window_words_3s": 10,
           "pacing_label": "OPTIMAL_CADENCE"
         },
@@ -211,7 +211,7 @@
           "explanations": [
             "hook_type=generic",
             "duration_band=15-25",
-            "words=19"
+            "words=20"
           ]
         }
       }
@@ -219,7 +219,7 @@
     "selected_top_clip": {
       "start_sec": 9.233,
       "end_sec": 21.767,
-      "text": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+      "text": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render.",
       "scores": {
         "strong_opening": 90.0,
         "curiosity": 85.0,
@@ -233,16 +233,16 @@
       "duration_band": "15-25",
       "hook_type": "surprising_fact",
       "retention_pacing": {
-        "word_count": 52,
+        "word_count": 53,
         "duration_sec": 12.53,
-        "wpm": 248.9,
+        "wpm": 253.7,
         "ideal_wpm_range": [
           125,
           185
         ],
-        "spoken_sec": 8.99,
-        "dead_air_sec": 3.55,
-        "dead_air_ratio": 0.283,
+        "spoken_sec": 9.17,
+        "dead_air_sec": 3.37,
+        "dead_air_ratio": 0.269,
         "hook_window_words_3s": 8,
         "pacing_label": "FAST_ENERGETIC"
       },
@@ -263,12 +263,12 @@
         "explanations": [
           "hook_type=surprising_fact",
           "duration_band=15-25",
-          "words=52"
+          "words=53"
         ]
       },
-      "style": "commentary",
-      "hook_text": "Okay but can we talk about this?",
-      "caption": "ClipOps Studio Example\n\nOkay but can we talk about this?\n\nThoughts below.\n\n#PodcastClips\n\n#CreatorWorkflow"
+      "style": "dramatic",
+      "hook_text": "Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...",
+      "caption": "ClipOps Studio Example\n\nWait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...\n\n#PodcastClips\n\n#CreatorWorkflow"
     },
     "transcript_preview": [
       {
@@ -277,38 +277,38 @@
         "text": "Most creators spend three hours recording a great episode, and then they lose 80% of viewers in the first two seconds because nobody frames the tension upfront."
       },
       {
-        "start": 9.64,
-        "end": 12.18,
+        "start": 9.58,
+        "end": 12.14,
         "text": "Wait, here is the secret nobody talks about."
       },
       {
-        "start": 12.8,
-        "end": 20.92,
+        "start": 12.74,
+        "end": 20.86,
         "text": "Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export."
       },
       {
-        "start": 21.64,
-        "end": 29.42,
-        "text": "That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render."
+        "start": 21.56,
+        "end": 29.36,
+        "text": "That is the exact clip-offs workflow, word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render."
       }
     ]
   },
   "rendered_output": {
     "path": "docs/proof/example-rendered-clip.mp4",
     "resolution": "1080x1920",
-    "duration_sec": 12.567,
-    "size_bytes": 316968,
-    "sha256": "bc7dae99b05072808dc53bbf980ba3a7bd20f45dba4669db3782e74cb36f3c5b",
+    "duration_sec": 12.617,
+    "size_bytes": 795315,
+    "sha256": "5a68c2b29619787c676f37b2f5e6c73205a0cc6312b6cfed72c759b436f04db5",
     "render_info": {
-      "video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_q_wfm5p4\\rendered_pkg\\video.mp4",
-      "caption_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_q_wfm5p4\\rendered_pkg\\caption.txt",
-      "cover_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_q_wfm5p4\\rendered_pkg\\cover.jpg",
+      "video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_b3gn799l\\rendered_pkg\\video.mp4",
+      "caption_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_b3gn799l\\rendered_pkg\\caption.txt",
+      "cover_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_b3gn799l\\rendered_pkg\\cover.jpg",
       "duration_sec": 12.534,
-      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_q_wfm5p4\\rendered_pkg",
+      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\clipops_podcast_b3gn799l\\rendered_pkg",
       "ok": true
     },
     "frame_strip": "docs/proof/example-frame-strip.png",
     "gif_preview": "docs/proof/example-rendered-preview.gif",
-    "gif_size_bytes": 104620
+    "gif_size_bytes": 2071642
   }
 }

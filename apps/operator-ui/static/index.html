@@ -83,9 +83,10 @@
     <aside class="panel rail">
       <div class="panel-head">
         <h2>Project Bin</h2>
-        <select id="session-select" class="select"></select>
+        <span class="pill">Local Workspace</span>
       </div>
-      <div id="probe-card" class="probe-card"></div>
+      <select id="session-select" class="select full-select" title="Active ClipOps session"></select>
+      <div id="probe-card" class="probe-card mt-8"></div>
 
       <div class="panel-head mt-12">
         <h2>Ranked Cuts</h2>
@@ -115,10 +116,10 @@
         <!-- Precision NLE Crop & Platform Safe-Zone Overlay -->
         <div id="safezone-overlay" class="safezone-overlay">
           <div id="crop-guide-box" class="crop-guide-box">
-            <div class="crop-label">9:16 CROP FRAME</div>
-            <div class="safe-top-band">TITLE / HOOK ZONE</div>
-            <div class="safe-right-rail">UI RAIL</div>
-            <div class="safe-bottom-band">CAPTIONS SAFE MARGIN</div>
+            <span class="crop-label">9:16 CROP</span>
+            <div class="safe-top-band"><span class="zone-tag">TOP SAFE</span></div>
+            <div class="safe-right-rail"><span class="zone-tag">UI</span></div>
+            <div class="safe-bottom-band"><span class="zone-tag">CAPTION SAFE</span></div>
           </div>
         </div>
         <div id="video-empty" class="video-empty">

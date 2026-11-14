@@ -37,7 +37,40 @@ Disclosure: Paid partnership
 
 def _ffmpeg_sample(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Three hard cuts so scene detection has something to split.
+    # Three distinct studio scenes (using synthetic studio keyframes if present) so scene detection + 9:16 framing look clean.
+    kf_dir = ROOT / "examples" / "sample_podcast_clip"
+    kfs = [kf_dir / "scene1_host.png", kf_dir / "scene2_guest.png", kf_dir / "scene3_studio.png"]
+    if all(k.exists() for k in kfs):
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-loop", "1", "-t", "4", "-i", str(kfs[0]),
+                "-loop", "1", "-t", "4", "-i", str(kfs[1]),
+                "-loop", "1", "-t", "4", "-i", str(kfs[2]),
+                "-f", "lavfi", "-i", "sine=frequency=440:duration=12",
+                "-filter_complex",
+                (
+                    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[v0];"
+                    "[1:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[v1];"
+                    "[2:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[v2];"
+                    "[v0][v1][v2]concat=n=3:v=1:a=0,format=yuv420p[v]"
+                ),
+                "-map", "[v]",
+                "-map", "3:a",
+                "-r", "30",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-shortest",
+                str(path),
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return
+
+    # Fallback: three solid high-contrast scenes if keyframes are absent.
     subprocess.run(
         [
             "ffmpeg",

@@ -1,91 +1,91 @@
 {
-  "session_id": "clip-89d2d99a",
+  "session_id": "clip-2cd7a3bf",
   "title": "16:9 Spoken Podcast Example (David + Zira)",
   "campaign_name": "Creator Retention Podcast",
   "is_synthetic_demo": false,
-  "source_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\source.mp4",
-  "source_media_url": "/api/studio/media/clip-89d2d99a/source.mp4",
+  "source_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\source.mp4",
+  "source_media_url": "/api/studio/media/clip-2cd7a3bf/source.mp4",
   "probe": {
     "exists": true,
     "filename": "source.mp4",
-    "bytes": 355881,
-    "duration_sec": 30.487,
+    "bytes": 1049461,
+    "duration_sec": 30.433,
     "width": 1280,
     "height": 720,
     "video_codec": "h264",
     "audio_codec": "aac",
     "fps": 30.0,
     "waveform": [
-      0.681,
-      0.764,
-      0.637,
+      0.678,
+      0.76,
+      0.625,
       1.0,
-      0.778,
+      0.771,
       0.691,
-      0.464,
-      0.29,
-      0.787,
-      0.726,
-      0.621,
-      0.732,
-      0.707,
-      0.5,
-      0.547,
-      0.791,
-      0.822,
-      0.609,
-      0.815,
-      0.359,
-      0.06,
-      0.06,
-      0.561,
-      0.266,
-      0.631,
-      0.887,
-      0.687,
-      0.513,
-      0.06,
-      0.441,
-      0.717,
-      0.798,
-      0.736,
-      0.617,
-      0.329,
-      0.731,
-      0.929,
-      0.567,
-      0.569,
-      0.357,
-      0.714,
-      0.755,
-      0.764,
-      0.218,
-      0.858,
-      0.758,
-      0.643,
-      0.788,
-      0.497,
-      0.06,
-      0.06,
-      0.248,
-      0.72,
-      0.648,
-      0.802,
-      0.773,
-      0.104,
-      0.81,
-      0.631,
-      0.62,
-      0.258,
-      0.745,
+      0.463,
+      0.237,
       0.785,
+      0.719,
+      0.628,
+      0.737,
+      0.674,
+      0.482,
+      0.596,
+      0.757,
+      0.827,
+      0.627,
+      0.741,
+      0.491,
       0.06,
-      0.826,
-      0.874,
-      0.6,
-      0.75,
-      0.885,
-      0.338,
+      0.06,
+      0.558,
+      0.343,
+      0.589,
+      0.887,
+      0.678,
+      0.509,
+      0.06,
+      0.473,
+      0.691,
+      0.794,
+      0.725,
+      0.622,
+      0.33,
+      0.718,
+      0.932,
+      0.564,
+      0.567,
+      0.296,
+      0.715,
+      0.713,
+      0.805,
+      0.253,
+      0.813,
+      0.73,
+      0.671,
+      0.77,
+      0.567,
+      0.08,
+      0.06,
+      0.064,
+      0.753,
+      0.576,
+      0.837,
+      0.738,
+      0.284,
+      0.755,
+      0.682,
+      0.624,
+      0.06,
+      0.776,
+      0.786,
+      0.06,
+      0.787,
+      0.79,
+      0.736,
+      0.717,
+      0.762,
+      0.594,
       0.06,
       0.06
     ]
@@ -106,21 +106,21 @@
         "speaker": "SPEAKER_0"
       },
       {
-        "start": 9.64,
-        "end": 12.18,
+        "start": 9.58,
+        "end": 12.14,
         "text": "Wait, here is the secret nobody talks about.",
         "speaker": "SPEAKER_0"
       },
       {
-        "start": 12.8,
-        "end": 20.92,
+        "start": 12.74,
+        "end": 20.86,
         "text": "Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export.",
         "speaker": "SPEAKER_0"
       },
       {
-        "start": 21.64,
-        "end": 29.42,
-        "text": "That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+        "start": 21.56,
+        "end": 29.36,
+        "text": "That is the exact clip-offs workflow, word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render.",
         "speaker": "SPEAKER_0"
       }
     ],
@@ -168,7 +168,7 @@
       {
         "word": " episode,",
         "start": 2.52,
-        "end": 2.96
+        "end": 2.94
       },
       {
         "word": " and",
@@ -228,16 +228,16 @@
       {
         "word": " two",
         "start": 5.66,
-        "end": 5.9
+        "end": 5.88
       },
       {
         "word": " seconds",
-        "start": 5.9,
-        "end": 6.2
+        "start": 5.88,
+        "end": 6.18
       },
       {
         "word": " because",
-        "start": 6.2,
+        "start": 6.18,
         "end": 6.56
       },
       {
@@ -267,278 +267,278 @@
       },
       {
         "word": " Wait,",
-        "start": 9.64,
-        "end": 9.68
+        "start": 9.58,
+        "end": 9.62
       },
       {
         "word": " here",
-        "start": 9.98,
-        "end": 10.3
+        "start": 9.9,
+        "end": 10.24
       },
       {
         "word": " is",
-        "start": 10.3,
-        "end": 10.5
+        "start": 10.24,
+        "end": 10.44
       },
       {
         "word": " the",
-        "start": 10.5,
-        "end": 10.64
+        "start": 10.44,
+        "end": 10.56
       },
       {
         "word": " secret",
-        "start": 10.64,
-        "end": 10.9
+        "start": 10.56,
+        "end": 10.82
       },
       {
         "word": " nobody",
-        "start": 10.9,
-        "end": 11.24
+        "start": 10.82,
+        "end": 11.18
       },
       {
         "word": " talks",
-        "start": 11.24,
-        "end": 11.56
+        "start": 11.18,
+        "end": 11.5
       },
       {
         "word": " about.",
-        "start": 11.56,
-        "end": 12.18
+        "start": 11.5,
+        "end": 12.14
       },
       {
         "word": " Instead",
-        "start": 12.8,
-        "end": 12.96
+        "start": 12.74,
+        "end": 12.9
       },
       {
         "word": " of",
-        "start": 12.96,
-        "end": 13.18
+        "start": 12.9,
+        "end": 13.12
       },
       {
         "word": " starting",
-        "start": 13.18,
-        "end": 13.42
+        "start": 13.12,
+        "end": 13.36
       },
       {
         "word": " with",
-        "start": 13.42,
-        "end": 13.72
+        "start": 13.36,
+        "end": 13.66
       },
       {
         "word": " polite",
-        "start": 13.72,
-        "end": 13.94
+        "start": 13.66,
+        "end": 13.86
       },
       {
         "word": " introductions,",
-        "start": 13.94,
-        "end": 14.46
+        "start": 13.86,
+        "end": 14.44
       },
       {
         "word": " open",
-        "start": 15.1,
-        "end": 15.26
+        "start": 15.02,
+        "end": 15.2
       },
       {
         "word": " right",
-        "start": 15.26,
-        "end": 15.48
+        "start": 15.2,
+        "end": 15.42
       },
       {
         "word": " on",
-        "start": 15.48,
-        "end": 15.72
+        "start": 15.42,
+        "end": 15.66
       },
       {
         "word": " the",
-        "start": 15.72,
-        "end": 15.82
+        "start": 15.66,
+        "end": 15.76
       },
       {
         "word": " sharpest",
-        "start": 15.82,
-        "end": 16.16
+        "start": 15.76,
+        "end": 16.1
       },
       {
         "word": " claim,",
-        "start": 16.16,
-        "end": 16.52
+        "start": 16.1,
+        "end": 16.46
       },
       {
         "word": " cut",
-        "start": 16.96,
-        "end": 17.1
+        "start": 16.9,
+        "end": 17.02
       },
       {
         "word": " dead",
-        "start": 17.1,
-        "end": 17.28
+        "start": 17.02,
+        "end": 17.24
       },
       {
         "word": " air",
-        "start": 17.28,
-        "end": 17.52
+        "start": 17.24,
+        "end": 17.44
       },
       {
         "word": " every",
-        "start": 17.52,
-        "end": 17.76
+        "start": 17.44,
+        "end": 17.7
       },
       {
         "word": " four",
-        "start": 17.76,
-        "end": 18.0
+        "start": 17.7,
+        "end": 17.94
       },
       {
         "word": " seconds,",
-        "start": 18.0,
-        "end": 18.42
+        "start": 17.94,
+        "end": 18.36
       },
       {
         "word": " and",
-        "start": 18.84,
-        "end": 18.98
+        "start": 18.78,
+        "end": 18.92
       },
       {
         "word": " verify",
-        "start": 18.98,
-        "end": 19.28
+        "start": 18.92,
+        "end": 19.22
       },
       {
         "word": " every",
-        "start": 19.28,
-        "end": 19.64
+        "start": 19.22,
+        "end": 19.58
       },
       {
         "word": " caption",
-        "start": 19.64,
-        "end": 19.96
+        "start": 19.58,
+        "end": 19.9
       },
       {
         "word": " before",
-        "start": 19.96,
-        "end": 20.26
+        "start": 19.9,
+        "end": 20.2
       },
       {
         "word": " you",
-        "start": 20.26,
-        "end": 20.48
+        "start": 20.2,
+        "end": 20.42
       },
       {
         "word": " export.",
-        "start": 20.48,
-        "end": 20.92
+        "start": 20.42,
+        "end": 20.86
       },
       {
         "word": " That",
-        "start": 21.64,
-        "end": 22.16
+        "start": 21.56,
+        "end": 22.1
       },
       {
         "word": " is",
-        "start": 22.16,
-        "end": 22.32
+        "start": 22.1,
+        "end": 22.26
       },
       {
         "word": " the",
-        "start": 22.32,
-        "end": 22.52
+        "start": 22.26,
+        "end": 22.44
       },
       {
         "word": " exact",
-        "start": 22.52,
-        "end": 22.76
+        "start": 22.44,
+        "end": 22.7
       },
       {
         "word": " clip",
-        "start": 22.76,
-        "end": 23.02
+        "start": 22.7,
+        "end": 22.96
       },
       {
         "word": "-offs",
-        "start": 23.02,
-        "end": 23.26
+        "start": 22.96,
+        "end": 23.2
       },
       {
         "word": " workflow,",
-        "start": 23.26,
-        "end": 23.76
+        "start": 23.2,
+        "end": 23.66
       },
       {
         "word": " word",
-        "start": 24.24,
-        "end": 24.4
+        "start": 24.18,
+        "end": 24.34
       },
       {
         "word": "-level",
-        "start": 24.4,
-        "end": 24.66
+        "start": 24.34,
+        "end": 24.6
       },
       {
         "word": " timestamps,",
-        "start": 24.66,
-        "end": 25.38
+        "start": 24.6,
+        "end": 25.3
       },
       {
         "word": " clean",
-        "start": 25.84,
-        "end": 26.06
+        "start": 25.78,
+        "end": 26.0
       },
       {
-        "word": "-seen",
-        "start": 26.06,
-        "end": 26.3
+        "word": " scene",
+        "start": 26.0,
+        "end": 26.24
       },
       {
         "word": " boundaries,",
-        "start": 26.3,
-        "end": 26.66
+        "start": 26.24,
+        "end": 26.58
       },
       {
         "word": " and",
-        "start": 27.2,
-        "end": 27.36
+        "start": 27.14,
+        "end": 27.28
       },
       {
         "word": " one",
-        "start": 27.36,
-        "end": 27.5
+        "start": 27.28,
+        "end": 27.44
       },
       {
         "word": " human",
-        "start": 27.5,
-        "end": 27.78
+        "start": 27.44,
+        "end": 27.72
       },
       {
         "word": " approval",
-        "start": 27.78,
-        "end": 28.14
+        "start": 27.72,
+        "end": 28.08
       },
       {
         "word": " gate",
-        "start": 28.14,
-        "end": 28.4
+        "start": 28.08,
+        "end": 28.34
       },
       {
         "word": " before",
-        "start": 28.4,
-        "end": 28.7
+        "start": 28.34,
+        "end": 28.64
       },
       {
         "word": " the",
-        "start": 28.7,
-        "end": 28.86
+        "start": 28.64,
+        "end": 28.78
       },
       {
         "word": " vertical",
-        "start": 28.86,
-        "end": 29.12
+        "start": 28.78,
+        "end": 29.06
       },
       {
         "word": " render.",
-        "start": 29.12,
-        "end": 29.42
+        "start": 29.06,
+        "end": 29.36
       }
     ],
     "language": "en",
@@ -586,7 +586,7 @@
       "hook_type": "surprising_fact",
       "hook_text": "Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...",
       "caption": "Paid partnership\n\nWait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...\n\n#CreatorStudio\n\n#CreatorRetentionPodcast",
-      "transcript_excerpt": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+      "transcript_excerpt": "Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpest claim, cut dead air every four seconds, and verify every caption before you export. That is the exact clip-offs workflow, word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render.",
       "total_score": 66.1,
       "rank_report": {
         "clip_id": "cand-1",
@@ -605,20 +605,20 @@
         "explanations": [
           "hook_type=surprising_fact",
           "duration_band=15-25",
-          "words=52"
+          "words=53"
         ]
       },
       "retention_pacing": {
-        "word_count": 52,
+        "word_count": 53,
         "duration_sec": 12.53,
-        "wpm": 248.9,
+        "wpm": 253.7,
         "ideal_wpm_range": [
           125,
           185
         ],
-        "spoken_sec": 8.99,
-        "dead_air_sec": 3.55,
-        "dead_air_ratio": 0.283,
+        "spoken_sec": 9.17,
+        "dead_air_sec": 3.37,
+        "dead_air_ratio": 0.269,
         "hook_window_words_3s": 8,
         "pacing_label": "FAST_ENERGETIC"
       },
@@ -750,9 +750,9 @@
           125,
           185
         ],
-        "spoken_sec": 7.86,
-        "dead_air_sec": 1.37,
-        "dead_air_ratio": 0.148,
+        "spoken_sec": 7.84,
+        "dead_air_sec": 1.39,
+        "dead_air_ratio": 0.151,
         "hook_window_words_3s": 9,
         "pacing_label": "OPTIMAL_CADENCE"
       },
@@ -771,7 +771,7 @@
       "hook_type": "generic",
       "hook_text": "Comment if you noticed this too",
       "caption": "Paid partnership\n\nComment if you noticed this too\n\nThoughts below.\n\n#CreatorStudio\n\n#CreatorRetentionPodcast",
-      "transcript_excerpt": "That is the exact clip-offs workflow, word-level timestamps, clean-seen boundaries, and one human approval gate before the vertical render.",
+      "transcript_excerpt": "That is the exact clip-offs workflow, word-level timestamps, clean scene boundaries, and one human approval gate before the vertical render.",
       "total_score": 49.9,
       "rank_report": {
         "clip_id": "cand-3",
@@ -790,20 +790,20 @@
         "explanations": [
           "hook_type=generic",
           "duration_band=15-25",
-          "words=19"
+          "words=20"
         ]
       },
       "retention_pacing": {
-        "word_count": 19,
+        "word_count": 20,
         "duration_sec": 8.6,
-        "wpm": 132.6,
+        "wpm": 139.5,
         "ideal_wpm_range": [
           125,
           185
         ],
-        "spoken_sec": 6.17,
-        "dead_air_sec": 2.43,
-        "dead_air_ratio": 0.283,
+        "spoken_sec": 6.03,
+        "dead_air_sec": 2.57,
+        "dead_air_ratio": 0.299,
         "hook_window_words_3s": 10,
         "pacing_label": "OPTIMAL_CADENCE"
       },
@@ -813,93 +813,93 @@
   ],
   "renders": {
     "clip-1": {
-      "video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\video.mp4",
-      "caption_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\caption.txt",
-      "cover_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\cover.jpg",
+      "video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic\\video.mp4",
+      "caption_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic\\caption.txt",
+      "cover_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic\\cover.jpg",
       "duration_sec": 12.534,
-      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic",
+      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic",
       "ok": true,
       "style": "dramatic",
       "duration_band": "15-25",
-      "sha256": "4b31e16de0f335d70ed0251c8498c9eb44e70870e58a1831dd94c0469093d61e",
+      "sha256": "5a68c2b29619787c676f37b2f5e6c73205a0cc6312b6cfed72c759b436f04db5",
       "probe": {
         "exists": true,
         "filename": "video.mp4",
-        "bytes": 321240,
-        "duration_sec": 12.567,
+        "bytes": 795315,
+        "duration_sec": 12.617,
         "width": 1080,
         "height": 1920,
         "video_codec": "h264",
         "audio_codec": "aac",
         "fps": 30.0,
         "waveform": [
+          0.162,
+          0.762,
+          0.072,
           0.06,
-          0.682,
-          0.367,
-          0.06,
-          0.06,
-          0.948,
-          0.552,
-          0.438,
+          0.353,
+          0.999,
+          0.533,
+          0.953,
+          0.505,
           1.0,
-          0.894,
-          0.796,
-          0.682,
-          0.599,
-          0.549,
-          0.426,
+          0.877,
+          0.583,
+          0.372,
+          0.638,
+          0.226,
           0.06,
           0.06,
           0.06,
           0.06,
-          0.713,
-          0.733,
-          0.705,
-          0.52,
-          0.74,
-          0.6,
-          0.685,
-          0.475,
-          0.722,
-          0.67,
-          0.408,
-          0.3,
+          0.982,
+          0.621,
+          0.509,
+          0.624,
+          0.818,
+          0.435,
+          0.772,
+          0.528,
+          0.699,
+          0.601,
+          0.494,
+          0.165,
           0.06,
-          0.06,
-          0.628,
-          0.991,
-          0.606,
-          0.787,
-          0.525,
-          0.426,
-          0.211,
-          0.703,
-          0.25,
-          0.06,
-          0.06,
-          0.591,
-          0.757,
-          0.656,
-          0.666,
-          0.665,
-          0.798,
-          0.54,
-          0.495,
-          0.06,
-          0.06,
-          0.401,
-          0.905,
-          0.574,
-          0.595,
-          0.796,
-          0.546,
-          0.315,
-          0.642,
+          0.165,
+          0.801,
+          0.923,
+          0.649,
+          0.701,
+          0.55,
+          0.41,
+          0.442,
           0.627,
-          0.77,
-          0.404,
-          0.462,
-          0.094,
+          0.179,
+          0.06,
+          0.402,
+          0.584,
+          0.696,
+          0.662,
+          0.818,
+          0.629,
+          0.682,
+          0.552,
+          0.494,
+          0.06,
+          0.06,
+          0.607,
+          0.836,
+          0.61,
+          0.572,
+          0.814,
+          0.526,
+          0.314,
+          0.602,
+          0.659,
+          0.787,
+          0.344,
+          0.472,
+          0.06,
           0.06,
           0.06,
           0.06,
@@ -907,17 +907,17 @@
           0.06
         ]
       },
-      "video_url": "/api/studio/media/clip-89d2d99a/exports/clip-1/dramatic/video.mp4",
-      "cover_url": "/api/studio/media/clip-89d2d99a/exports/clip-1/dramatic/cover.jpg",
-      "rendered_at": "2026-11-13T21:27:56.496335+00:00"
+      "video_url": "/api/studio/media/clip-2cd7a3bf/exports/clip-1/dramatic/video.mp4",
+      "cover_url": "/api/studio/media/clip-2cd7a3bf/exports/clip-1/dramatic/cover.jpg",
+      "rendered_at": "2026-11-13T21:37:27.325873+00:00"
     }
   },
   "dry_runs": {
     "clip-1": {
       "mode": "dry_run",
       "clip_id": "clip-1",
-      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic",
-      "target_video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\video.mp4",
+      "package_dir": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic",
+      "target_video_path": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic\\video.mp4",
       "burn_captions": true,
       "ffmpeg": {
         "style": "dramatic",
@@ -925,15 +925,15 @@
         "duration_sec": 12.534,
         "zoom": "1.12",
         "fontfile": "C:/Windows/Fonts/arial.ttf",
-        "vf": "trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
+        "vf": "trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawbox=x=56:y=78:w=iw-112:h=186:color=black@0.68:t=fill,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=98,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='is the secret nobody talks':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=146,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='about. Instead of start...':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=194",
         "af": "atrim=start=9.233:duration=12.533999999999999,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11",
         "command": [
           "ffmpeg",
           "-y",
           "-i",
-          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\source.mp4",
+          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\source.mp4",
           "-vf",
-          "trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16",
+          "trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawbox=x=56:y=78:w=iw-112:h=186:color=black@0.68:t=fill,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=98,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='is the secret nobody talks':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=146,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='about. Instead of start...':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=194",
           "-af",
           "atrim=start=9.233:duration=12.533999999999999,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11",
           "-c:v",
@@ -948,10 +948,10 @@
           "128k",
           "-movflags",
           "+faststart",
-          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\base_cut.mp4"
+          "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic\\base_cut.mp4"
         ]
       },
-      "command_preview": "ffmpeg -y -i C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\source.mp4 -vf \"trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite':fontcolor=white:fontsize=48:x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16\" -af \"atrim=start=9.233:duration=12.533999999999999,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11\" -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 128k -movflags +faststart C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\base_cut.mp4",
+      "command_preview": "ffmpeg -y -i C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\source.mp4 -vf \"trim=start=9.233:duration=12.533999999999999,setpts=PTS-STARTPTS,scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,scale=iw*1.12:ih*1.12,crop=1080:1920,drawbox=x=56:y=78:w=iw-112:h=186:color=black@0.68:t=fill,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='Wait for it \u2014 Wait, here':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=98,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='is the secret nobody talks':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=146,drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='about. Instead of start...':fontcolor=white:fontsize=38:x=(w-text_w)/2:y=194\" -af \"atrim=start=9.233:duration=12.533999999999999,asetpts=PTS-STARTPTS,loudnorm=I=-16:TP=-1.5:LRA=11\" -c:v libx264 -preset fast -crf 20 -c:a aac -b:a 128k -movflags +faststart C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic\\base_cut.mp4",
       "remotion_payload": {
         "endpoint": "http://127.0.0.1:3100/render (optional)",
         "composition": "Dramatic",
@@ -959,8 +959,8 @@
           "style": "dramatic",
           "hookText": "Wait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...",
           "caption": "Paid partnership\n\nWait for it \u2014 Wait, here is the secret nobody talks about. Instead of starting with polite introductions, open right on the sharpes...\n\n#CreatorStudio\n\n#CreatorRetentionPodcast",
-          "inputVideo": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\base_cut.mp4",
-          "outputPath": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpem89py88\\studio_ws\\clip-89d2d99a\\exports\\clip-1\\dramatic\\video_remotion.mp4"
+          "inputVideo": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic\\base_cut.mp4",
+          "outputPath": "C:\\Users\\issao\\AppData\\Local\\Temp\\tmpppe4xs4r\\studio_ws\\clip-2cd7a3bf\\exports\\clip-1\\dramatic\\video_remotion.mp4"
         }
       },
       "compliance_preview": {
@@ -1048,6 +1048,6 @@
       }
     }
   },
-  "created_at": "2026-11-13T21:27:33.605496+00:00",
-  "updated_at": "2026-11-13T21:27:56.497338+00:00"
+  "created_at": "2026-11-13T21:37:07.466130+00:00",
+  "updated_at": "2026-11-13T21:37:27.325873+00:00"
 }
