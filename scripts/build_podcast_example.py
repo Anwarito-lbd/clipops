@@ -51,6 +51,7 @@ class SceneSpec:
     chapter: str
     bg_color: str
     accent_color: str
+    keyframe_name: str
     card_title: str
     card_subtitle: str
     spoken_text: str
@@ -59,11 +60,12 @@ class SceneSpec:
 SCENES: list[SceneSpec] = [
     SceneSpec(
         index=1,
-        speaker="HOST / DAVID",
+        speaker="HOST // DAVID",
         voice="Microsoft David Desktop",
         chapter="01 // SETUP",
         bg_color="0x0e2239",
         accent_color="0x38bdf8",
+        keyframe_name="scene1_host.png",
         card_title="WHY PODCASTS DROP",
         card_subtitle="Retention Dropoff Audit",
         spoken_text=(
@@ -74,11 +76,12 @@ SCENES: list[SceneSpec] = [
     ),
     SceneSpec(
         index=2,
-        speaker="GUEST / ZIRA",
+        speaker="GUEST // ZIRA",
         voice="Microsoft Zira Desktop",
         chapter="02 // REFRAME",
         bg_color="0x3b1847",
         accent_color="0xf59e0b",
+        keyframe_name="scene2_guest.png",
         card_title="LEAD WITH THE CLAIM",
         card_subtitle="3-Second Hook Rule",
         spoken_text=(
@@ -89,11 +92,12 @@ SCENES: list[SceneSpec] = [
     ),
     SceneSpec(
         index=3,
-        speaker="HOST / DAVID",
+        speaker="STUDIO // WORKFLOW",
         voice="Microsoft David Desktop",
         chapter="03 // WORKFLOW",
         bg_color="0x0e382b",
         accent_color="0x10b981",
+        keyframe_name="scene3_studio.png",
         card_title="HUMAN GATE EXPORT",
         card_subtitle="WhisperX + PySceneDetect",
         spoken_text=(
@@ -160,48 +164,45 @@ def _ffprobe_duration(path: Path) -> float:
 
 
 def _build_scene_mp4(scene: SceneSpec, wav_path: Path, duration: float, out_mp4: Path) -> None:
-    """Render one 1280x720 scene with distinct color, animated badge, and speaker audio."""
+    """Render one 1280x720 scene from studio keyframe (with subtle motion + clean lower-third) and speaker audio."""
     fontfile = "C\\:/Windows/Fonts/arial.ttf"
     padded_dur = round(duration + 0.35, 3)
+    keyframe = REPO_ROOT / "examples" / "sample_podcast_clip" / scene.keyframe_name
 
-    # Center 9:16 subject window indicator inside 16:9 canvas so the crop looks intentional.
-    # 1280x720 -> 9:16 center strip is ~405px wide centered at x=437.
+    # Keep lower-third inside the center 404px (9:16 crop safe column) at bottom of 720p frame
+    # so the speaker's face remains unobstructed and zero text clips when cropped to 1080x1920.
     filters = [
-        f"drawbox=x=40:y=40:w=1200:h=640:color=0xffffff@0.08:t=2",
-        f"drawbox=x=438:y=24:w=404:h=672:color={scene.accent_color}@0.45:t=2",
-        # Speaker badge positioned cleanly inside center 9:16 subject window above commentary caption zone
-        f"drawbox=x=520:y=155:w=240:h=130:color={scene.accent_color}@0.22:t=fill",
-        f"drawbox=x=520:y=155:w=240:h=130:color={scene.accent_color}@0.90:t=3",
-        f"drawbox=x=0:y=560:w=1280:h=160:color=0x05080f@0.84:t=fill",
-        f"drawbox=x=0:y=560:w=1280:h=4:color={scene.accent_color}@0.95:t=fill",
+        f"scale=1320:742,crop=1280:720:x='(iw-1280)/2':y='(ih-720)/2'",
+        f"drawbox=x=438:y=598:w=404:h=98:color=0x060a12@0.82:t=fill",
+        f"drawbox=x=438:y=598:w=404:h=3:color={scene.accent_color}@0.95:t=fill",
         (
-            f"drawtext=fontfile='{fontfile}':text='{_escape_drawtext(scene.chapter)}':"
-            f"fontsize=20:fontcolor={scene.accent_color}:x=(w-text_w)/2:y=72"
-        ),
-        (
-            f"drawtext=fontfile='{fontfile}':text='{_escape_drawtext(scene.speaker)}':"
-            "fontsize=24:fontcolor=0xf8fafc:x=(w-text_w)/2:y=208"
+            f"drawtext=fontfile='{fontfile}':text='{_escape_drawtext(scene.chapter + '  |  ' + scene.speaker)}':"
+            f"fontsize=15:fontcolor={scene.accent_color}:x=(w-text_w)/2:y=612"
         ),
         (
             f"drawtext=fontfile='{fontfile}':text='{_escape_drawtext(scene.card_title)}':"
-            "fontsize=26:fontcolor=0xf8fafc:x=(w-text_w)/2:y=588"
+            "fontsize=23:fontcolor=0xf8fafc:x=(w-text_w)/2:y=638"
         ),
         (
             f"drawtext=fontfile='{fontfile}':text='{_escape_drawtext(scene.card_subtitle)}':"
-            "fontsize=18:fontcolor=0x94a3b8:x=(w-text_w)/2:y=636"
+            "fontsize=15:fontcolor=0x94a3b8:x=(w-text_w)/2:y=668"
         ),
     ]
     vf = ",".join(filters)
+    if keyframe.exists():
+        video_input = ["-loop", "1", "-t", str(padded_dur), "-i", str(keyframe)]
+    else:
+        video_input = ["-f", "lavfi", "-i", f"color=c={scene.bg_color}:s=1280x720:r=30:d={padded_dur}"]
+
     _run(
         [
             "ffmpeg",
             "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            f"color=c={scene.bg_color}:s=1280x720:r=30:d={padded_dur}",
+            *video_input,
             "-i",
             str(wav_path),
+            "-r",
+            "30",
             "-vf",
             vf,
             "-af",
@@ -397,7 +398,7 @@ def main() -> None:
         )
         candidates = ranked["candidates"]
         top_clip = candidates[0]
-        style = "commentary"
+        style = "dramatic"
         copy = generate_account_copy(
             style=style,
             campaign_name="Creator Retention Podcast",

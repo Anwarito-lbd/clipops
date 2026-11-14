@@ -36,15 +36,19 @@ ClipOps turns long-form source video and a creative brief into curated, complian
 
 Reproduce from scratch with `.venv\Scripts\python.exe scripts/build_podcast_example.py` (or click **Load 16:9 Podcast Example** in the Studio UI):
 
-1. **Source (`examples/sample_podcast_clip/source_podcast_16x9.mp4`)**: `1280×720` (`16:9`), `30.487s`, `355,881` bytes — 3 distinct spoken scenes generated with Windows `System.Speech` (`Microsoft David Desktop` & `Microsoft Zira Desktop`) + FFmpeg scene overlays.
+1. **Source (`examples/sample_podcast_clip/source_podcast_16x9.mp4`)**: `1280×720` (`16:9`), `30.433s`, `1,049,461` bytes — 3 distinct spoken scenes generated from synthetic AI studio keyframes (`scene1_host.png`, `scene2_guest.png`, `scene3_studio.png`, demo media) + Windows `System.Speech` (`Microsoft David Desktop` & `Microsoft Zira Desktop`) + FFmpeg lower-thirds.
 2. **Real Offline ASR (`faster-whisper` `tiny`, CPU `int8`)**: Extracted `4` English transcript segments and `83` word-level timestamps directly from spoken audio (`engine: faster-whisper`).
 3. **Shot-Boundary Detection (`PySceneDetect` `hybrid` → `adaptive`)**: Detected all `3` scene boundaries (`0.0–9.233s`, `9.233–21.767s`, `21.767–30.367s`).
-4. **Deterministic Hook & Pacing Ranking**: Ranked Scene 2 (`9.233–21.767s`, `"Wait, here is the secret nobody talks about..."`) #1 (`total_score=66.1`, `hook_score=90.0`, `curiosity=85.0`, `conflict_surprise=80.0`, `hook_type=surprising_fact`, `248.9 WPM`, `8` words in the first `3s`).
-5. **FFmpeg 16:9 → 9:16 Render (`docs/proof/example-rendered-clip.mp4`)**: Cropped to `1080×1920`, applied `commentary` zoom/overlay (`"Okay but can we talk about this?"`) and `loudnorm=I=-16:TP=-1.5:LRA=11` → `12.567s`, `316,968` bytes (`SHA-256: bc7dae99b0507280...`).
+4. **Deterministic Hook & Pacing Ranking**: Ranked Scene 2 (`9.233–21.767s`, `"Wait, here is the secret nobody talks about..."`) #1 (`total_score=66.1`, `hook_score=90.0`, `curiosity=85.0`, `conflict_surprise=80.0`, `hook_type=surprising_fact`, `253.7 WPM`, `8` words in the first `3s`).
+5. **FFmpeg 16:9 → 9:16 Render (`docs/proof/example-rendered-clip.mp4`)**: Cropped to `1080×1920`, applied wrapped 3-line `dramatic` top hook (`<=26` chars/line, zero overflow) and `loudnorm=I=-16:TP=-1.5:LRA=11` → `12.617s`, `795,315` bytes (`SHA-256: 5a68c2b29619787c...`).
 
 | Before (`16:9`) → After (`9:16`) Contact Sheet | Rendered `9:16` Short Preview |
 | :---: | :---: |
 | ![Before and After Frame Strip](docs/proof/example-frame-strip.png) | ![Rendered 9:16 GIF Preview](docs/proof/example-rendered-preview.gif) |
+
+### Studio Design System & Layout Blueprint (`docs/images/clipops-figma-spec.png`)
+
+![ClipOps Studio Figma Spec](docs/images/clipops-figma-spec.png)
 
 ---
 
@@ -165,9 +169,9 @@ Open `vault/` as an Obsidian vault starting at [`vault/Home.md`](vault/Home.md).
 ## Verified Test & Demo Proof
 
 - **Test Suite (`pytest tests -v`)**: **`26 passed, 4 warnings`** (`docs/proof/pytest.txt`), covering core parsers/scoring/compliance, Windows cross-platform `drawtext` font resolution, PyAV 19 PCM workaround, full SQLite API smoke pipeline, Operator Studio FastAPI + CLI workflow, 16:9→9:16 Podcast Example + 72-bin RMS waveform extraction, adaptive/content/hybrid PySceneDetect, retention pacing math, and Obsidian vault zero-orphan integrity.
-- **16:9 Spoken Podcast Example (`scripts/build_podcast_example.py`)**: Synthesized `30.487s` `1280×720` 3-scene podcast (`355,881` bytes), transcribed real English speech via `faster-whisper` (`4` segments, `83` word timestamps), detected `3` PySceneDetect cuts, scored Scene 2 (`9.233–21.767s`) #1 (`66.1`, `hook_score=90.0`), and rendered `1080×1920` `docs/proof/example-rendered-clip.mp4` (`316,968` bytes, `SHA-256: bc7dae99b0507280...`).
-- **Offline Worker Demo (`scripts/demo_offline.py docs/proof`)**: Generated `12.0s` `1080×1920` source (`138,180` bytes), detected `3` PySceneDetect scenes (`0–4s`, `4–8s`, `8–12s`), rendered `4.0s` dramatic package (`88,394` bytes, `render_error: null`), and demonstrated fail-closed compliance holding `4.0s not in [20, 45]`.
-- **Operator Studio NLE UI Capture (`docs/proof/studio-demo-summary.json`)**: Executed the full browser workflow on `16:9 Spoken Podcast Example (David + Zira)`, verified all `13/13` compliance checks, and rendered local `1080×1920` MP4 alongside desktop/mobile PNGs + MP4 (`588,212` B) & GIF (`9,948,891` B) walkthroughs.
+- **16:9 Spoken Podcast Example (`scripts/build_podcast_example.py`)**: Synthesized `30.433s` `1280×720` 3-scene podcast (`1,049,461` bytes, synthetic studio keyframes + Windows TTS), transcribed real English speech via `faster-whisper` (`4` segments, `83` word timestamps), detected `3` PySceneDetect cuts, scored Scene 2 (`9.233–21.767s`) #1 (`66.1`, `hook_score=90.0`), and rendered `1080×1920` `docs/proof/example-rendered-clip.mp4` (`795,315` bytes, `SHA-256: 5a68c2b29619787c...`).
+- **Offline Worker Demo (`scripts/demo_offline.py docs/proof`)**: Generated `12.0s` `1080×1920` studio-keyframe source (`763,223` bytes), detected `3` PySceneDetect scenes (`0–4s`, `4–8s`, `8–12s`), rendered `4.0s` dramatic package with wrapped 3-line hook overlay (`282,389` bytes, `render_error: null`), and demonstrated fail-closed compliance holding `4.0s not in [20, 45]`.
+- **Operator Studio NLE UI Capture (`docs/proof/studio-demo-summary.json`)**: Executed the full browser workflow on `16:9 Spoken Podcast Example (David + Zira)`, verified all `13/13` compliance checks, and rendered local `1080×1920` MP4 alongside desktop/mobile PNGs + MP4 (`583,822` B) & GIF (`10,028,814` B) walkthroughs.
 
 | Offline Dramatic Frame (`docs/proof/sample-frame.png`) |
 | :---: |

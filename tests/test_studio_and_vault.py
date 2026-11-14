@@ -21,7 +21,7 @@ for p in (str(ROOT), str(STUDIO_DIR)):
 
 from packages.services.clip_ranking import compute_retention_pacing  # noqa: E402
 from workers.scene_detection.detect import detect_scenes  # noqa: E402
-from workers.video_rendering.render import build_filtergraph  # noqa: E402
+from workers.video_rendering.render import _wrap_drawtext_lines, build_filtergraph  # noqa: E402
 
 
 def test_retention_pacing_math():
@@ -46,13 +46,18 @@ def test_retention_pacing_math():
 
 
 def test_build_filtergraph_dry_run():
+    long_hook = "Wait until you see this workflow mistake most creators miss in their first 3 seconds"
+    wrapped = _wrap_drawtext_lines(long_hook, max_chars=26, max_lines=3)
+    assert 2 <= len(wrapped) <= 3
+    assert all(len(line) <= 29 for line in wrapped)
+
     fg = build_filtergraph(
         source_video="demo.mp4",
         start_sec=2.0,
         end_sec=10.0,
         style="commentary",
         duration_band="15-25",
-        hook_text="Wait until you see this!",
+        hook_text=long_hook,
         output_path="out.mp4",
         burn_captions=True,
     )

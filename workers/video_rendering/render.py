@@ -6,6 +6,7 @@ import json
 import os
 import re
 import subprocess
+import textwrap
 import urllib.request
 from pathlib import Path
 
@@ -59,10 +60,25 @@ def _run(cmd: list[str]) -> None:
 
 
 def _escape_drawtext(text: str) -> str:
-    # FFmpeg drawtext escaping for Windows-safe single-line hooks
+    # FFmpeg drawtext escaping for Windows-safe lines
     t = (text or "").replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
     t = re.sub(r"[\r\n]+", " ", t)
-    return t[:90]
+    return t[:120]
+
+
+def _wrap_drawtext_lines(text: str, *, max_chars: int = 26, max_lines: int = 3) -> list[str]:
+    """Wrap hook text into short balanced lines that always fit inside a 1080px portrait frame."""
+    cleaned = re.sub(r"[\r\n]+", " ", (text or "").strip())
+    if not cleaned:
+        return []
+    lines = textwrap.wrap(cleaned, width=max_chars, break_long_words=True, break_on_hyphens=True)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        if len(lines[-1]) > max_chars - 3:
+            lines[-1] = lines[-1][: max_chars - 3].rstrip() + "..."
+        else:
+            lines[-1] = lines[-1].rstrip() + "..."
+    return [_escape_drawtext(line) for line in lines if line.strip()]
 
 
 def build_filtergraph(
@@ -83,29 +99,47 @@ def build_filtergraph(
     duration = min(target, span)
     zoom = STYLE_ZOOM.get(style, "1.0")
     color = STYLE_HOOK_COLOR.get(style, "white")
-    hook = _escape_drawtext(hook_text or "")
+    wrapped_lines = _wrap_drawtext_lines(hook_text or "", max_chars=26, max_lines=3)
     fontfile = _resolve_fontfile()
     font_opt = f"fontfile='{_escape_filter_path(fontfile)}':" if fontfile else ""
 
     draw = ""
-    if burn_captions and hook:
+    if burn_captions and wrapped_lines:
         if style == "educational":
+            box_h = 44 + len(wrapped_lines) * 46
+            offset_bottom = box_h + 150
+            line_filters = ",".join(
+                f"drawtext={font_opt}text='{line}':fontcolor={color}:fontsize=36:"
+                f"x=(w-text_w)/2:y=h-{offset_bottom - (24 + idx * 46)}"
+                for idx, line in enumerate(wrapped_lines)
+            )
             draw = (
-                f",drawbox=x=40:y=ih-320:w=iw-80:h=160:color=black@0.55:t=fill,"
-                f"drawtext={font_opt}text='{hook}':fontcolor={color}:fontsize=42:"
-                f"x=60:y=h-280:box=0"
+                f",drawbox=x=56:y=ih-{offset_bottom}:w=iw-112:h={box_h}:color=black@0.65:t=fill,"
+                f"{line_filters}"
             )
         elif style == "commentary":
             # drawbox's own w/h are the box size, so frame size must be iw/ih.
-            draw = (
-                f",drawbox=x=(iw-iw*0.86)/2:y=(ih-180)/2:w=iw*0.86:h=160:color=black@0.65:t=fill,"
-                f"drawtext={font_opt}text='{hook}':fontcolor={color}:fontsize=40:"
-                f"x=(w-text_w)/2:y=(h-text_h)/2"
+            line_h = 44
+            start_offset = -((len(wrapped_lines) - 1) * line_h) // 2
+            line_filters = ",".join(
+                f"drawtext={font_opt}text='{line}':fontcolor={color}:fontsize=36:"
+                f"x=(w-text_w)/2:y=(h-text_h)/2+({start_offset + idx * line_h})"
+                for idx, line in enumerate(wrapped_lines)
             )
-        else:  # dramatic — top hook
             draw = (
-                f",drawtext={font_opt}text='{hook}':fontcolor={color}:fontsize=48:"
-                f"x=40:y=80:box=1:boxcolor=black@0.55:boxborderw=16"
+                f",drawbox=x=(iw-iw*0.86)/2:y=(ih-180)/2:w=iw*0.86:h=160:color=black@0.68:t=fill,"
+                f"{line_filters}"
+            )
+        else:  # dramatic — top hook safely wrapped inside 1080px portrait margins
+            box_h = 42 + len(wrapped_lines) * 48
+            line_filters = ",".join(
+                f"drawtext={font_opt}text='{line}':fontcolor={color}:fontsize=38:"
+                f"x=(w-text_w)/2:y={98 + idx * 48}"
+                for idx, line in enumerate(wrapped_lines)
+            )
+            draw = (
+                f",drawbox=x=56:y=78:w=iw-112:h={box_h}:color=black@0.68:t=fill,"
+                f"{line_filters}"
             )
 
     vf = (

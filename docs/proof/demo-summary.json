@@ -1,7 +1,7 @@
 {
   "source": {
     "path": "docs\\proof\\work\\sample-source.mp4",
-    "bytes": 138180,
+    "bytes": 763223,
     "probe": {
       "programs": [],
       "stream_groups": [],
@@ -19,7 +19,7 @@
       ],
       "format": {
         "duration": "12.000000",
-        "size": "138180"
+        "size": "763223"
       }
     }
   },
@@ -112,7 +112,7 @@
   "render": {
     "ok": true,
     "duration_sec": 4.0,
-    "video_bytes": 88394,
+    "video_bytes": 282389,
     "probe": {
       "programs": [],
       "stream_groups": [],
@@ -130,7 +130,7 @@
       ],
       "format": {
         "duration": "4.000000",
-        "size": "88394"
+        "size": "282389"
       }
     },
     "meta": {
