@@ -116,8 +116,14 @@ def make_story(m: MusicInfo, clips: list[Shot], stills: list[Shot], out: str, sp
     if loop and slots[0].kind == "teaser" and picks[0][0][0].kind != "image":
         shot, t_first = picks[0][0]
         need = slots[-1].frames / 30
-        picks[-1] = [(shot, max(shot.start, t_first - need))]  # ends exactly where the video starts
-        slots[-1].kind, slots[-1].speed = "hit", 1.0
+        slots[-1].kind = "hit"
+        if t_first - need >= shot.start:  # enough footage before the opening frame: end exactly on it
+            picks[-1] = [(shot, t_first - need)]
+            slots[-1].speed = 1.0
+        else:  # short shot: slow it down so the last cut never spills into the next scene
+            usable = max(0.1, shot.end - shot.start - 0.05)
+            slots[-1].speed = min(1.0, usable / need)
+            picks[-1] = [(shot, shot.start)]
     b = m.beat
     drop = m.drop - start
     total = end - start
