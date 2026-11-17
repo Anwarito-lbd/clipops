@@ -9,6 +9,7 @@ and the joined edit gets glow, vignette, grain, the ASS text track and the music
 
 from __future__ import annotations
 
+import os
 import random
 import subprocess
 import tempfile
@@ -19,6 +20,7 @@ from .analysis import MusicInfo, Shot
 
 FPS = 30
 W, H = 1080, 1920
+CA_FILE = os.environ.get("SSL_CERT_FILE") or "/root/.ccr/ca-bundle.crt"
 
 GRADES = {
     "vice": "eq=contrast=1.18:saturation=1.28:gamma=0.97,colorbalance=rs=0.02:bs=0.04:rm=0.02:rh=0.05:gh=0.01:bh=-0.04",
@@ -26,6 +28,8 @@ GRADES = {
     "noir": "hue=s=0,eq=contrast=1.55:brightness=-0.03,curves=preset=strong_contrast",
     "teal": "eq=contrast=1.25:saturation=1.3,colorbalance=rs=-0.06:bs=0.12:rh=0.10:gh=0.02:bh=-0.06",
     "clean": "eq=contrast=1.12:saturation=1.15",
+    "cinema": ("curves=all='0/0 0.12/0.06 0.5/0.52 0.88/0.94 1/1',eq=saturation=1.22,"
+               "colorbalance=rs=-0.05:gs=0.01:bs=0.06:rh=0.06:gh=0.02:bh=-0.05"),
 }
 
 
@@ -56,6 +60,7 @@ class EditSpec:
     font: str = "DejaVu Sans"
     teaser: bool = True  # 1-beat flash-forward of the drop shot as the opening hook
     layout: str = "full"  # full | split
+    size: tuple[int, int] = (1080, 1920)  # (2160, 3840) = 4K vertical master
     labels: tuple[str, str] = ("TRAILER", "GAMEPLAY")
     texts: list[TextEvent] = field(default_factory=list)
 
@@ -178,7 +183,7 @@ def _shot_chain(idx: int, shot: Shot, slot: Slot, w: int, h: int, rng: random.Ra
             p.append(f"crop='min(iw,ih*{w}/{h})':ih:'(iw-ow)/2+{direction}*(iw-ow)/2*0.5*(2*n/{n}-1)':0")
         else:
             p.append(f"crop='min(iw,ih*{w}/{h})':ih:'(iw-ow)/2*(1+{rng.uniform(-0.2, 0.2):.2f})':0")
-        p.append(f"scale={w}:{h}:flags=lanczos")
+        p.append(f"scale={w}:{h}:flags=lanczos,unsharp=5:5:0.55:5:5:0")
         if slot.kind in ("drop", "flash", "teaser"):
             p.append(f"zoompan=z='1+0.22*exp(-on/{FPS}*9)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={FPS}")
     p.append("setsar=1,format=yuv420p")
@@ -189,20 +194,27 @@ def _render_slot(slot: Slot, shots: list[tuple[Shot, float]], spec: EditSpec, ou
     n = slot.frames
     inputs, chains = [], []
     split = len(shots) == 2
-    w, h = (W, H // 2) if split else (W, H)
+    Wd, Hd = spec.size
+    w, h = (Wd, Hd // 2) if split else (Wd, Hd)
+    k_ = Wd / 1080  # scale effect sizes with resolution
     for k, (shot, t) in enumerate(shots):
         if shot.kind == "image":
             inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{n / FPS + 0.2:.3f}", "-i", shot.path]
         else:
-            inputs += ["-ss", f"{t:.3f}", "-t", f"{n / FPS * slot.speed + 0.3:.3f}", "-i", shot.path]
+            src, off = (shot.hq or (shot.path, 0.0))
+            extra = ["-ca_file", CA_FILE] if src.startswith("https://") and Path(CA_FILE).exists() else []
+            inputs += [*extra, "-ss", f"{t + off:.3f}", "-t", f"{n / FPS * slot.speed + 0.3:.3f}", "-i", src]
         chains.append(_shot_chain(k, shot, slot, w, h, rng))
     graph = ";".join(chains) + ";"
-    graph += "[s0][s1]vstack=inputs=2,drawbox=x=0:y=954:w=1080:h=12:color=white@0.95:t=fill[c];" if split else "[s0]null[c];"
+    graph += (f"[s0][s1]vstack=inputs=2,drawbox=x=0:y={Hd // 2 - int(6 * k_)}:w={Wd}:h={int(12 * k_)}:color=white@0.95:t=fill[c];"
+              if split else "[s0]null[c];")
     fx = []
     if slot.kind in ("drop", "flash"):
         # shake inside the image (zoom 7 % first) so no black edges ever show
-        fx.append(f"scale={W + 76}:{H + 134},crop={W}:{H}:x='38+34*sin(n*1.77)*exp(-n/{FPS}*3)':y='67+60*cos(n*1.57)*exp(-n/{FPS}*3)'")
-        fx.append("rgbashift=rh=8:bh=-8:rv=2:bv=-2")
+        ex, ey = int(76 * k_) // 2 * 2, int(134 * k_) // 2 * 2
+        fx.append(f"scale={Wd + ex}:{Hd + ey},crop={Wd}:{Hd}:x='{ex // 2}+{int(34 * k_)}*sin(n*1.77)*exp(-n/{FPS}*3)':"
+                  f"y='{ey // 2}+{int(60 * k_)}*cos(n*1.57)*exp(-n/{FPS}*3)'")
+        fx.append(f"rgbashift=rh={int(8 * k_)}:bh=-{int(8 * k_)}:rv={int(2 * k_)}:bv=-{int(2 * k_)}")
     fx.append(GRADES.get(spec.style, GRADES["vice"]))
     if slot.kind in ("drop", "flash", "teaser"):
         fx.append("fade=t=in:st=0:d=0.14:color=white")
@@ -210,8 +222,11 @@ def _render_slot(slot: Slot, shots: list[tuple[Shot, float]], spec: EditSpec, ou
         fx.append(f"fade=t=out:st={max(0.0, n / FPS - 0.6):.3f}:d=0.6")
     graph += "[c]" + ",".join(fx) + "[v]"
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", *inputs, "-filter_complex", graph, "-map", "[v]", "-an",
-           "-frames:v", str(n), "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", str(out)]
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+           "-frames:v", str(n), "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", str(out)]
+    env = dict(os.environ)
+    if any(str(x).startswith("https://") for x in inputs) and env.get("HTTPS_PROXY"):
+        env["http_proxy"] = env["HTTPS_PROXY"]  # ffmpeg tunnels https through http_proxy
+    subprocess.run(cmd, check=True, capture_output=True, text=True, env=env)
 
 
 def _ass_time(t: float) -> str:
@@ -219,6 +234,9 @@ def _ass_time(t: float) -> str:
     h, r = divmod(t, 3600)
     m_, s = divmod(r, 60)
     return f"{int(h)}:{int(m_):02d}:{s:05.2f}"
+
+
+FONTS_DIR = Path(__file__).resolve().parent / "fonts"  # Anton, Playfair Display Italic, Bebas Neue (OFL)
 
 
 def build_ass(spec: EditSpec, events: list[TextEvent]) -> str:
@@ -232,7 +250,11 @@ def build_ass(spec: EditSpec, events: list[TextEvent]) -> str:
         f"Style: Mid,{f},96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,6,2,5,40,40,0,1\n"
         f"Style: Top,{f},96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,7,3,8,40,40,330,1\n"
         f"Style: Foot,{f},58,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,3,1,2,40,40,300,1\n"
-        f"Style: Label,{f},40,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,8,0,3,10,0,7,40,40,40,1\n\n"
+        f"Style: Label,{f},40,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,8,0,3,10,0,7,40,40,40,1\n"
+        # edit typography: huge condensed caps, serif-italic accent, small spaced caption
+        "Style: Big,Anton,210,&H00FFFFFF,&H00FFFFFF,&H00000000,&H78000000,0,0,0,0,100,100,2,0,1,0,6,5,40,40,0,1\n"
+        "Style: Accent,Playfair Display ExtraBold,150,&H00B98CFF,&H00FFFFFF,&H00000000,&H78000000,-1,-1,0,0,100,100,0,0,1,0,5,5,40,40,0,1\n"
+        "Style: Small,Bebas Neue,74,&H00FFFFFF,&H00FFFFFF,&H00000000,&H78000000,0,0,0,0,100,100,14,0,1,0,3,2,40,40,330,1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
     pop = r"{\fscx55\fscy55\t(0,90,\fscx112\fscy112)\t(90,200,\fscx100\fscy100)}"
@@ -268,14 +290,23 @@ def render(m: MusicInfo, start: float, end: float, slots: list[Slot], picks: lis
     # glow only on highlights (curves crush the blurred layer's shadows) so blacks stay deep
     vf = ("split=2[a][b];[b]gblur=sigma=20,curves=all='0/0 0.55/0.08 1/0.85'[g];"
           "[a][g]blend=all_mode=screen:all_opacity=0.32,eq=contrast=1.05,"
-          "vignette=PI/4.4,noise=alls=4:allf=t,format=yuv420p,subtitles=filename=text.ass")
+          "vignette=PI/4.4,noise=alls=3:allf=t,format=yuv420p,"
+          f"subtitles=filename=text.ass:fontsdir='{FONTS_DIR.as_posix()}'")
     af = (f"atrim=start={start:.4f}:duration={dur:.4f},asetpts=PTS-STARTPTS,"
           f"afade=t=out:st={max(0, dur - 0.8):.3f}:d=0.8,loudnorm=I=-11:TP=-1.0:LRA=7")
     subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", "joined.mp4", "-i", str(Path(m.path).resolve()),
                     "-filter_complex", f"[0:v]{vf}[v];[1:a]{af}[a]", "-map", "[v]", "-map", "[a]",
-                    "-frames:v", str(total_frames), "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-                    "-maxrate", "14M", "-bufsize", "28M", "-profile:v", "high", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out_path)],
+                    "-frames:v", str(total_frames), "-c:v", "libx264", "-preset", "slow", "-crf", "18",
+                    "-maxrate", "45M" if spec.size[0] > 1080 else "18M", "-bufsize", "90M" if spec.size[0] > 1080 else "36M",
+                    "-profile:v", "high", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out_path)],
                    check=True, capture_output=True, text=True, cwd=work)
+    extra_outputs = {}
+    if spec.size[0] > 1080:  # Instagram Reels tops out at 1080p
+        hd = out_path.with_name(out_path.stem + "_1080p.mp4")
+        subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(out_path), "-vf", "scale=1080:1920:flags=lanczos",
+                        "-c:v", "libx264", "-preset", "slow", "-crf", "18", "-maxrate", "18M", "-bufsize", "36M",
+                        "-c:a", "copy", "-movflags", "+faststart", str(hd)], check=True, capture_output=True, text=True)
+        extra_outputs["1080p"] = str(hd)
     silent = out_path.with_name(out_path.stem + "_NO_AUDIO.mp4")  # for adding the sound in the TikTok app
     subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(out_path), "-c:v", "copy", "-an", str(silent)],
                    check=True, capture_output=True, text=True)
@@ -283,6 +314,6 @@ def render(m: MusicInfo, start: float, end: float, slots: list[Slot], picks: lis
         p.unlink()
     work.rmdir()
     log(f"rendered {out_path.name}: {dur:.2f}s, {len(slots)} cuts, drop at {m.drop - start:.2f}s")
-    return {"path": str(out_path), "silent": str(silent), "duration": round(dur, 2), "cuts": len(slots),
+    return {"path": str(out_path), "silent": str(silent), **extra_outputs, "duration": round(dur, 2), "cuts": len(slots),
             "drop_at": round(m.drop - start, 3), "start_in_song": round(start, 3), "tempo": round(m.tempo, 1),
             "shots": [[(Path(s.path).name, round(t, 2)) for s, t in pk] for pk in picks]}

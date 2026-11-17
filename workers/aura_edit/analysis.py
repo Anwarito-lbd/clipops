@@ -72,6 +72,7 @@ class Shot:
     hue: float = 0.0  # saturation-weighted mean hue, degrees (colour-flow ordering)
     sat: float = 0.0
     bars: tuple = (0.0, 0.0)  # letterbox (top, bottom) as fractions of height, cropped before reframing
+    hq: tuple | None = None  # (path_or_url, time_offset): render from this higher-quality source instead
 
     @property
     def length(self) -> float:
@@ -248,3 +249,10 @@ def match_pairs(tops: list[Shot], bottoms: list[Shot], n: int) -> list[tuple[Sho
         if len(pairs) >= n:
             break
     return pairs
+
+
+def music_from_grid(path: str, bpm: float, drop: float, duration: float) -> MusicInfo:
+    """Exact beat grid for music we generated ourselves (no detection error)."""
+    beat = 60.0 / bpm
+    beats = [round(k * beat, 4) for k in range(int(duration / beat) + 1)]
+    return MusicInfo(path=path, duration=duration, tempo=bpm, beats=beats, drop=drop)

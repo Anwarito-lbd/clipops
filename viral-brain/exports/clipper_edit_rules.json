@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-11-17T19:21:24.307627+00:00",
+  "clips_total": 0,
+  "method": "manual observations only; requires 3+ reviewed clips with complete metrics per style",
+  "candidate_edit_styles": [],
+  "status": "research-candidates-only; not integrated with Twitch auto-clipper",
+  "safety": "Use only authorized source video/audio. Review edits before publication."
+}
