@@ -73,6 +73,7 @@ class Shot:
     sat: float = 0.0
     bars: tuple = (0.0, 0.0)  # letterbox (top, bottom) as fractions of height, cropped before reframing
     hq: tuple | None = None  # (path_or_url, time_offset): render from this higher-quality source instead
+    sharp: float = 200.0  # Laplacian variance of a 320x180 sample: low = motion blur / soft focus
 
     @property
     def length(self) -> float:
@@ -86,10 +87,11 @@ class Shot:
     def score(self, want: str) -> float:
         if self.brightness < 25 or self.is_card:  # black / fade frames, text cards
             return -1.0
-        if want == "hero":  # the drop / hook: bright, colourful AND moving
-            return self.color * 1.2 + min(self.motion, 30) * 0.8 + max(0.0, self.brightness - 50) * 0.35
+        crisp = min(1.0, self.sharp / 120.0)  # blurry shots never win the hero/hit slots
+        if want == "hero":  # the drop / hook: bright, colourful, moving AND sharp
+            return (self.color * 1.0 + min(self.motion, 30) * 0.8 + max(0.0, self.brightness - 50) * 0.5) * crisp ** 2
         if want == "intense":
-            return self.motion * 1.0 + self.color * 0.6 + max(0.0, self.brightness - 55) * 0.2
+            return (self.motion * 1.0 + self.color * 0.6 + max(0.0, self.brightness - 55) * 0.2) * (0.4 + 0.6 * crisp)
         return self.color * 1.0 + min(self.motion, 12) * 0.3  # cinematic: colourful, calmer
 
 
@@ -256,3 +258,22 @@ def music_from_grid(path: str, bpm: float, drop: float, duration: float) -> Musi
     beat = 60.0 / bpm
     beats = [round(k * beat, 4) for k in range(int(duration / beat) + 1)]
     return MusicInfo(path=path, duration=duration, tempo=bpm, beats=beats, drop=drop)
+
+
+def add_sharpness(shots: list["Shot"]) -> None:
+    """Laplacian-variance sharpness from the middle frame (320x180) of each shot."""
+    import cv2  # type: ignore
+
+    caps: dict = {}
+    for s in shots:
+        if s.kind == "image":
+            img = cv2.imread(s.path, cv2.IMREAD_GRAYSCALE)
+        else:
+            cap = caps.setdefault(s.path, cv2.VideoCapture(s.path))
+            cap.set(cv2.CAP_PROP_POS_MSEC, (s.start + s.end) / 2 * 1000)
+            ok, frame = cap.read()
+            img = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if ok else None
+        if img is not None:
+            s.sharp = float(cv2.Laplacian(cv2.resize(img, (320, 180)), cv2.CV_64F).var())
+    for c in caps.values():
+        c.release()

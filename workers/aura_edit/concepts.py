@@ -91,7 +91,8 @@ def script_events(script: list[tuple[str, str, float]], beat: float, t0: float =
 def make_story(m: MusicInfo, clips: list[Shot], stills: list[Shot], out: str, spec: EditSpec | None = None, *,
                build_script: list[tuple[str, str, float]] | None = None,
                drop_script: list[tuple[str, str, float]] | None = None,
-               outro: str = "GTA VI  ·  11.19", still_every: int = 3, loop: bool = True, log=print) -> dict:
+               outro: str = "GTA VI  ·  11.19", still_every: int = 3, loop: bool = True,
+               heroes: list[tuple[Shot, float]] | None = None, log=print) -> dict:
     """Cold-open stakes text from frame 1, word-per-beat story through the build, reveal on the drop,
     beat-cut payoff mixing clips + stills, and a last cut that flows back into the first frame (loop)."""
     spec = spec or EditSpec(style="cinema")
@@ -105,6 +106,11 @@ def make_story(m: MusicInfo, clips: list[Shot], stills: list[Shot], out: str, sp
         else:
             picks.append([clip_picks[i]])
     drop_i = next(i for i, s in enumerate(slots) if s.kind == "drop")
+    if heroes:  # editor's picks: first hero on the drop (and the hook), the rest on the flash hits
+        picks[drop_i] = [heroes[0]]
+        flash_slots = [i for i, s in enumerate(slots) if s.kind == "flash"]
+        for i, h in zip(flash_slots, heroes[1:]):
+            picks[i] = [h]
     if slots[0].kind == "teaser":
         picks[0] = picks[drop_i]
     if loop and slots[0].kind == "teaser" and picks[0][0][0].kind != "image":

@@ -28,8 +28,8 @@ GRADES = {
     "noir": "hue=s=0,eq=contrast=1.55:brightness=-0.03,curves=preset=strong_contrast",
     "teal": "eq=contrast=1.25:saturation=1.3,colorbalance=rs=-0.06:bs=0.12:rh=0.10:gh=0.02:bh=-0.06",
     "clean": "eq=contrast=1.12:saturation=1.15",
-    "cinema": ("curves=all='0/0 0.12/0.06 0.5/0.52 0.88/0.94 1/1',eq=saturation=1.22,"
-               "colorbalance=rs=-0.05:gs=0.01:bs=0.06:rh=0.06:gh=0.02:bh=-0.05"),
+    "cinema": ("curves=all='0/0 0.12/0.07 0.5/0.52 0.88/0.93 1/1',eq=saturation=1.16,"
+               "colorbalance=rs=-0.03:gs=0.01:bs=0.02:rh=0.04:gh=0.015:bh=-0.04"),
 }
 
 
@@ -252,9 +252,9 @@ def build_ass(spec: EditSpec, events: list[TextEvent]) -> str:
         f"Style: Foot,{f},58,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,3,1,2,40,40,300,1\n"
         f"Style: Label,{f},40,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,8,0,3,10,0,7,40,40,40,1\n"
         # edit typography: huge condensed caps, serif-italic accent, small spaced caption
-        "Style: Big,Anton,210,&H00FFFFFF,&H00FFFFFF,&H00000000,&H78000000,0,0,0,0,100,100,2,0,1,0,6,5,40,40,0,1\n"
-        "Style: Accent,Playfair Display ExtraBold,150,&H00B98CFF,&H00FFFFFF,&H00000000,&H78000000,-1,-1,0,0,100,100,0,0,1,0,5,5,40,40,0,1\n"
-        "Style: Small,Bebas Neue,74,&H00FFFFFF,&H00FFFFFF,&H00000000,&H78000000,0,0,0,0,100,100,14,0,1,0,3,2,40,40,330,1\n\n"
+        "Style: Big,Anton,330,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,0,0,0,0,100,100,1,0,1,0,9,5,30,30,0,1\n"
+        "Style: Accent,Playfair Display ExtraBold,215,&H00FFFFFF,&H00FFFFFF,&H00000000,&H6E8A2BE2,-1,-1,0,0,100,100,0,0,1,0,8,5,30,30,0,1\n"
+        "Style: Small,Bebas Neue,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H78000000,0,0,0,0,100,100,16,0,1,0,4,2,40,40,330,1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
     pop = r"{\fscx55\fscy55\t(0,90,\fscx112\fscy112)\t(90,200,\fscx100\fscy100)}"
@@ -289,7 +289,7 @@ def render(m: MusicInfo, start: float, end: float, slots: list[Slot], picks: lis
     dur = total_frames / FPS
     # glow only on highlights (curves crush the blurred layer's shadows) so blacks stay deep
     vf = ("split=2[a][b];[b]gblur=sigma=20,curves=all='0/0 0.55/0.08 1/0.85'[g];"
-          "[a][g]blend=all_mode=screen:all_opacity=0.32,eq=contrast=1.05,"
+          "[a][g]blend=all_mode=screen:all_opacity=0.2,eq=contrast=1.05,"
           "vignette=PI/4.4,noise=alls=3:allf=t,format=yuv420p,"
           f"subtitles=filename=text.ass:fontsdir='{FONTS_DIR.as_posix()}'")
     af = (f"atrim=start={start:.4f}:duration={dur:.4f},asetpts=PTS-STARTPTS,"
