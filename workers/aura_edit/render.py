@@ -21,7 +21,7 @@ FPS = 30
 W, H = 1080, 1920
 
 GRADES = {
-    "vice": "eq=contrast=1.22:saturation=1.45:gamma=0.95,colorbalance=rs=0.10:bs=0.14:rh=0.06:bh=0.04",
+    "vice": "eq=contrast=1.18:saturation=1.28:gamma=0.97,colorbalance=rs=0.02:bs=0.04:rm=0.02:rh=0.05:gh=0.01:bh=-0.04",
     "gold": "eq=contrast=1.25:saturation=1.2:gamma=0.97,colorbalance=rm=0.08:gm=0.04:bm=-0.08:rh=0.06:bh=-0.06",
     "noir": "hue=s=0,eq=contrast=1.55:brightness=-0.03,curves=preset=strong_contrast",
     "teal": "eq=contrast=1.25:saturation=1.3,colorbalance=rs=-0.06:bs=0.12:rh=0.10:gh=0.02:bh=-0.06",
@@ -121,6 +121,7 @@ def pick_shots(slots: list[Slot], pool: list[Shot], seed: int, *, avoid: set | N
     rng = random.Random(seed)
     calm = sorted((s for s in pool if s.score("calm") > 0), key=lambda s: -s.score("calm"))
     intense = sorted((s for s in pool if s.score("intense") > 0), key=lambda s: -s.score("intense"))
+    hero = sorted((s for s in pool if s.score("hero") > 0), key=lambda s: -s.score("hero"))[:3]
     used: dict[tuple[str, float], int] = {}
     if avoid:
         for k in avoid:
@@ -129,7 +130,7 @@ def pick_shots(slots: list[Slot], pool: list[Shot], seed: int, *, avoid: set | N
     drop_pick = None
     for slot in slots:
         need = slot.frames / FPS * slot.speed
-        ranked = calm if slot.kind in ("build", "hold", "end") else intense
+        ranked = calm if slot.kind in ("build", "hold", "end") else (hero if slot.kind == "drop" else intense)
         fits = [s for s in ranked if s.kind == "image" or s.length >= need] or ranked[:5]
         top = fits[: max(6, len(fits) // 3)]
         least = min(used.get((s.path, s.start), 0) for s in top)
@@ -160,9 +161,18 @@ def _shot_chain(idx: int, shot: Shot, slot: Slot, w: int, h: int, rng: random.Ra
         dx = rng.choice([-1, 1]) * 0.06
         p.append(f"zoompan=z='{zoom}':x='(iw-iw/zoom)/2+iw*{dx}*on/{n}':y='(ih-ih/zoom)/2':d={n}:s={w}x{h}:fps={FPS}")
     else:
+        top, bot = getattr(shot, "bars", (0.0, 0.0)) or (0.0, 0.0)
+        if top or bot:  # remove baked-in cinematic letterbox before reframing to 9:16
+            p.append(f"crop=iw:'trunc(ih*{1 - top - bot:.4f}/2)*2':0:'trunc(ih*{top:.4f}/2)*2'")
         if slot.speed != 1.0:
             p.append(f"setpts={1 / slot.speed:.4f}*PTS,minterpolate=fps={FPS}:mi_mode=blend")
         p.append(f"fps={FPS}")
+        if slot.kind == "end":  # logos/end cards are wide: show the whole frame over a blurred fill
+            src = f"[{idx}:v]" + ",".join(p)
+            return (f"{src},split=2[eb{idx}][ef{idx}];"
+                    f"[eb{idx}]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},gblur=sigma=40,"
+                    f"eq=brightness=-0.12[ebb{idx}];[ef{idx}]scale={w}:-2[eff{idx}];"
+                    f"[ebb{idx}][eff{idx}]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p[s{idx}]")
         if slot.kind in ("build", "hold"):
             direction = rng.choice([-1, 1])
             p.append(f"crop='min(iw,ih*{w}/{h})':ih:'(iw-ow)/2+{direction}*(iw-ow)/2*0.5*(2*n/{n}-1)':0")
@@ -190,7 +200,8 @@ def _render_slot(slot: Slot, shots: list[tuple[Shot, float]], spec: EditSpec, ou
     graph += "[s0][s1]vstack=inputs=2,drawbox=x=0:y=954:w=1080:h=12:color=white@0.95:t=fill[c];" if split else "[s0]null[c];"
     fx = []
     if slot.kind in ("drop", "flash"):
-        fx.append(f"pad={W + 70}:{H + 124}:35:62,crop={W}:{H}:x='35+31*sin(n*1.77)*exp(-n/{FPS}*3)':y='62+31*cos(n*1.57)*exp(-n/{FPS}*3)'")
+        # shake inside the image (zoom 7 % first) so no black edges ever show
+        fx.append(f"scale={W + 76}:{H + 134},crop={W}:{H}:x='38+34*sin(n*1.77)*exp(-n/{FPS}*3)':y='67+60*cos(n*1.57)*exp(-n/{FPS}*3)'")
         fx.append("rgbashift=rh=8:bh=-8:rv=2:bv=-2")
     fx.append(GRADES.get(spec.style, GRADES["vice"]))
     if slot.kind in ("drop", "flash", "teaser"):
@@ -217,10 +228,10 @@ def build_ass(spec: EditSpec, events: list[TextEvent]) -> str:
         "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
         "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        f"Style: Glow,{f},128,&H00FFFFFF,&H00FFFFFF,&H00FF55FF,&H00000000,-1,0,0,0,100,100,16,0,1,7,0,5,40,40,0,1\n"
-        f"Style: Mid,{f},84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,6,2,5,40,40,0,1\n"
-        f"Style: Top,{f},62,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,10,0,1,5,2,8,40,40,250,1\n"
-        f"Style: Foot,{f},46,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,3,1,2,40,40,300,1\n"
+        f"Style: Glow,{f},190,&H00FFFFFF,&H00FFFFFF,&H00C040FF,&H00000000,-1,0,0,0,100,100,20,0,1,9,0,5,30,30,0,1\n"
+        f"Style: Mid,{f},96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,6,2,5,40,40,0,1\n"
+        f"Style: Top,{f},96,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,7,3,8,40,40,330,1\n"
+        f"Style: Foot,{f},58,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,3,1,2,40,40,300,1\n"
         f"Style: Label,{f},40,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,8,0,3,10,0,7,40,40,40,1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
@@ -254,14 +265,16 @@ def render(m: MusicInfo, start: float, end: float, slots: list[Slot], picks: lis
     (work / "text.ass").write_text(build_ass(spec, events), encoding="utf-8")
     total_frames = sum(s.frames for s in slots)
     dur = total_frames / FPS
-    vf = ("split=2[a][b];[b]gblur=sigma=18[g];[a][g]blend=all_mode=screen:all_opacity=0.26,"
-          "vignette=PI/4.6,noise=alls=8:allf=t,format=yuv420p,subtitles=filename=text.ass")
+    # glow only on highlights (curves crush the blurred layer's shadows) so blacks stay deep
+    vf = ("split=2[a][b];[b]gblur=sigma=20,curves=all='0/0 0.55/0.08 1/0.85'[g];"
+          "[a][g]blend=all_mode=screen:all_opacity=0.32,eq=contrast=1.05,"
+          "vignette=PI/4.4,noise=alls=4:allf=t,format=yuv420p,subtitles=filename=text.ass")
     af = (f"atrim=start={start:.4f}:duration={dur:.4f},asetpts=PTS-STARTPTS,"
           f"afade=t=out:st={max(0, dur - 0.8):.3f}:d=0.8,loudnorm=I=-11:TP=-1.0:LRA=7")
     subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", "joined.mp4", "-i", str(Path(m.path).resolve()),
                     "-filter_complex", f"[0:v]{vf}[v];[1:a]{af}[a]", "-map", "[v]", "-map", "[a]",
-                    "-frames:v", str(total_frames), "-c:v", "libx264", "-preset", "slow", "-crf", "17",
-                    "-profile:v", "high", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out_path)],
+                    "-frames:v", str(total_frames), "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+                    "-maxrate", "14M", "-bufsize", "28M", "-profile:v", "high", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out_path)],
                    check=True, capture_output=True, text=True, cwd=work)
     silent = out_path.with_name(out_path.stem + "_NO_AUDIO.mp4")  # for adding the sound in the TikTok app
     subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(out_path), "-c:v", "copy", "-an", str(silent)],

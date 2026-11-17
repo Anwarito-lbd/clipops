@@ -71,16 +71,24 @@ class Shot:
     feat: list | None = None  # 8x4 Lab thumbnail of the middle frame (layout + colour), for matching
     hue: float = 0.0  # saturation-weighted mean hue, degrees (colour-flow ordering)
     sat: float = 0.0
+    bars: tuple = (0.0, 0.0)  # letterbox (top, bottom) as fractions of height, cropped before reframing
 
     @property
     def length(self) -> float:
         return self.end - self.start
 
+    @property
+    def is_card(self) -> bool:
+        """Title / rating / date cards: dark, flat and nearly static."""
+        return self.kind == "video" and self.color < 9 and self.motion < 8 and self.brightness < 60
+
     def score(self, want: str) -> float:
-        if self.brightness < 25:  # black / fade frames
+        if self.brightness < 25 or self.is_card:  # black / fade frames, text cards
             return -1.0
+        if want == "hero":  # the drop / hook: bright, colourful AND moving
+            return self.color * 1.2 + min(self.motion, 30) * 0.8 + max(0.0, self.brightness - 50) * 0.35
         if want == "intense":
-            return self.motion * 1.0 + self.color * 0.4
+            return self.motion * 1.0 + self.color * 0.6 + max(0.0, self.brightness - 55) * 0.2
         return self.color * 1.0 + min(self.motion, 12) * 0.3  # cinematic: colourful, calmer
 
 
@@ -134,6 +142,35 @@ def _features(frame) -> tuple[list, float, float]:
     return (lab / 255).flatten().tolist(), float(hue), float(w.mean())
 
 
+def letterbox(frames) -> tuple[float, float]:
+    """Cinematic black bars baked into the frame: (top, bottom) fractions, from rows dark in every frame."""
+    rows = np.max([f.astype(np.float32).mean(axis=(1, 2)) for f in frames], axis=0)
+    h = len(rows)
+    top = next((i for i in range(h // 3) if rows[i] > 14), h // 3)
+    bot = next((i for i in range(h // 3) if rows[h - 1 - i] > 14), h // 3)
+    if top < 0.03 * h:
+        top = 0
+    if bot < 0.03 * h:
+        bot = 0
+    return (round(top / h + 0.006, 4) if top else 0.0, round(bot / h + 0.006, 4) if bot else 0.0)
+
+
+def add_letterbox(shots: list["Shot"]) -> None:
+    """Fill `bars` for already-analysed shots (cheap: 3 frames each)."""
+    import cv2  # type: ignore
+
+    caps: dict = {}
+    for s in shots:
+        if s.kind == "image":
+            continue
+        cap = caps.setdefault(s.path, cv2.VideoCapture(s.path))
+        frames = [x for x in (_frame_stats(cap, t) for t in np.linspace(s.start, s.end, 3)) if x is not None]
+        if frames:
+            s.bars = letterbox(frames)
+    for c in caps.values():
+        c.release()
+
+
 def parse_source(spec: str) -> tuple[str, list[tuple[float, float]] | None]:
     """'file.mp4#2.8-76.6,80-85' -> (file.mp4, [(2.8, 76.6), (80, 85)]); no '#' = whole file."""
     if "#" not in spec:
@@ -180,7 +217,8 @@ def analyze_footage(paths: list[str], *, trim_edges: float = 0.15) -> list[Shot]
             motion = float(np.mean([np.abs(a - b).mean() for a, b in zip(arr, arr[1:])]))
             feat, hue, sat = _features(samples[len(samples) // 2])
             shots.append(Shot(path, s2, e2, motion=motion, color=float(np.mean([_colorfulness(a) for a in arr])),
-                              brightness=float(np.mean([a.mean() for a in arr])), feat=feat, hue=hue, sat=sat))
+                              brightness=float(np.mean([a.mean() for a in arr])), feat=feat, hue=hue, sat=sat,
+                              bars=letterbox(samples)))
         cap.release()
     return shots
 
