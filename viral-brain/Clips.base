@@ -1,0 +1,47 @@
+filters:
+  and:
+    - file.inFolder("02 Clips")
+    - file.ext == "md"
+formulas:
+  engagement_pct: 'if(views > 0 && likes != null && comments != null && shares != null, ((likes + comments + shares) / views * 100).round(2), "")'
+properties:
+  file.name:
+    displayName: Clip note
+  platform:
+    displayName: Platform
+  category:
+    displayName: Category
+  creator:
+    displayName: Creator
+  views:
+    displayName: Views (observed)
+  formula.engagement_pct:
+    displayName: Engagement %
+  style:
+    displayName: Edit style
+  reviewed:
+    displayName: Studied?
+views:
+  - type: table
+    name: All clips
+    order:
+      - file.name
+      - platform
+      - category
+      - creator
+      - views
+      - formula.engagement_pct
+      - style
+      - reviewed
+      - observed_at
+  - type: table
+    name: GTA 6 clips
+    filters:
+      - 'category == "gta6"'
+    order:
+      - file.name
+      - views
+      - formula.engagement_pct
+      - hook
+      - style
+      - reviewed

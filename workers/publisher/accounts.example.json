@@ -1,0 +1,32 @@
+{
+  "_comment": "Copy to accounts.json (git-ignored). Two posting accounts: one FIRST lane (speed: best clip of each moment, posted as soon as it scores) and one BEST lane (captioned finals, rotating streamers). Each posts to all its platforms. via=ayrshare posts publicly today through Ayrshare's audited apps; via=official uses your own API apps (YouTube/TikTok stay PRIVATE until your audits pass; Instagram works in dev mode for your own account).",
+  "per_account_per_day": 10,
+  "first_min_score": 60,
+  "best_min_score": 45,
+  "veto_seconds": 45,
+  "first_lane_media": "final",
+  "grok": {"captions": true, "review": true, "require_review": true},
+  "notify_webhook_env": "DISCORD_WEBHOOK_URL",
+  "accounts": {
+    "A": {
+      "lane": "first",
+      "grok_style": "Breaking-news energy: say what just happened, fast. Hook <= 5 words, ALL CAPS. Streamer name first in the title. No emojis spam (max 1).",
+      "ayrshare_profile_env": "AYRSHARE_PROFILE_KEY_A",
+      "platforms": {
+        "youtube": {"via": "ayrshare"},
+        "tiktok": {"via": "ayrshare"},
+        "instagram": {"via": "official", "token": "secrets/A_instagram.json"}
+      }
+    },
+    "B": {
+      "lane": "best",
+      "grok_style": "Highlight-reel voice: polished, a little longer, tease the payoff without spoiling it. Mix in the moment type (chase, glitch, fail). Max 2 emojis.",
+      "ayrshare_profile_env": "AYRSHARE_PROFILE_KEY_B",
+      "platforms": {
+        "youtube": {"via": "ayrshare"},
+        "tiktok": {"via": "ayrshare"},
+        "instagram": {"via": "official", "token": "secrets/B_instagram.json"}
+      }
+    }
+  }
+}

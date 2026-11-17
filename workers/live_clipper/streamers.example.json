@@ -1,0 +1,5 @@
+{
+  "_comment": "Facecam box per channel for --layout split: [x, y, w, h] as fractions of the 16:9 frame. Measure from a screenshot of each stream on the night (overlays change). Channels without an entry need --facecam or a different --layout.",
+  "kaicenat": {"facecam": [0.0, 0.0, 0.26, 0.30]},
+  "lacy": {"facecam": [0.74, 0.0, 0.26, 0.30]}
+}
