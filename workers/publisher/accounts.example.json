@@ -10,6 +10,7 @@
   "accounts": {
     "A": {
       "lane": "first",
+      "grok_style": "Breaking-news energy: say what just happened, fast. Hook <= 5 words, ALL CAPS. Streamer name first in the title. No emojis spam (max 1).",
       "ayrshare_profile_env": "AYRSHARE_PROFILE_KEY_A",
       "platforms": {
         "youtube": {"via": "ayrshare"},
@@ -19,6 +20,7 @@
     },
     "B": {
       "lane": "best",
+      "grok_style": "Highlight-reel voice: polished, a little longer, tease the payoff without spoiling it. Mix in the moment type (chase, glitch, fail). Max 2 emojis.",
       "ayrshare_profile_env": "AYRSHARE_PROFILE_KEY_B",
       "platforms": {
         "youtube": {"via": "ayrshare"},

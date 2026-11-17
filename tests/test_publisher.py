@@ -189,7 +189,8 @@ class FakeGrok:
     def __init__(self, decision="approve"):
         self.decision, self.reviewed = decision, []
 
-    def write_post(self, m):
+    def write_post(self, m, style=None):
+        self.styles = getattr(self, "styles", []) + [style]
         return {"title": f"GROK {m['streamer']}", "youtube_title": "GROK yt #Shorts", "tiktok_caption": "GROK tt"}
 
     def review(self, m, copy):
@@ -315,3 +316,26 @@ def test_accounts_example_is_valid():
     assert cfg.lane_accounts() == ("A", "B") and cfg.veto_seconds == 45
     with pytest.raises(ValueError):
         AutoPostConfig(accounts={"A": {"lane": "first"}, "B": {"lane": "first"}}).validate()
+
+
+def test_autopost_passes_each_accounts_grok_style(tmp_path):
+    _session(tmp_path, n=1)
+    guide = tmp_path / "style_a.md"
+    guide.write_text("Breaking-news energy.")
+    cfg = _cfg()
+    cfg.accounts["A"]["grok_style"] = str(guide)
+    grok = FakeGrok()
+    poster, _ = _poster(tmp_path, cfg, _pubs(), grok=grok)
+    assert poster.tick()[0]["status"] == "POSTED"
+    assert grok.styles == ["Breaking-news energy."]
+
+
+def test_grok_writer_prompt_includes_house_style():
+    seen = []
+
+    def opener(req, timeout=None):
+        seen.append(json.loads(req.data))
+        return Resp({"choices": [{"message": {"content": '{"title": "x"}'}}]})
+
+    Grok(api_key="X", model="grok-test", opener=opener).write_post({"streamer": "lacy"}, style="Polished voice.")
+    assert seen[0]["messages"][0]["content"].endswith("Polished voice.")

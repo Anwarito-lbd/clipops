@@ -79,8 +79,10 @@ class Grok:
             "score": (manifest.get("rank") or {}).get("score"),
         })
 
-    def write_post(self, manifest: dict) -> dict:
-        out = self.chat_json(WRITER_PROMPT, self._context(manifest))
+    def write_post(self, manifest: dict, style: str | None = None) -> dict:
+        """`style` = the account's house voice (accounts.json "grok_style"), appended to the writer brief."""
+        system = WRITER_PROMPT + (f"\n\nHouse style for this account (follow it):\n{style.strip()}" if style else "")
+        out = self.chat_json(system, self._context(manifest))
         return {k: str(v) for k, v in out.items() if k in
                 ("title", "hook", "caption", "tiktok_caption", "youtube_title") and v}
 

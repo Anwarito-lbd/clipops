@@ -232,6 +232,13 @@ class AutoPoster:
         video = Path(files.get("clip") or "") if files.get("clip") and Path(files["clip"]).exists() else path
         return manifest, video
 
+    def _style(self, acc_cfg: dict) -> str | None:
+        """Account voice for Grok: inline text, or a path to a .md/.txt style guide."""
+        style = acc_cfg.get("grok_style") or (self.cfg.raw.get("grok") or {}).get("style")
+        if style and len(style) < 260 and Path(style).suffix in (".md", ".txt") and Path(style).exists():
+            return Path(style).read_text(encoding="utf-8")
+        return style
+
     def _hold(self, item: dict, reasons: list[str]) -> dict:
         holds = self.holds() | {item["clip_id"]}
         save_json(self.holds_path, sorted(holds))
@@ -250,9 +257,10 @@ class AutoPoster:
             return self._hold(item, ["identical video already uploaded"])
 
         copy = template_copy(manifest)
+        acc_cfg = self.cfg.accounts[account]
         if self.grok and self.cfg.grok_captions:
             try:
-                copy.update(self.grok.write_post(manifest))
+                copy.update(self.grok.write_post(manifest, style=self._style(acc_cfg)))
             except Exception as exc:
                 self._event("grok_write_error", clip_id=cid, error=str(exc))
         if self.grok and self.cfg.grok_review:
@@ -266,7 +274,6 @@ class AutoPoster:
         elif self.cfg.require_review and self.cfg.grok_review:
             return self._hold(item, ["review required but Grok not configured (set XAI_API_KEY)"])
 
-        acc_cfg = self.cfg.accounts[account]
         platforms = list((acc_cfg.get("platforms") or {}).keys())
         if self.cfg.dry_run:
             self._dry_seen.add(cid)
