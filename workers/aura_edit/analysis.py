@@ -68,6 +68,9 @@ class Shot:
     color: float
     brightness: float
     kind: str = "video"  # video | image
+    feat: list | None = None  # 8x4 Lab thumbnail of the middle frame (layout + colour), for matching
+    hue: float = 0.0  # saturation-weighted mean hue, degrees (colour-flow ordering)
+    sat: float = 0.0
 
     @property
     def length(self) -> float:
@@ -119,6 +122,18 @@ def _frame_stats(cap, t: float):
     return small
 
 
+def _features(frame) -> tuple[list, float, float]:
+    import cv2  # type: ignore
+
+    img = frame.astype(np.uint8)
+    lab = cv2.cvtColor(cv2.resize(img, (8, 4), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2LAB).astype(np.float32)
+    hsv = cv2.cvtColor(cv2.resize(img, (40, 22)), cv2.COLOR_BGR2HSV).astype(np.float32)
+    h = hsv[..., 0] * 2 * np.pi / 180  # OpenCV hue is 0-180
+    w = hsv[..., 1] / 255 * (hsv[..., 2] / 255)
+    hue = (np.degrees(np.arctan2((np.sin(h) * w).sum(), (np.cos(h) * w).sum())) + 360) % 360
+    return (lab / 255).flatten().tolist(), float(hue), float(w.mean())
+
+
 def parse_source(spec: str) -> tuple[str, list[tuple[float, float]] | None]:
     """'file.mp4#2.8-76.6,80-85' -> (file.mp4, [(2.8, 76.6), (80, 85)]); no '#' = whole file."""
     if "#" not in spec:
@@ -143,8 +158,9 @@ def analyze_footage(paths: list[str], *, trim_edges: float = 0.15) -> list[Shot]
             if img is None:
                 continue
             small = cv2.resize(img, (160, 90)).astype(np.float32)
+            feat, hue, sat = _features(small)
             shots.append(Shot(path, 0.0, 6.0, motion=6.0, color=_colorfulness(small),
-                              brightness=float(small.mean()), kind="image"))
+                              brightness=float(small.mean()), kind="image", feat=feat, hue=hue, sat=sat))
             continue
         dur = _probe_duration(path)
         cap = cv2.VideoCapture(path)
@@ -162,8 +178,9 @@ def analyze_footage(paths: list[str], *, trim_edges: float = 0.15) -> list[Shot]
                 continue
             arr = [x.astype(np.float32) for x in samples]
             motion = float(np.mean([np.abs(a - b).mean() for a, b in zip(arr, arr[1:])]))
+            feat, hue, sat = _features(samples[len(samples) // 2])
             shots.append(Shot(path, s2, e2, motion=motion, color=float(np.mean([_colorfulness(a) for a in arr])),
-                              brightness=float(np.mean([a.mean() for a in arr]))))
+                              brightness=float(np.mean([a.mean() for a in arr])), feat=feat, hue=hue, sat=sat))
         cap.release()
     return shots
 
@@ -172,3 +189,24 @@ def _colorfulness(img) -> float:
     b, g, r = img[..., 0], img[..., 1], img[..., 2]
     rg, yb = np.abs(r - g), np.abs(0.5 * (r + g) - b)
     return float(math.sqrt(rg.std() ** 2 + yb.std() ** 2) + 0.3 * math.sqrt(rg.mean() ** 2 + yb.mean() ** 2))
+
+
+def match_pairs(tops: list[Shot], bottoms: list[Shot], n: int) -> list[tuple[Shot, Shot, float]]:
+    """Greedy best visual matches (layout + colour) between two pools, each shot used once."""
+    a = [t for t in tops if t.feat and t.brightness >= 25]
+    b = [x for x in bottoms if x.feat and x.brightness >= 25]
+    if not a or not b:
+        return []
+    A, B = np.array([t.feat for t in a]), np.array([x.feat for x in b])
+    d = ((A[:, None, :] - B[None, :, :]) ** 2).mean(axis=2)
+    pairs, used_a, used_b = [], set(), set()
+    for flat in np.argsort(d, axis=None):
+        i, j = divmod(int(flat), d.shape[1])
+        if i in used_a or j in used_b:
+            continue
+        used_a.add(i)
+        used_b.add(j)
+        pairs.append((a[i], b[j], float(d[i, j])))
+        if len(pairs) >= n:
+            break
+    return pairs

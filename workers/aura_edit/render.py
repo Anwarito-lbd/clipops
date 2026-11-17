@@ -1,12 +1,10 @@
-"""Aura edit renderer: beat-synced 9:16 cut with slow-mo build-up, flash + zoom-punch drop,
-RGB split, shake, glow, grade, grain and big pop-in text.
+"""Edit renderer: frame-accurate beat-synced 9:16 cuts from video clips AND screenshots.
 
-Timeline (all cut points land on beats):
-  build  : 2-beat slots, 0.5x blended slow-mo, slow pan, cinematic shots
-  drop   : white flash + zoom punch + shake + RGB split on the first hit
-  hits   : 1-beat cuts of the most intense shots, every 4th hit flashes
-  holds  : every 6th slot is a 2-beat 0.6x hold to let the edit breathe
-  end    : optional logo/end shot with fade
+Every cut point is computed in whole frames from the music's beat grid, so cuts never drift.
+Each slot is rendered from one shot (full layout) or two (split layout: top / bottom), then:
+  slow-mo with frame blending (build/hold) - Ken Burns move on screenshots - zoom punch,
+  shake and RGB split on hits - white flash on the drop - colour grade
+and the joined edit gets glow, vignette, grain, the ASS text track and the music.
 """
 
 from __future__ import annotations
@@ -27,6 +25,7 @@ GRADES = {
     "gold": "eq=contrast=1.25:saturation=1.2:gamma=0.97,colorbalance=rm=0.08:gm=0.04:bm=-0.08:rh=0.06:bh=-0.06",
     "noir": "hue=s=0,eq=contrast=1.55:brightness=-0.03,curves=preset=strong_contrast",
     "teal": "eq=contrast=1.25:saturation=1.3,colorbalance=rs=-0.06:bs=0.12:rh=0.10:gh=0.02:bh=-0.06",
+    "clean": "eq=contrast=1.12:saturation=1.15",
 }
 
 
@@ -34,47 +33,63 @@ GRADES = {
 class Slot:
     start: float
     dur: float
-    kind: str  # build | drop | hit | flash | hold | end
+    kind: str  # teaser | build | drop | hit | flash | hold | end
     speed: float = 1.0
+    frames: int = 0
+
+
+@dataclass
+class TextEvent:
+    start: float  # seconds from edit start
+    end: float
+    text: str
+    style: str = "Top"  # Top | Glow | Foot | Label | Mid
+    pop: bool = False
 
 
 @dataclass
 class EditSpec:
     style: str = "vice"
-    texts: dict = field(default_factory=lambda: {"build": "VICE CITY", "drop": "AURA", "end": "GTA VI · 11.19"})
     pre_seconds: float = 6.5
     post_seconds: float = 12.0
     seed: int = 1
     font: str = "DejaVu Sans"
-    end_shot: Shot | None = None  # e.g. the GTA VI logo moment
+    teaser: bool = True  # 1-beat flash-forward of the drop shot as the opening hook
+    layout: str = "full"  # full | split
+    labels: tuple[str, str] = ("TRAILER", "GAMEPLAY")
+    texts: list[TextEvent] = field(default_factory=list)
 
 
-def plan_slots(m: MusicInfo, spec: EditSpec) -> tuple[float, float, list[Slot]]:
+# ------------------------------------------------------------------------------------------- plan
+
+def plan_slots(m: MusicInfo, spec: EditSpec, *, end_slot: bool = False) -> tuple[float, float, list[Slot]]:
     beats = [b for b in m.beats if b >= 0]
     if not beats:
         raise ValueError("no beats found in the music")
     b = m.beat
     build_step = 2 if b >= 0.36 else 4
-    start = max(beats[0], m.drop - spec.pre_seconds)
-    start = min((x for x in beats if x <= m.drop), key=lambda x: abs(x - start), default=beats[0])
+    target = max(beats[0], m.drop - spec.pre_seconds)
+    start = min((x for x in beats if x <= m.drop), key=lambda x: abs(x - target), default=beats[0])
     end_target = min(m.duration - 0.3, m.drop + spec.post_seconds)
     grid = [x for x in beats if start <= x <= end_target]
     if grid[-1] < end_target - b * 0.5:
         grid.append(min(end_target, grid[-1] + b))
     slots: list[Slot] = []
     i = 0
+    if spec.teaser and len(grid) > 2 and grid[1] < m.drop:
+        slots.append(Slot(grid[0], grid[1] - grid[0], "teaser"))
+        i = 1
     while i < len(grid) - 1:
         t = grid[i]
         if t < m.drop - 1e-3:
             j = min(i + build_step, len(grid) - 1)
-            while grid[j] > m.drop + 1e-3:  # never let a build slot cross the drop
+            while grid[j] > m.drop + 1e-3:
                 j -= 1
-            if j == i:
-                j = i + 1
+            j = max(j, i + 1)
             slots.append(Slot(t, grid[j] - t, "build", 0.5))
             i = j
             continue
-        n_post = sum(1 for s in slots if s.kind != "build")
+        n_post = sum(1 for s in slots if s.kind not in ("build", "teaser"))
         if n_post == 0:
             kind, step, speed = "drop", 1, 1.0
         elif n_post % 6 == 5:
@@ -86,76 +101,106 @@ def plan_slots(m: MusicInfo, spec: EditSpec) -> tuple[float, float, list[Slot]]:
         j = min(i + step, len(grid) - 1)
         slots.append(Slot(t, grid[j] - t, kind, speed))
         i = j
-    if spec.end_shot is not None and len(slots) > 2:
-        last = slots.pop()
-        prev = slots.pop()
-        slots.append(Slot(prev.start, last.start + last.dur - prev.start, "end", 1.0))
-    return start, slots[-1].start + slots[-1].dur, slots
+    if end_slot and len(slots) > 3:
+        last, prev = slots.pop(), slots.pop()
+        slots.append(Slot(prev.start, last.start + last.dur - prev.start, "end"))
+    end = slots[-1].start + slots[-1].dur
+    _assign_frames(slots, start)
+    return start, end, slots
 
 
-def assign_shots(slots: list[Slot], pool: list[Shot], spec: EditSpec) -> list[tuple[Slot, Shot, float]]:
-    rng = random.Random(spec.seed)
+def _assign_frames(slots: list[Slot], start: float) -> None:
+    for s in slots:
+        f0 = round((s.start - start) * FPS)
+        f1 = round((s.start + s.dur - start) * FPS)
+        s.frames = max(1, f1 - f0)
+
+
+def pick_shots(slots: list[Slot], pool: list[Shot], seed: int, *, avoid: set | None = None) -> list[tuple[Shot, float]]:
+    """One shot per slot: calm/colourful for build & holds, most intense for hits; spread usage."""
+    rng = random.Random(seed)
     calm = sorted((s for s in pool if s.score("calm") > 0), key=lambda s: -s.score("calm"))
     intense = sorted((s for s in pool if s.score("intense") > 0), key=lambda s: -s.score("intense"))
     used: dict[tuple[str, float], int] = {}
-    out = []
+    if avoid:
+        for k in avoid:
+            used[k] = 1
+    out: list[tuple[Shot, float]] = []
+    drop_pick = None
     for slot in slots:
-        if slot.kind == "end" and spec.end_shot is not None:
-            out.append((slot, spec.end_shot, spec.end_shot.start))
-            continue
-        need = slot.dur * slot.speed
-        ranked = calm if slot.kind in ("build", "hold") else intense
-        fits = [s for s in ranked if s.length >= need]
-        if not fits:
-            fits = sorted(pool, key=lambda s: -s.length)[:5]
+        need = slot.frames / FPS * slot.speed
+        ranked = calm if slot.kind in ("build", "hold", "end") else intense
+        fits = [s for s in ranked if s.kind == "image" or s.length >= need] or ranked[:5]
         top = fits[: max(6, len(fits) // 3)]
-        top.sort(key=lambda s: used.get((s.path, s.start), 0))  # least-used first
-        least = used.get((top[0].path, top[0].start), 0)
+        least = min(used.get((s.path, s.start), 0) for s in top)
         choice = rng.choice([s for s in top if used.get((s.path, s.start), 0) == least])
         used[(choice.path, choice.start)] = used.get((choice.path, choice.start), 0) + 1
-        slack = max(0.0, choice.length - need)
-        out.append((slot, choice, choice.start + rng.uniform(0, slack)))
+        t = choice.start + rng.uniform(0, max(0.0, choice.length - need)) if choice.kind != "image" else 0.0
+        out.append((choice, t))
+        if slot.kind == "drop":
+            drop_pick = (choice, t)
+    if drop_pick and slots and slots[0].kind == "teaser":
+        out[0] = drop_pick  # the hook flashes forward to the drop shot
     return out
 
 
-def _slot_filter(slot: Slot, shot: Shot, spec: EditSpec, rng: random.Random) -> str:
-    parts = []
+# ----------------------------------------------------------------------------------------- render
+
+def _shot_chain(idx: int, shot: Shot, slot: Slot, w: int, h: int, rng: random.Random) -> str:
+    """Filter chain for input `idx` -> exactly w x h at FPS, with motion appropriate to the slot."""
+    n = slot.frames
+    p = []
     if shot.kind == "image":
-        parts.append("loop=loop=-1:size=1:start=0,fps=30")
-    if slot.speed != 1.0 and shot.kind != "image":
-        parts.append(f"setpts={1 / slot.speed:.4f}*PTS")
-        parts.append(f"minterpolate=fps={FPS}:mi_mode=blend")
-    parts.append(f"fps={FPS}")
-    # 9:16 crop from landscape; build/hold slots pan slowly across the frame
-    if slot.kind == "end":
-        parts.append("crop='min(iw,ih*9/16)':ih:'(iw-ow)/2':0")
-    elif slot.kind in ("build", "hold"):
-        direction = rng.choice([-1, 1])
-        parts.append(f"crop='min(iw,ih*9/16)':ih:'(iw-ow)/2+{direction}*(iw-ow)/2*0.55*(2*t/{max(slot.dur, 0.1):.3f}-1)':0")
+        # Ken Burns: crop a w:h window from the 4K still, slow zoom + drift; punch on hits
+        p.append(f"scale=-2:{int(h * 1.35)}:flags=lanczos")
+        p.append(f"crop='min(iw,ih*{w}/{h})':ih:'(iw-ow)*{rng.uniform(0.25, 0.75):.2f}':0")
+        p.append(f"scale={int(w * 1.25)}:{int(h * 1.25)}")
+        zoom = (f"1.0+0.10*on/{n}" if slot.kind in ("build", "hold", "end", "teaser")
+                else f"1.06+0.20*exp(-on/{FPS}*9)")
+        dx = rng.choice([-1, 1]) * 0.06
+        p.append(f"zoompan=z='{zoom}':x='(iw-iw/zoom)/2+iw*{dx}*on/{n}':y='(ih-ih/zoom)/2':d={n}:s={w}x{h}:fps={FPS}")
     else:
-        offset = rng.uniform(-0.25, 0.25)
-        parts.append(f"crop='min(iw,ih*9/16)':ih:'(iw-ow)/2*(1+{offset:.3f})':0")
-    shaky = slot.kind in ("drop", "flash")
-    big_w, big_h = (1150, 2044) if shaky else (W, H)
-    parts.append(f"scale={big_w}:{big_h}:flags=lanczos,setsar=1")
+        if slot.speed != 1.0:
+            p.append(f"setpts={1 / slot.speed:.4f}*PTS,minterpolate=fps={FPS}:mi_mode=blend")
+        p.append(f"fps={FPS}")
+        if slot.kind in ("build", "hold"):
+            direction = rng.choice([-1, 1])
+            p.append(f"crop='min(iw,ih*{w}/{h})':ih:'(iw-ow)/2+{direction}*(iw-ow)/2*0.5*(2*n/{n}-1)':0")
+        else:
+            p.append(f"crop='min(iw,ih*{w}/{h})':ih:'(iw-ow)/2*(1+{rng.uniform(-0.2, 0.2):.2f})':0")
+        p.append(f"scale={w}:{h}:flags=lanczos")
+        if slot.kind in ("drop", "flash", "teaser"):
+            p.append(f"zoompan=z='1+0.22*exp(-on/{FPS}*9)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={FPS}")
+    p.append("setsar=1,format=yuv420p")
+    return f"[{idx}:v]" + ",".join(p) + f"[s{idx}]"
+
+
+def _render_slot(slot: Slot, shots: list[tuple[Shot, float]], spec: EditSpec, out: Path, rng: random.Random) -> None:
+    n = slot.frames
+    inputs, chains = [], []
+    split = len(shots) == 2
+    w, h = (W, H // 2) if split else (W, H)
+    for k, (shot, t) in enumerate(shots):
+        if shot.kind == "image":
+            inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{n / FPS + 0.2:.3f}", "-i", shot.path]
+        else:
+            inputs += ["-ss", f"{t:.3f}", "-t", f"{n / FPS * slot.speed + 0.3:.3f}", "-i", shot.path]
+        chains.append(_shot_chain(k, shot, slot, w, h, rng))
+    graph = ";".join(chains) + ";"
+    graph += "[s0][s1]vstack=inputs=2,drawbox=x=0:y=954:w=1080:h=12:color=white@0.95:t=fill[c];" if split else "[s0]null[c];"
+    fx = []
     if slot.kind in ("drop", "flash"):
-        parts.append(f"zoompan=z='1+0.22*exp(-in_time*9)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={big_w}x{big_h}:fps={FPS}")
-    if shaky:
-        parts.append(f"crop={W}:{H}:x='{(big_w - W) // 2}+{(big_w - W) // 2 - 4}*sin(t*53)*exp(-t*3)':"
-                     f"y='{(big_h - H) // 2}+{(big_h - H) // 2 - 4}*cos(t*47)*exp(-t*3)'")
-        parts.append("rgbashift=rh=8:bh=-8:rv=2:bv=-2")
-    parts.append(GRADES.get(spec.style, GRADES["vice"]))
-    if slot.kind in ("drop", "flash"):
-        parts.append("fade=t=in:st=0:d=0.14:color=white")
+        fx.append(f"pad={W + 70}:{H + 124}:35:62,crop={W}:{H}:x='35+31*sin(n*1.77)*exp(-n/{FPS}*3)':y='62+31*cos(n*1.57)*exp(-n/{FPS}*3)'")
+        fx.append("rgbashift=rh=8:bh=-8:rv=2:bv=-2")
+    fx.append(GRADES.get(spec.style, GRADES["vice"]))
+    if slot.kind in ("drop", "flash", "teaser"):
+        fx.append("fade=t=in:st=0:d=0.14:color=white")
     if slot.kind == "end":
-        parts.append(f"fade=t=out:st={max(0.0, slot.dur - 0.6):.3f}:d=0.6")
-    return ",".join(parts)
-
-
-def _post_filter() -> str:
-    # glow (screen-blended blur), vignette, film grain — applied once on the joined edit
-    return ("split=2[a][b];[b]gblur=sigma=18[g];[a][g]blend=all_mode=screen:all_opacity=0.28,"
-            "vignette=PI/4.5,noise=alls=9:allf=t,format=yuv420p")
+        fx.append(f"fade=t=out:st={max(0.0, n / FPS - 0.6):.3f}:d=0.6")
+    graph += "[c]" + ",".join(fx) + "[v]"
+    cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", *inputs, "-filter_complex", graph, "-map", "[v]", "-an",
+           "-frames:v", str(n), "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "15", str(out)]
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
 
 
 def _ass_time(t: float) -> str:
@@ -165,66 +210,66 @@ def _ass_time(t: float) -> str:
     return f"{int(h)}:{int(m_):02d}:{s:05.2f}"
 
 
-def build_text(spec: EditSpec, m: MusicInfo, start: float, end: float) -> str:
-    drop = m.drop - start
-    b = m.beat
+def build_ass(spec: EditSpec, events: list[TextEvent]) -> str:
+    f = spec.font
     head = (
         "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nScaledBorderAndShadow: yes\n\n"
         "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, "
         "Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        f"Style: Glow,{spec.font},120,&H00FFFFFF,&H00FFFFFF,&H00FF66FF,&H00000000,-1,0,0,0,100,100,18,0,1,6,0,5,40,40,0,1\n"
-        f"Style: Top,{spec.font},64,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,14,0,1,4,2,8,40,40,260,1\n"
-        f"Style: Foot,{spec.font},46,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,10,0,1,3,1,2,40,40,300,1\n\n"
+        f"Style: Glow,{f},128,&H00FFFFFF,&H00FFFFFF,&H00FF55FF,&H00000000,-1,0,0,0,100,100,16,0,1,7,0,5,40,40,0,1\n"
+        f"Style: Mid,{f},84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,6,2,5,40,40,0,1\n"
+        f"Style: Top,{f},62,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,10,0,1,5,2,8,40,40,250,1\n"
+        f"Style: Foot,{f},46,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,8,0,1,3,1,2,40,40,300,1\n"
+        f"Style: Label,{f},40,&H00FFFFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,8,0,3,10,0,7,40,40,40,1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
-    ev = []
-    t = spec.texts
-    if t.get("build") and drop > 1:
-        ev.append(f"Dialogue: 0,{_ass_time(0.3)},{_ass_time(drop - b * 0.6)},Top,,0,0,0,,{{\\fad(400,150)}}{t['build']}")
-    if t.get("drop"):
-        pop = r"{\fscx60\fscy60\t(0,90,\fscx112\fscy112)\t(90,200,\fscx100\fscy100)\blur2}"
-        ev.append(f"Dialogue: 1,{_ass_time(drop)},{_ass_time(drop + b * 2)},Glow,,0,0,0,,{pop}{t['drop']}")
-    if t.get("end"):
-        ev.append(f"Dialogue: 0,{_ass_time(max(drop + b * 2, end - start - 2.2))},{_ass_time(end - start)},Foot,,0,0,0,,"
-                  f"{{\\fad(300,300)}}{t['end']}")
-    return head + "\n".join(ev) + "\n"
+    pop = r"{\fscx55\fscy55\t(0,90,\fscx112\fscy112)\t(90,200,\fscx100\fscy100)}"
+    lines = []
+    for e in events:
+        txt = e.text.replace("\n", r"\N")
+        lines.append(f"Dialogue: 1,{_ass_time(e.start)},{_ass_time(e.end)},{e.style},,0,0,0,,"
+                     f"{pop if e.pop else ''}{txt}")
+    return head + "\n".join(lines) + "\n"
 
 
-def render_edit(m: MusicInfo, pool: list[Shot], out_path: str | Path, spec: EditSpec, *, log=print) -> dict:
+def render(m: MusicInfo, start: float, end: float, slots: list[Slot], picks: list[list[tuple[Shot, float]]],
+           out_path: str | Path, spec: EditSpec, *, log=print, keep_audio_dir: bool = False) -> dict:
     out_path = Path(out_path).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    start, end, slots = plan_slots(m, spec)
-    plan = assign_shots(slots, pool, spec)
     rng = random.Random(spec.seed * 7919)
-    work = Path(tempfile.mkdtemp(prefix="aura_", dir=str(out_path.parent)))
+    work = Path(tempfile.mkdtemp(prefix="edit_", dir=str(out_path.parent)))
     parts = []
-    for k, (slot, shot, src_t) in enumerate(plan):
+    for k, (slot, shots) in enumerate(zip(slots, picks)):
         part = work / f"p{k:03d}.mp4"
-        vf = _slot_filter(slot, shot, spec, rng)
-        src_dur = slot.dur * slot.speed + 0.2
-        inp = ["-i", shot.path] if shot.kind == "image" else ["-ss", f"{src_t:.3f}", "-t", f"{src_dur:.3f}", "-i", shot.path]
-        cmd = ["ffmpeg", "-nostdin", "-v", "error", "-y", *inp, "-vf", vf, "-an", "-t", f"{slot.dur:.4f}",
-               "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p", str(part)]
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        _render_slot(slot, shots, spec, part, rng)
         parts.append(part)
     (work / "list.txt").write_text("".join(f"file '{p.name}'\n" for p in parts))
-    joined = work / "joined.mp4"
     subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", "list.txt",
-                    "-c", "copy", joined.name], check=True, capture_output=True, text=True, cwd=work)
-    (work / "text.ass").write_text(build_text(spec, m, start, end), encoding="utf-8")
-    dur = end - start
-    vf = f"{_post_filter()},subtitles=filename=text.ass"
-    af = f"atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,afade=t=out:st={max(0, dur - 1.0):.3f}:d=1.0,loudnorm=I=-11:TP=-1.0:LRA=7"
-    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", joined.name, "-i", str(Path(m.path).resolve()),
+                    "-c", "copy", "joined.mp4"], check=True, capture_output=True, text=True, cwd=work)
+    events = list(spec.texts)
+    if spec.layout == "split":
+        events += [TextEvent(0, end - start, spec.labels[0], "Label"),
+                   TextEvent(0, end - start, r"{\an1\pos(40,1010)}" + spec.labels[1], "Label")]
+    (work / "text.ass").write_text(build_ass(spec, events), encoding="utf-8")
+    total_frames = sum(s.frames for s in slots)
+    dur = total_frames / FPS
+    vf = ("split=2[a][b];[b]gblur=sigma=18[g];[a][g]blend=all_mode=screen:all_opacity=0.26,"
+          "vignette=PI/4.6,noise=alls=8:allf=t,format=yuv420p,subtitles=filename=text.ass")
+    af = (f"atrim=start={start:.4f}:duration={dur:.4f},asetpts=PTS-STARTPTS,"
+          f"afade=t=out:st={max(0, dur - 0.8):.3f}:d=0.8,loudnorm=I=-11:TP=-1.0:LRA=7")
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", "joined.mp4", "-i", str(Path(m.path).resolve()),
                     "-filter_complex", f"[0:v]{vf}[v];[1:a]{af}[a]", "-map", "[v]", "-map", "[a]",
-                    "-t", f"{dur:.3f}", "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-profile:v", "high",
-                    "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out_path)],
+                    "-frames:v", str(total_frames), "-c:v", "libx264", "-preset", "slow", "-crf", "17",
+                    "-profile:v", "high", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out_path)],
                    check=True, capture_output=True, text=True, cwd=work)
+    silent = out_path.with_name(out_path.stem + "_NO_AUDIO.mp4")  # for adding the sound in the TikTok app
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(out_path), "-c:v", "copy", "-an", str(silent)],
+                   check=True, capture_output=True, text=True)
     for p in work.iterdir():
         p.unlink()
     work.rmdir()
-    log(f"rendered {out_path.name}: {dur:.1f}s, {len(slots)} cuts, drop at {m.drop - start:.2f}s, style {spec.style}")
-    return {"path": str(out_path), "duration": round(dur, 2), "cuts": len(slots), "drop_at": round(m.drop - start, 2),
-            "tempo": round(m.tempo, 1), "style": spec.style,
-            "shots": [{"src": Path(s.path).name, "t": round(t, 2), "kind": sl.kind} for sl, s, t in plan]}
+    log(f"rendered {out_path.name}: {dur:.2f}s, {len(slots)} cuts, drop at {m.drop - start:.2f}s")
+    return {"path": str(out_path), "silent": str(silent), "duration": round(dur, 2), "cuts": len(slots),
+            "drop_at": round(m.drop - start, 3), "start_in_song": round(start, 3), "tempo": round(m.tempo, 1),
+            "shots": [[(Path(s.path).name, round(t, 2)) for s, t in pk] for pk in picks]}
