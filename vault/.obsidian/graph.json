@@ -9,23 +9,52 @@
   "colorGroups": [
     {
       "query": "tag:#index",
-      "color": { "a": 1, "rgb": 15251530 }
+      "color": {
+        "a": 1,
+        "rgb": 15251530
+      }
     },
     {
       "query": "tag:#pipeline",
-      "color": { "a": 1, "rgb": 2282478 }
+      "color": {
+        "a": 1,
+        "rgb": 2282478
+      }
     },
     {
       "query": "tag:#architecture",
-      "color": { "a": 1, "rgb": 6514417 }
+      "color": {
+        "a": 1,
+        "rgb": 6514417
+      }
     },
     {
       "query": "tag:#examples",
-      "color": { "a": 1, "rgb": 4054167 }
+      "color": {
+        "a": 1,
+        "rgb": 4054167
+      }
     },
     {
       "query": "tag:#config",
-      "color": { "a": 1, "rgb": 16096779 }
+      "color": {
+        "a": 1,
+        "rgb": 16096779
+      }
+    },
+    {
+      "query": "tag:#gta6",
+      "color": {
+        "a": 1,
+        "rgb": 16733986
+      }
+    },
+    {
+      "query": "tag:#live",
+      "color": {
+        "a": 1,
+        "rgb": 9699539
+      }
     }
   ],
   "collapse-display": true,

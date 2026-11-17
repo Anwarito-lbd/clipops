@@ -169,7 +169,9 @@ def _wav_to_float32(wav_path: str):
     return np.ascontiguousarray(audio, dtype=np.float32)
 
 
-def _via_faster_whisper(video_path: str, model: str, device: str, compute_type: str) -> dict:
+def _via_faster_whisper(
+    video_path: str, model: str, device: str, compute_type: str, initial_prompt: str | None = None
+) -> dict:
     from faster_whisper import WhisperModel  # type: ignore
 
     # Map ClipOps model names; medium is a good 8GB default
@@ -188,7 +190,9 @@ def _via_faster_whisper(video_path: str, model: str, device: str, compute_type: 
         raise RuntimeError("ffmpeg wav extract failed")
     try:
         audio = _wav_to_float32(wav)
-        segments_iter, info = wm.transcribe(audio, word_timestamps=True, vad_filter=True)
+        segments_iter, info = wm.transcribe(
+            audio, word_timestamps=True, vad_filter=True, initial_prompt=initial_prompt
+        )
         segments = []
         words = []
         for seg in segments_iter:
@@ -231,7 +235,9 @@ def transcribe_video(
     compute_type: str = "float16",
     hf_token: str | None = None,
     enable_diarization: bool = True,
+    initial_prompt: str | None = None,
 ) -> dict:
+    """`initial_prompt` biases faster-whisper toward domain vocabulary (e.g. game/character names)."""
     Path(output_json).parent.mkdir(parents=True, exist_ok=True)
     duration = _probe_duration(video_path)
     errors: list[str] = []
@@ -243,7 +249,10 @@ def transcribe_video(
                 video_path, model, device, compute_type, hf_token, enable_diarization
             ),
         ),
-        ("faster-whisper", lambda: _via_faster_whisper(video_path, model, device, compute_type)),
+        (
+            "faster-whisper",
+            lambda: _via_faster_whisper(video_path, model, device, compute_type, initial_prompt),
+        ),
     ):
         try:
             payload = fn()
