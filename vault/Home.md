@@ -25,6 +25,7 @@ ClipOps stops strictly at human approval and manual export: `automation_boundary
 
 - [[LiveClipping]] — clip streams *while still live*: Streamlink 2 s segments, Twitch chat spike detection (fires mid-bucket), draft-first renders, live 0–100 ranking & leaderboard (`workers/live_clipper/`)
 - [[GTA6]] — launch-night playbook: facts to verify, run sheet, multi-streamer setup, spoiler & rights rules (`--profile gta6`)
+- [[AutoPosting]] — opt-in auto-posting to YouTube Shorts, TikTok and Instagram Reels: two-lane plan, Grok copy + safety review, veto window, holds, platform audit reality (`workers/publisher/`)
 - [[GTA6Moments]] — GTA 6 moment taxonomy (chase, glitch, fail, funny, heist, graphics, world, story) with chat signatures, ranking priors and title templates
 
 ## Workstation & Operations

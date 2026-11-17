@@ -47,6 +47,8 @@ Don't hard-code the list: `python -m workers.live_clipper scout` shows who is ac
 
 ## Two Accounts, 20 Posts a Day
 
+Fully automatic with `--autopost accounts.json`. Gates, Grok review and which platforms can post publicly on launch day: [[AutoPosting]].
+
 `python -m workers.live_clipper plan <session>` splits the leaderboard into two lanes (`workers/live_clipper/planner.py`):
 
 - **Account A, FIRST lane (10/day):** the single best clip of each moment across all streamers, posted as the **draft** as soon as it scores ≥ 60. When five streamers hit the same moment, only the best one goes here.

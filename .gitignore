@@ -19,3 +19,6 @@ clipops.db
 dist/
 .remotion/
 .supabase/
+# publishing credentials — never commit
+secrets/
+accounts.json

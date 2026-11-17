@@ -18,6 +18,9 @@ opencv-python-headless>=4.8.0
 faster-whisper>=1.0.0
 # Live clipper (workers/live_clipper): records live streams
 streamlink>=6.0
+# Auto-poster (workers/publisher): YouTube OAuth consent + .env loading
+google-auth-oauthlib>=1.2
+python-dotenv>=1.0
 # WhisperX+CUDA (RTX 50-series): use scripts/install_whisperx_cuda.py
 #   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 #   pip install whisperx --no-deps  + Silero VAD path (see workers/transcription)

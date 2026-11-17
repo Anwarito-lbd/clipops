@@ -32,6 +32,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+try:  # .env at repo root holds TWITCH_* / XAI_API_KEY / posting keys
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv(ROOT / ".env")
+except ImportError:
+    pass
+
 from workers.live_clipper.chat import TwitchChatReader, load_chat_jsonl, replay_chat_realtime  # noqa: E402
 from workers.live_clipper.clipper import ClipperConfig, LiveClipper, detect_only, replay_vod  # noqa: E402
 from workers.live_clipper.profiles import PROFILES, get_profile  # noqa: E402
@@ -199,7 +206,8 @@ def _run_live(a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
 
     print(f"Live clipper [{a.profile}] -> {session}  watching: {', '.join(a.channels)}  "
           f"(max {slots} clip renders at once)\n"
-          "Clips are ranked and queued for YOUR review; nothing is auto-posted. Ctrl+C to stop.", flush=True)
+          + ("Auto-post is ON (see below). Ctrl+C to stop." if a.autopost else
+             "Clips are ranked and queued for YOUR review; nothing is auto-posted. Ctrl+C to stop."), flush=True)
     def run_one(c: LiveClipper) -> None:
         try:
             c.run(max_seconds=a.max_seconds)
@@ -211,6 +219,25 @@ def _run_live(a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     threads = [threading.Thread(target=run_one, args=(c,), daemon=True) for c in clippers]
     for t in threads:
         t.start()
+
+    poster = None
+    if a.autopost:
+        from workers.publisher.__main__ import _grok_or_none
+        from workers.publisher.autopost import AutoPostConfig, AutoPoster
+
+        session.mkdir(parents=True, exist_ok=True)
+        pcfg = AutoPostConfig.load(a.autopost, dry_run=a.autopost_dry_run or None)
+
+        def plog(msg: str) -> None:
+            with printer.lock:
+                print(msg, flush=True)
+
+        poster = AutoPoster(session, pcfg, grok=_grok_or_none(), log=plog)
+        mode = "DRY RUN" if pcfg.dry_run else "LIVE"
+        lanes = ", ".join(f"{n}={acc['lane']}" for n, acc in pcfg.accounts.items())
+        plog(f"AUTOPOST {mode}: {lanes}, {pcfg.per_account_per_day}/day each, veto {pcfg.veto_seconds:.0f}s, "
+             f"FIRST lane posts {pcfg.first_lane_media}s. Hold a clip: python -m workers.publisher hold {session} <clip_id>")
+        threading.Thread(target=poster.run, kwargs={"every": 5.0}, daemon=True).start()
 
     def combined() -> list[dict]:
         rows = [row for c in clippers for row in c.leaderboard()]
@@ -228,6 +255,11 @@ def _run_live(a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
         stop.set()
         for t in threads:
             t.join(timeout=120)
+    if poster:
+        poster.stop_event.set()
+        (session / "leaderboard.json").write_text(json.dumps(combined(), indent=2), encoding="utf-8")
+        for r in poster.tick():  # last pass so clips finished at stream end still get posted
+            poster.log(f"autopost: {r['status']} {r['clip_id']} -> {r.get('account')} {r.get('summary', '')}")
     board = combined()
     session.mkdir(parents=True, exist_ok=True)
     (session / "leaderboard.json").write_text(json.dumps(board, indent=2), encoding="utf-8")
@@ -251,6 +283,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="max clips rendering at once across all channels (default: CPU cores / 2)")
     p_live.add_argument("--max-seconds", type=float, default=None, help="stop after N seconds")
     p_live.add_argument("--retain", type=float, default=1800.0, help="keep only the last N seconds of segments")
+    p_live.add_argument("--autopost", metavar="ACCOUNTS_JSON", help="auto-post the best clips (see workers/publisher)")
+    p_live.add_argument("--autopost-dry-run", action="store_true", help="log what would be posted, post nothing")
     p_live.add_argument("--simulate-video", default=None, help="replay this file as if it were live")
     p_live.add_argument("--simulate-chat", default=None, help="replay this chat.jsonl (ts from 0) in real time")
     _add_tuning(p_live)

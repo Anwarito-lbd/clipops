@@ -21,6 +21,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+def streamlink_cmd(explicit: str | None = None) -> list[str] | None:
+    """How to run streamlink: explicit path, on PATH, or `python -m streamlink` from this interpreter (venv)."""
+    import importlib.util
+    import sys
+
+    if explicit and explicit != "streamlink":
+        return [explicit]
+    found = shutil.which("streamlink")
+    if found:
+        return [found]
+    if importlib.util.find_spec("streamlink") is not None:
+        return [sys.executable, "-m", "streamlink"]
+    return None
+
+
 @dataclass
 class Segment:
     path: Path
@@ -39,7 +54,7 @@ class SegmentRecorder:
         segment_seconds: float = 10.0,
         retain_seconds: float | None = None,
         ffmpeg: str = "ffmpeg",
-        streamlink: str = "streamlink",
+        streamlink: str | None = None,
     ) -> None:
         if not (stream_url or source_file):
             raise ValueError("stream_url or source_file is required")
@@ -75,7 +90,7 @@ class SegmentRecorder:
             ]
             return None, ff
         sl = [
-            self.streamlink, "--stdout", "--twitch-disable-ads", "--twitch-low-latency",
+            *(streamlink_cmd(self.streamlink) or ["streamlink"]), "--stdout", "--twitch-disable-ads", "--twitch-low-latency",
             "--hls-live-edge", "2", "--retry-streams", "5", "--retry-open", "3",
             self.stream_url, self.quality,
         ]
@@ -84,7 +99,7 @@ class SegmentRecorder:
 
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> None:
-        if self.stream_url and not shutil.which(self.streamlink):
+        if self.stream_url and not streamlink_cmd(self.streamlink):
             raise RuntimeError("streamlink not found — `pip install streamlink`")
         sl_cmd, ff_cmd = self.build_commands()
         if sl_cmd:
@@ -187,7 +202,7 @@ def grab_frame(
     at: float = 0.0,
     quality: str = "best",
     ffmpeg: str = "ffmpeg",
-    streamlink: str = "streamlink",
+    streamlink: str | None = None,
 ) -> dict:
     """Save one frame of a live channel (or local file) with a 10 % grid + labels for measuring facecams.
 
@@ -197,7 +212,10 @@ def grab_frame(
         inp = ["-ss", str(at), "-i", source]
     else:
         url = source if "://" in source else f"https://www.twitch.tv/{source}"
-        hls = subprocess.run([streamlink, "--stream-url", url, quality], capture_output=True, text=True, timeout=60)
+        cmd = streamlink_cmd(streamlink)
+        if not cmd:
+            raise RuntimeError("streamlink not found — `pip install streamlink`")
+        hls = subprocess.run([*cmd, "--stream-url", url, quality], capture_output=True, text=True, timeout=60)
         stream = hls.stdout.strip().splitlines()[-1] if hls.stdout.strip() else ""
         if hls.returncode != 0 or "://" not in stream:
             raise RuntimeError(f"could not open {url} (offline?): {(hls.stderr or hls.stdout)[-300:]}")

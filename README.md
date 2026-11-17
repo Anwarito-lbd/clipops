@@ -54,11 +54,12 @@ Reproduce from scratch with `.venv\Scripts\python.exe scripts/build_podcast_exam
 
 ## Live Clipper: Clip Streams While They're Still Live (GTA 6 ready)
 
-`workers/live_clipper/` records a live Twitch stream with Streamlink and counts chat every 10 s. When chat explodes, it cuts the moment, adds Whisper captions, renders 9:16, ranks the clip 0–100 and writes a post kit (title, hook, hashtags). It's built to be **first** (spike fires mid-bucket, 2 s segments, uncaptioned draft first) and to surface the **best** clips (live leaderboard across several streamers). Clips are queued for review; posting stays manual.
+`workers/live_clipper/` records a live Twitch stream with Streamlink and counts chat every 10 s. When chat explodes, it cuts the moment, adds Whisper captions, renders 9:16, ranks the clip 0–100 and writes a post kit (title, hook, hashtags). It's built to be **first** (spike fires mid-bucket, 2 s segments, uncaptioned draft first) and to surface the **best** clips (live leaderboard across several streamers). By default clips are queued for review. **Opt-in auto-posting** (`--autopost accounts.json`, `workers/publisher/`) posts to YouTube Shorts, TikTok and Instagram Reels across two accounts. Every post goes through gates first: Grok writes the copy and safety-reviews the clip, plus a veto window, holds, duplicate checks and daily quotas. See [`vault/AutoPosting.md`](vault/AutoPosting.md) for which platforms can post publicly before your API audits pass.
 
 ```bash
-pip install streamlink faster-whisper
-export TWITCH_CLIENT_ID=... TWITCH_CLIENT_SECRET=...      # free dev.twitch.tv app, only needed for scout
+scripts/setup_live_clipper.sh          # Windows: powershell -ExecutionPolicy Bypass -File scripts\setup_live_clipper.ps1
+python -m workers.publisher doctor      # every tool, key and token, with the fix for each
+python -m workers.publisher grok-test   # Grok writes + reviews a sample post
 python -m workers.live_clipper scout                        # who's live in Grand Theft Auto VI, by viewers
 python -m workers.live_clipper snapshot kaicenat darkviperau   # grid frames to measure facecam boxes
 python -m workers.live_clipper live --wave au --scout 3 --profile gta6 --layout split \
@@ -66,6 +67,10 @@ python -m workers.live_clipper live --wave au --scout 3 --profile gta6 --layout 
 python -m workers.live_clipper live --wave us --profile gta6 --layout split \
     --streamers workers/live_clipper/gta6_streamers.json      # Kai Cenat, IShowSpeed, Lacy's marathon crew
 python -m workers.live_clipper plan storage/live/<session>  # 2 accounts x 10 posts/day: FIRST lane + BEST lane
+# auto-post (rehearse with --autopost-dry-run first)
+python -m workers.live_clipper live --wave us --profile gta6 --layout split \
+    --streamers workers/live_clipper/gta6_streamers.json --autopost accounts.json
+python -m workers.publisher hold storage/live/<session> <clip_id>   # stop one post (veto window)
 ```
 
 Also: `replay VIDEO CHAT.jsonl` (clip a finished VOD), `spikes CHAT.jsonl` (threshold tuning), `live sim --simulate-video … --simulate-chat …` (real-time test without Twitch). The GTA 6 playbook, moment taxonomy and spike math live in the brain: [`vault/GTA6.md`](vault/GTA6.md), [`vault/GTA6Moments.md`](vault/GTA6Moments.md), [`vault/LiveClipping.md`](vault/LiveClipping.md).

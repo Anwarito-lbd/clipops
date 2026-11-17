@@ -301,3 +301,13 @@ def test_gta6_streamers_file_has_waves_and_known_channels():
     assert {"kaicenat", "ishowspeed", "lacy", "darkviperau"} <= set(cfg["channels"])
     for wave in cfg["waves"].values():
         assert all(ch in cfg["channels"] for ch in wave)
+
+
+def test_planner_sends_stale_moments_to_best_lane():
+    from workers.live_clipper.planner import plan_posts
+
+    now = 1_800_000_000.0
+    rows = [_row("fresh", "kaicenat", 80, "chase", now - 120), _row("stale", "lacy", 95, "glitch", now - 3600)]
+    plan = plan_posts(rows, [], now=now)
+    assert [r["clip_id"] for r in plan["first_lane"]] == ["fresh"]
+    assert [r["clip_id"] for r in plan["best_lane"]] == ["stale"]

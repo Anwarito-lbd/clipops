@@ -3,8 +3,10 @@
 Two lanes, never the same clip twice (platforms down-rank duplicate uploads, and ClipOps'
 compliance gate forbids identical versions):
 
-  FIRST lane (account A) — speed. The single best clip of each *moment* across all streamers,
-                           posted as the draft the moment it scores above the cut-off.
+  FIRST lane (account A) — speed. The single best clip of each *fresh* moment (detected in the
+                           last `first_max_age_seconds`, default 15 min) across all streamers,
+                           posted as the draft the moment it scores above the cut-off. Once a
+                           moment is stale, being first no longer matters, so it goes to lane B.
   BEST lane  (account B) — quality. Captioned finals, highest score first, rotating streamers and
                            moment types so the feed never repeats itself. Includes other streamers'
                            reactions to moments lane A already covered (different content, same hype).
@@ -66,6 +68,7 @@ def plan_posts(
     first_min_score: float = 60.0,
     best_min_score: float = 45.0,
     same_moment_seconds: float = 90.0,
+    first_max_age_seconds: float = 900.0,
     allow_spoilers: bool = False,
     now: float | None = None,
 ) -> dict:
@@ -88,7 +91,8 @@ def plan_posts(
         if any(r["clip_id"] in done for r in g):
             continue
         top = g[0]
-        if (top.get("score") or 0) >= first_min_score:
+        fresh = now - (top.get("detected_at") or 0) <= first_max_age_seconds
+        if fresh and (top.get("score") or 0) >= first_min_score:
             first.append({**top, "account": first_acc, "post": "draft" if not top.get("clip") else "final",
                           "same_moment_streamers": [r.get("streamer") for r in g[1:]]})
     first.sort(key=lambda r: r.get("score") or 0, reverse=True)

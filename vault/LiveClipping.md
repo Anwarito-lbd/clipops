@@ -49,4 +49,6 @@ python -m workers.live_clipper spikes storage/live/<session>/<channel>/chat.json
 python -m workers.live_clipper replay vod.mp4 chat.jsonl --profile gta6 --streamer kaicenat
 ```
 
+Posting: manual by default; opt-in auto-posting with safety gates in [[AutoPosting]].
+
 Back to [[Home]].

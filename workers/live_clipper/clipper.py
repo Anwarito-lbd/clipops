@@ -196,6 +196,12 @@ def process_spike(
             files["draft"] = str(draft)
             manifest["files"] = dict(files)
             manifest["latency"]["spike_to_draft"] = round(time.time() - ref, 2)
+            # Provisional chat-only rank so the leaderboard (and auto-poster) see the clip right away.
+            manifest["post"] = {"hook": suggested_caption(None, spike.top_terms, None, spike.top_messages)}
+            rerank(manifest, sustain or {"seconds": 0.0, "messages": spike.count, "final": False,
+                                         "categories": spike.categories}, profile)
+            manifest["stage"] = "draft"
+            (d / "clip.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
             if on_draft:
                 on_draft(dict(manifest))
         raw = d / "raw.mp4"
@@ -221,10 +227,11 @@ def process_spike(
         files["thumb"] = str(d / "thumb.jpg")
         manifest["files"] = files
         hook = suggested_caption(manifest.get("captions"), spike.top_terms, peak, spike.top_messages)
-        manifest["post"] = {"hook": hook}
+        manifest["post"] = {"hook": hook}  # transcript-based hook replaces the chat-based draft hook
         rerank(manifest, sustain or {"seconds": 0.0, "messages": spike.count, "final": False,
                                      "categories": spike.categories}, profile)
         manifest["latency"]["spike_to_final"] = round(time.time() - ref, 2)
+        manifest["stage"] = "final"
         _write_post(d, manifest)
     except (subprocess.CalledProcessError, OSError, ValueError) as exc:
         stderr = getattr(exc, "stderr", "") or ""
@@ -298,15 +305,23 @@ class LiveClipper:
                 manifest = process_spike(
                     spike=spike, detect_offset=offset, segments=self.rec.segments(), clips_dir=self.clips_dir,
                     cfg=self.cfg, source=self.source, streamer=self.streamer, detected_wall=spike.detected_at,
-                    sustain=sustain, on_draft=lambda m: self.on_event("draft", m),
+                    sustain=sustain, on_draft=lambda m, sp=spike: self._on_draft(m, sp),
                 )
             manifest["ready_while_live"] = self.rec.alive()
             with self._lock:
                 self._spikes[manifest["clip_id"]] = spike
+                self.clips = [c for c in self.clips if c["clip_id"] != manifest["clip_id"]]  # drop the draft entry
                 self.clips.append(manifest)
                 self._save(manifest)
             self.on_event("clip", manifest)
             self._write_status()
+
+    def _on_draft(self, manifest: dict, spike: Spike) -> None:
+        with self._lock:
+            self._spikes[manifest["clip_id"]] = spike
+            self.clips.append(manifest)
+        self.on_event("draft", manifest)
+        self._write_status()
 
     def _save(self, manifest: dict) -> None:
         d = self.clips_dir / manifest["clip_id"]
