@@ -282,3 +282,22 @@ def test_planner_splits_lanes_dedupes_same_moment_and_respects_quota(tmp_path):
     assert plan2["quota_left"] == {"A": 0, "B": 1}
     assert plan2["first_lane"] == [] and len(plan2["best_lane"]) == 1
     assert all(r["clip_id"] not in {"k1", "s1", "l1"} or r["account"] == "B" for r in plan2["best_lane"])
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg not installed")
+def test_snapshot_grid_frame_from_local_file(tmp_path):
+    from workers.live_clipper.recorder import grab_frame
+
+    vid = tmp_path / "v.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1920x1080:duration=2",
+                    "-c:v", "libx264", "-preset", "ultrafast", str(vid)], check=True)
+    out = grab_frame(str(vid), tmp_path / "v.png", at=1.0)
+    assert Path(out["png"]).stat().st_size > 0
+
+
+def test_gta6_streamers_file_has_waves_and_known_channels():
+    cfg = json.loads((ROOT / "workers" / "live_clipper" / "gta6_streamers.json").read_text())
+    assert set(cfg["waves"]) == {"au", "us"}
+    assert {"kaicenat", "ishowspeed", "lacy", "darkviperau"} <= set(cfg["channels"])
+    for wave in cfg["waves"].values():
+        assert all(ch in cfg["channels"] for ch in wave)

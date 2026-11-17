@@ -17,6 +17,21 @@ Profile: `--profile gta6` (`workers/live_clipper/profiles.py`).
 - Consoles at launch: PS5 and Xbox Series X|S.
 - Release date was moved twice (2025 → May 26 2026 → **November 19 2026**). Rockstar: **midnight local time**. US stores key to Eastern time, so the US unlock is **12:00 AM ET Nov 19 = 9:00 PM PT Nov 18**. New Zealand unlocks first. No PC version at launch.
 
+## Two Waves: Australia First, Then the US
+
+Rockstar unlocks at **midnight local time**, so New Zealand and Australia play **12–18 hours before the US**:
+
+| Wave | Unlock | ET equivalent | Channels (`workers/live_clipper/gta6_streamers.json`) |
+| --- | --- | --- | --- |
+| `au` | midnight AEDT / NZDT, Nov 19 | ~6 AM (NZ) to 8 AM (AU) ET, **Nov 18** | DarkViperAU (Australian GTA speedrunner, launch stream), HeyImZed, plus `--scout` |
+| `us` | midnight ET, Nov 19 | Kai live 8 PM ET Nov 18, Speed 9 PM ET | kaicenat, ishowspeed, lacy, clix, marlon, jasontheween, stableronaldo |
+
+**The AU wave is your best shot at being first.** Every "first time" moment (first car, first wanted level, first look at Vice City) happens there half a day before US streamers reach it. Most English clip pages are asleep or waiting for Kai. Post the best AU moments on account A (FIRST lane) before the US wave starts.
+
+- During the AU wave, `--scout` mostly surfaces AU/NZ channels, since they're the only ones legitimately playing.
+- **Skip streamers using the "New Zealand time-zone trick"** to unlock early on Xbox. A streamer was reportedly warned about a ban for it, and clips of a stream that gets struck can be taken down with it. Clip genuine AU/NZ streamers.
+- Reports conflict on whether Rockstar set a streaming embargo tied to the first unlock, so check Rockstar's channels on the morning.
+
 ## Who To Clip (announced as of Nov 16–17 2026; re-check on the night)
 
 | Streamer | Platform | Plan | Clipper support |
@@ -51,9 +66,12 @@ Don't hard-code the list: `python -m workers.live_clipper scout` shows who is ac
 1. **Day before:** `pip install streamlink faster-whisper`. Run any command once with captions on so the Whisper model downloads ahead of time. Test against one live channel for 10 minutes.
 2. **Build `streamers.json`** with each streamer's facecam box (x, y, w, h as fractions of the frame) so `--layout split` puts their face on top and gameplay below. Reaction-led clips perform best and are the safest to post.
 3. **Pick 3–6 channels** (`scout`) you can actually review. Recording is cheap (stream copy); rendering and Whisper aren't. On a GPU use `--device cuda --model small`.
-4. **Launch (from 8 PM EST Nov 18):** `python -m workers.live_clipper live kaicenat lacy --scout 3 --language en --profile gta6 --layout split --streamers streamers.json`
-5. **Review loop:** watch the `BEST CLIPS` leaderboard (`leaderboard.json`). Post high-scoring, spoiler-free drafts at once. Wait for the captioned final on the rest. Use `post.txt` for the title, hook and hashtags.
-6. **After hour 1:** re-tune with `spikes` on the logged chat if a channel is over- or under-firing.
+4. **Measure facecams** once each stream is live: `python -m workers.live_clipper snapshot darkviperau kaicenat …`. Read each box off the yellow 10 % grid into `"facecam": [x, y, w, h]` in `gta6_streamers.json`.
+5. **AU wave (≈6–8 AM ET Nov 18):** `python -m workers.live_clipper live --wave au --scout 3 --language en --profile gta6 --layout split --streamers workers/live_clipper/gta6_streamers.json`
+6. **US wave (from 8 PM ET Nov 18):** `python -m workers.live_clipper live --wave us --profile gta6 --layout split --streamers workers/live_clipper/gta6_streamers.json`. You can start it early: offline channels wait (Streamlink retries) and are picked up when they go live.
+   - 7+ channels at once: renders share `--render-slots` (default: CPU cores / 2) so the first clips finish fast instead of all of them crawling. Lacy's crew often share moments; `plan` collapses those into one FIRST-lane post.
+7. **Review loop:** watch the `BEST CLIPS` leaderboard (`leaderboard.json`). Post high-scoring, spoiler-free drafts at once. Wait for the captioned final on the rest. Use `post.txt` for the title, hook and hashtags.
+8. **After hour 1:** re-tune with `spikes` on the logged chat if a channel is over- or under-firing.
 
 ## Posting Rules
 

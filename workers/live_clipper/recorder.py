@@ -177,3 +177,39 @@ def read_segment_list(list_path: str | Path) -> list[Segment]:
         base = out[0].start
         out = [Segment(s.path, s.start - base, s.end - base) for s in out]
     return out
+
+
+def grab_frame(
+    source: str,
+    out_png: str | Path,
+    *,
+    grid: bool = True,
+    at: float = 0.0,
+    quality: str = "best",
+    ffmpeg: str = "ffmpeg",
+    streamlink: str = "streamlink",
+) -> dict:
+    """Save one frame of a live channel (or local file) with a 10 % grid + labels for measuring facecams.
+
+    `source` is a Twitch channel name, a stream URL, or a local video path.
+    """
+    if Path(source).exists():
+        inp = ["-ss", str(at), "-i", source]
+    else:
+        url = source if "://" in source else f"https://www.twitch.tv/{source}"
+        hls = subprocess.run([streamlink, "--stream-url", url, quality], capture_output=True, text=True, timeout=60)
+        stream = hls.stdout.strip().splitlines()[-1] if hls.stdout.strip() else ""
+        if hls.returncode != 0 or "://" not in stream:
+            raise RuntimeError(f"could not open {url} (offline?): {(hls.stderr or hls.stdout)[-300:]}")
+        inp = ["-i", stream]
+    vf = "scale=1280:720"
+    if grid:
+        vf += ",drawgrid=w=iw/10:h=ih/10:t=1:c=yellow@0.7"
+        labels = []
+        for i in range(1, 10):
+            labels.append(f"drawtext=text='{i / 10:.1f}':x={i * 128 + 3}:y=4:fontsize=16:fontcolor=yellow:box=1:boxcolor=black@0.6")
+            labels.append(f"drawtext=text='{i / 10:.1f}':x=4:y={i * 72 + 3}:fontsize=16:fontcolor=yellow:box=1:boxcolor=black@0.6")
+        vf += "," + ",".join(labels)
+    subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-y", *inp, "-frames:v", "1", "-vf", vf, str(out_png)],
+                   check=True, capture_output=True, text=True, timeout=90)
+    return {"source": source, "png": str(out_png)}

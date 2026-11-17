@@ -13,6 +13,7 @@ Clips land in `<out>/clips/<id>/` with status PENDING_REVIEW plus a post kit
 
 from __future__ import annotations
 
+import contextlib
 import json
 import queue
 import subprocess
@@ -248,8 +249,12 @@ class LiveClipper:
         streamer: str = "",
         on_event: Callable[[str, dict], None] | None = None,
         stop_event: threading.Event | None = None,
+        render_slots: threading.Semaphore | None = None,
     ) -> None:
         self.rec, self.chat, self.cfg = recorder, chat, cfg or ClipperConfig()
+        # Shared across channels: caps concurrent FFmpeg/Whisper work so the first clips finish fast
+        # instead of every channel's renders slowing each other down.
+        self.render_slots = render_slots
         self.profile = get_profile(self.cfg.profile)
         self.out = Path(out_dir)
         self.clips_dir = self.out / "clips"
@@ -289,11 +294,12 @@ class LiveClipper:
                 time.sleep(0.2)
             with self._lock:
                 sustain = self.detector.sustain(spike) if self.detector else None
-            manifest = process_spike(
-                spike=spike, detect_offset=offset, segments=self.rec.segments(), clips_dir=self.clips_dir,
-                cfg=self.cfg, source=self.source, streamer=self.streamer, detected_wall=spike.detected_at,
-                sustain=sustain, on_draft=lambda m: self.on_event("draft", m),
-            )
+            with self.render_slots or contextlib.nullcontext():
+                manifest = process_spike(
+                    spike=spike, detect_offset=offset, segments=self.rec.segments(), clips_dir=self.clips_dir,
+                    cfg=self.cfg, source=self.source, streamer=self.streamer, detected_wall=spike.detected_at,
+                    sustain=sustain, on_draft=lambda m: self.on_event("draft", m),
+                )
             manifest["ready_while_live"] = self.rec.alive()
             with self._lock:
                 self._spikes[manifest["clip_id"]] = spike

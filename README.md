@@ -60,8 +60,11 @@ Reproduce from scratch with `.venv\Scripts\python.exe scripts/build_podcast_exam
 pip install streamlink faster-whisper
 export TWITCH_CLIENT_ID=... TWITCH_CLIENT_SECRET=...      # free dev.twitch.tv app, only needed for scout
 python -m workers.live_clipper scout                        # who's live in Grand Theft Auto VI, by viewers
-python -m workers.live_clipper live kaicenat lacy --scout 3 --profile gta6 --layout split \
-    --streamers workers/live_clipper/streamers.example.json
+python -m workers.live_clipper snapshot kaicenat darkviperau   # grid frames to measure facecam boxes
+python -m workers.live_clipper live --wave au --scout 3 --profile gta6 --layout split \
+    --streamers workers/live_clipper/gta6_streamers.json      # Australia/NZ unlock ~12-18 h before the US
+python -m workers.live_clipper live --wave us --profile gta6 --layout split \
+    --streamers workers/live_clipper/gta6_streamers.json      # Kai Cenat, IShowSpeed, Lacy's marathon crew
 python -m workers.live_clipper plan storage/live/<session>  # 2 accounts x 10 posts/day: FIRST lane + BEST lane
 ```
 

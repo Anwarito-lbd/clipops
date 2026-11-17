@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
 import threading
 import time
@@ -146,7 +148,14 @@ def _run_live(a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     printer = Printer()
     stop = threading.Event()
     session = Path(a.out_dir or f"storage/live/{a.profile}-{time.strftime('%Y%m%d-%H%M%S')}")
-    streamers = json.loads(Path(a.streamers).read_text(encoding="utf-8")) if a.streamers else {}
+    streamers_file = json.loads(Path(a.streamers).read_text(encoding="utf-8")) if a.streamers else {}
+    # Either a flat {channel: {...}} map or {"channels": {...}, "waves": {"au": [...], "us": [...]}}
+    streamers = streamers_file.get("channels", streamers_file)
+    if a.wave:
+        waves = streamers_file.get("waves") or {}
+        if a.wave not in waves:
+            ap.error(f"--wave {a.wave!r} not in {a.streamers} (have: {sorted(waves)})")
+        a.channels = list(dict.fromkeys([*a.channels, *waves[a.wave]]))
     if a.scout and not a.simulate_video:
         from workers.live_clipper.scout import TwitchScout, pick_channels
 
@@ -159,6 +168,8 @@ def _run_live(a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
     if not a.channels:
         ap.error("give channel names and/or --scout N")
     clippers: list[LiveClipper] = []
+    slots = a.render_slots or max(1, (os.cpu_count() or 2) // 2)
+    render_slots = threading.Semaphore(slots)
 
     if a.simulate_video:
         cfg = _cfg(a)
@@ -173,7 +184,7 @@ def _run_live(a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
 
         clippers.append(LiveClipper(recorder=rec, chat=chat_source, out_dir=session / "sim", cfg=cfg,
                                     source=f"simulated:{a.simulate_video}", streamer=a.channels[0],
-                                    on_event=printer, stop_event=stop))
+                                    on_event=printer, stop_event=stop, render_slots=render_slots))
     else:
         for ch in a.channels:
             if "://" in ch:
@@ -184,11 +195,20 @@ def _run_live(a: argparse.Namespace, ap: argparse.ArgumentParser) -> int:
                                   quality=a.quality, segment_seconds=cfg.segment_seconds, retain_seconds=a.retain)
             clippers.append(LiveClipper(recorder=rec, chat=TwitchChatReader(name).messages, out_dir=session / name,
                                         cfg=cfg, source=f"https://www.twitch.tv/{name}", streamer=name,
-                                        on_event=printer, stop_event=stop))
+                                        on_event=printer, stop_event=stop, render_slots=render_slots))
 
-    print(f"Live clipper [{a.profile}] -> {session}  watching: {', '.join(a.channels)}\n"
+    print(f"Live clipper [{a.profile}] -> {session}  watching: {', '.join(a.channels)}  "
+          f"(max {slots} clip renders at once)\n"
           "Clips are ranked and queued for YOUR review; nothing is auto-posted. Ctrl+C to stop.", flush=True)
-    threads = [threading.Thread(target=c.run, kwargs={"max_seconds": a.max_seconds}, daemon=True) for c in clippers]
+    def run_one(c: LiveClipper) -> None:
+        try:
+            c.run(max_seconds=a.max_seconds)
+        except Exception as exc:  # one bad channel must not stop the others
+            with printer.lock:
+                sys.stdout.write(f"[{time.strftime('%H:%M:%S')}] [{c.streamer}] STOPPED: {exc}\n")
+                sys.stdout.flush()
+
+    threads = [threading.Thread(target=run_one, args=(c,), daemon=True) for c in clippers]
     for t in threads:
         t.start()
 
@@ -225,7 +245,10 @@ def main(argv: list[str] | None = None) -> int:
     p_live.add_argument("--language", default=None, help="scout filter, e.g. en")
     p_live.add_argument("--quality", default="best")
     p_live.add_argument("--out-dir", default=None)
-    p_live.add_argument("--streamers", help="JSON file with per-streamer settings (facecam boxes)")
+    p_live.add_argument("--streamers", help="JSON file with per-streamer settings (facecam boxes) and waves")
+    p_live.add_argument("--wave", help="add the channels of this wave from --streamers (e.g. au, us)")
+    p_live.add_argument("--render-slots", type=int, default=None,
+                        help="max clips rendering at once across all channels (default: CPU cores / 2)")
     p_live.add_argument("--max-seconds", type=float, default=None, help="stop after N seconds")
     p_live.add_argument("--retain", type=float, default=1800.0, help="keep only the last N seconds of segments")
     p_live.add_argument("--simulate-video", default=None, help="replay this file as if it were live")
@@ -245,6 +268,11 @@ def main(argv: list[str] | None = None) -> int:
     p_sp.add_argument("--chat-start", type=float, default=0.0)
     _add_tuning(p_sp)
 
+    p_snap = sub.add_parser("snapshot", help="grab a frame per channel with a grid to measure facecam boxes")
+    p_snap.add_argument("sources", nargs="+", help="Twitch channel names (or local video files)")
+    p_snap.add_argument("--out-dir", default="storage/snapshots")
+    p_snap.add_argument("--at", type=float, default=0.0, help="seek seconds (local files only)")
+
     p_sc = sub.add_parser("scout", help="list live channels in the GTA VI category by viewers")
     p_sc.add_argument("--top", type=int, default=20)
     p_sc.add_argument("--language", default=None)
@@ -261,6 +289,23 @@ def main(argv: list[str] | None = None) -> int:
     p_pl.add_argument("--account", help="account you posted --mark on")
 
     a = ap.parse_args(argv)
+
+    if a.cmd == "snapshot":
+        from workers.live_clipper.recorder import grab_frame
+
+        out = Path(a.out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        failed = 0
+        for src in a.sources:
+            name = Path(src).stem if Path(src).exists() else src.lower()
+            try:
+                res = grab_frame(src, out / f"{name}.png", at=a.at)
+                print(f"{name}: {res['png']}")
+            except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+                failed += 1
+                print(f"{name}: FAILED {exc}")
+        print('Read the facecam box off the yellow grid as fractions -> "facecam": [x, y, w, h] in your streamers file.')
+        return 1 if failed else 0
 
     if a.cmd == "scout":
         from workers.live_clipper.scout import GTA6_CATEGORY_NAMES, TwitchScout

@@ -1,0 +1,18 @@
+{
+  "_comment": "GTA 6 launch config. Waves: `live --wave au` (AU/NZ unlock first: ~6-8 AM ET Nov 18) and `live --wave us` (Kai Cenat 8 PM ET, IShowSpeed 9 PM ET Nov 18, US unlock midnight ET Nov 19). Logins are as announced Nov 16-17 2026; confirm with `scout` on the night. facecam = [x, y, w, h] fractions; fill them from `snapshot <channel>` once each stream is live. null = blur layout.",
+  "waves": {
+    "au": ["darkviperau", "heyimzed"],
+    "us": ["kaicenat", "ishowspeed", "lacy", "clix", "marlon", "jasontheween", "stableronaldo"]
+  },
+  "channels": {
+    "darkviperau": {"facecam": null, "note": "Australian GTA speedrunner, launch stream + giveaways"},
+    "heyimzed": {"facecam": null, "note": "Australian streamer; verify login with scout"},
+    "kaicenat": {"facecam": null, "note": "Full playthrough, live Nov 18 8 PM ET"},
+    "ishowspeed": {"facecam": null, "note": "YouTube + Twitch, 9 PM ET Nov 18, then 10-12 h/day"},
+    "lacy": {"facecam": null, "note": "Organising week-long 24/7 marathon"},
+    "clix": {"facecam": null, "note": "Lacy marathon"},
+    "marlon": {"facecam": null, "note": "Lacy marathon"},
+    "jasontheween": {"facecam": null, "note": "Lacy marathon"},
+    "stableronaldo": {"facecam": null, "note": "Lacy marathon"}
+  }
+}
